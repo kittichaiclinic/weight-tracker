@@ -323,7 +323,8 @@ textarea{resize:vertical;min-height:56px}
 
 <script>
 const UK = "wt_v4_url";
-let gasUrl = localStorage.getItem(UK)||"";
+const DEFAULT_URL = "https://script.google.com/macros/s/AKfycbxSuRw6QoX1GLG0SOPKANGhSNAnJ5JE14f98HllG8bnC92LwlK91LaVYkfXrwajVHMo/exec";
+let gasUrl = localStorage.getItem(UK) || DEFAULT_URL;
 let patients = [], patientMode = false;
 let currentName = "";
 let wChart = null, mChart = null;
