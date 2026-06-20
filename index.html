@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Weight Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --pk:#c45a7e;--pk2:#fdf0f5;--pk3:#a03060;
+  --pu:#7060b8;--pu2:#eeeaf8;
+  --gr:#3a9a70;--gr2:#e6f5ed;
+  --am:#b87030;--am2:#fdf3e3;
+  --rd:#c85050;--bl:#3a70b8;--bl2:#e8f0fb;
+  --bd:#e4d8ec;--tx:#242424;--tx2:#686868;--tx3:#aaa;
+  --bg:#f7f4fb;--cd:#fff;--rad:14px;
+  --sh:0 2px 16px rgba(140,100,170,.09);
+}
+body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
+
+/* TOP */
+.topbar{background:linear-gradient(135deg,#de94b4,var(--pk3));color:#fff;
+  padding:13px 16px 11px;display:flex;align-items:center;gap:10px;
+  position:sticky;top:0;z-index:200;box-shadow:0 2px 14px rgba(160,40,100,.22)}
+.topbar h1{font-size:16px;font-weight:700;flex:1;line-height:1.3}
+.badge{background:rgba(255,255,255,.22);padding:3px 10px;border-radius:99px;
+  font-size:11px;white-space:nowrap}
+
+/* NAV */
+.nav{display:flex;background:#fff;border-top:1px solid var(--bd);
+  position:fixed;bottom:0;left:0;right:0;z-index:100;
+  box-shadow:0 -2px 10px rgba(0,0,0,.06)}
+.nav button{flex:1;padding:9px 2px 11px;border:none;background:none;
+  font-size:10px;color:var(--tx2);cursor:pointer;font-family:'Sarabun',sans-serif;
+  border-top:2.5px solid transparent;transition:all .2s;line-height:1.5}
+.nav button.active{color:var(--pk3);border-top-color:var(--pk3);font-weight:700}
+.nav button .ni{font-size:19px;display:block;margin-bottom:1px}
+
+/* MAIN */
+.main{padding:14px 14px 82px;max-width:540px;margin:0 auto}
+.page{display:none}.page.active{display:block}
+
+/* CARD */
+.card{background:var(--cd);border-radius:var(--rad);box-shadow:var(--sh);
+  border:1px solid var(--bd);padding:15px;margin-bottom:12px}
+.ctitle{font-size:13px;font-weight:700;color:var(--pk3);
+  margin-bottom:13px;display:flex;align-items:center;gap:6px}
+
+/* HOME TABS */
+.htabs{display:flex;background:#fff;border-radius:12px;border:1px solid var(--bd);
+  overflow:hidden;margin-bottom:13px;box-shadow:var(--sh)}
+.htab{flex:1;padding:11px 4px;border:none;font-size:12.5px;font-weight:600;
+  font-family:'Sarabun',sans-serif;cursor:pointer;border-right:1px solid var(--bd);
+  transition:all .2s;background:#fff;color:var(--tx2)}
+.htab:last-child{border-right:none}
+.htab.on{background:var(--pk3);color:#fff}
+
+/* FORM */
+.fg{margin-bottom:11px}
+label{display:block;font-size:12px;color:var(--tx2);margin-bottom:4px;font-weight:600}
+input,select,textarea{width:100%;padding:10px 11px;border:1.5px solid var(--bd);
+  border-radius:9px;font-size:14px;font-family:'Sarabun',sans-serif;
+  background:#fff;color:var(--tx);transition:border-color .2s;-webkit-appearance:none}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--pk)}
+textarea{resize:vertical;min-height:56px}
+.r2{display:flex;gap:8px}.r2 .fg{flex:1}
+.r3{display:flex;gap:6px}.r3 .fg{flex:1}
+
+/* CHIPS */
+.chips{display:flex;gap:5px;flex-wrap:wrap}
+.chip{padding:6px 11px;border:1.5px solid var(--bd);border-radius:8px;
+  font-size:13px;cursor:pointer;background:#f7f4fb;color:var(--tx);
+  font-family:'Sarabun',sans-serif;transition:all .15s}
+.chip.on{background:var(--pk2);border-color:var(--pk);color:var(--pk3);font-weight:700}
+
+/* BTN */
+.btn{width:100%;padding:13px;border:none;border-radius:10px;
+  font-size:15px;font-weight:700;cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .15s}
+.btn:active{transform:scale(.98)}
+.btn-pk{background:linear-gradient(135deg,#de94b4,var(--pk3));color:#fff}
+.btn-gr{background:linear-gradient(135deg,#6ec898,#2a8a58);color:#fff}
+.btn-pu{background:linear-gradient(135deg,#a898e0,var(--pu));color:#fff}
+.btn-bl{background:linear-gradient(135deg,#78aae0,var(--bl));color:#fff}
+.btn-rd{background:linear-gradient(135deg,#e88080,var(--rd));color:#fff}
+.btn-sm{padding:8px 14px;font-size:12.5px;border-radius:8px;width:auto;font-weight:600}
+.btn-out{background:none;border:1.5px solid var(--bd);color:var(--tx2);
+  font-size:12px;padding:7px 12px;border-radius:8px;width:auto;cursor:pointer;
+  font-family:'Sarabun',sans-serif}
+
+/* STATS */
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}
+.sc{background:var(--cd);border-radius:12px;padding:12px;border:1px solid var(--bd);text-align:center}
+.slb{font-size:11px;color:var(--tx2);margin-bottom:3px}
+.sv{font-size:22px;font-weight:700}.su{font-size:11px;color:var(--tx2);margin-left:1px}
+.sg{color:var(--gr)}.sb{color:var(--rd)}.sn{color:var(--pu)}
+
+/* PROGRESS */
+.pbg{background:var(--bd);border-radius:99px;height:12px;overflow:hidden}
+.pfl{height:100%;border-radius:99px;background:linear-gradient(90deg,#de94b4,var(--pk3));transition:width .7s}
+.plb{display:flex;justify-content:space-between;font-size:12px;color:var(--tx2);margin-bottom:5px}
+
+/* CHART */
+.ch-wrap{position:relative;height:200px;margin-bottom:4px}
+
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl th{background:var(--pk2);color:var(--pk3);padding:8px 5px;text-align:center;font-weight:700}
+.tbl td{padding:7px 5px;text-align:center;border-bottom:1px solid var(--bd)}
+.tbl tr:last-child td{border-bottom:none}
+.cn{color:var(--gr);font-weight:700}.cp{color:var(--rd);font-weight:700}
+
+/* SECTION */
+.sh{display:flex;align-items:center;justify-content:space-between;
+  cursor:pointer;padding:4px 0;margin-bottom:10px;user-select:none}
+.sh h3{font-size:14px;font-weight:700;color:var(--pk3)}
+.st{font-size:12px;color:var(--tx2);transition:transform .3s}
+.st.open{transform:rotate(180deg)}
+.sb2{overflow:hidden;transition:max-height .35s ease}
+
+/* PATIENT CARD */
+.pt-card{background:var(--cd);border:1px solid var(--bd);border-radius:12px;
+  padding:13px 14px;margin-bottom:10px}
+.pt-top{display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:0}
+.pt-av{width:42px;height:42px;border-radius:50%;background:var(--pk);color:#fff;
+  font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.pt-link{margin-top:10px;padding-top:10px;border-top:1px solid var(--bd);
+  display:flex;align-items:center;gap:7px}
+.pt-link-txt{flex:1;background:var(--bl2);border-radius:7px;padding:6px 9px;
+  font-size:11px;color:var(--bl);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+
+/* MED */
+.med-row{display:flex;align-items:baseline;gap:10px;padding:8px 4px;
+  border-bottom:1px solid var(--bd);font-size:13px}
+.med-row:last-child{border-bottom:none}
+.med-no{color:var(--tx3);font-size:12px;min-width:22px}
+.med-name{flex:1;font-weight:500}
+.med-dose{color:var(--pk3);font-size:12px}
+.med-note{color:var(--am);font-size:12px}
+.med-edit-row{display:flex;gap:6px;margin-bottom:8px;align-items:center}
+.med-edit-row input{flex:1}
+.med-edit-row .del-btn{flex-shrink:0;width:32px;height:32px;border:none;background:var(--rd);
+  color:#fff;border-radius:7px;cursor:pointer;font-size:16px;display:flex;
+  align-items:center;justify-content:center}
+
+/* MEASURE TABS */
+.mtabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}
+.mtab{padding:6px 12px;border-radius:99px;border:1.5px solid var(--bd);
+  font-size:12px;cursor:pointer;font-family:'Sarabun',sans-serif;
+  background:#fff;color:var(--tx2);transition:all .2s}
+.mtab.on{background:var(--pu2);border-color:var(--pu);color:var(--pu);font-weight:700}
+
+/* SYMPTOM CARD */
+.sym-card{background:var(--cd);border:1px solid var(--bd);border-radius:11px;
+  padding:12px;margin-bottom:9px}
+.sym-dt{font-size:12px;font-weight:700;color:var(--pk3);margin-bottom:7px;
+  display:flex;align-items:center;gap:7px}
+.sym-tp{font-size:10px;padding:2px 7px;border-radius:99px;
+  background:var(--bl2);color:var(--bl);font-weight:700}
+.sym-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.sym-item .sk{font-size:10px;color:var(--tx2)}
+.sym-item .sv2{font-size:12px}
+.sym-note{font-size:12px;color:var(--tx);margin-top:7px;padding-top:7px;
+  border-top:1px solid var(--bd)}
+
+/* BODY COMP */
+.img-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:9px}
+.img-card{border-radius:10px;overflow:hidden;border:1px solid var(--bd);cursor:pointer}
+.img-card img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;background:#f0eaf5}
+.img-date{font-size:11px;color:var(--tx2);padding:5px 7px;text-align:center}
+.img-del{width:100%;padding:5px;border:none;background:#fff5f5;color:var(--rd);
+  font-size:11px;cursor:pointer;font-family:'Sarabun',sans-serif;border-top:1px solid var(--bd)}
+
+/* UPLOAD */
+.up-area{border:2.5px dashed var(--bd);border-radius:11px;padding:24px;
+  text-align:center;cursor:pointer;transition:border-color .2s;margin-bottom:11px}
+.up-area:hover,.up-area.drag{border-color:var(--pk)}
+.up-prev{width:100%;border-radius:9px;margin-bottom:11px;display:none}
+
+/* LIGHTBOX */
+.lb{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:999;
+  display:none;align-items:center;justify-content:center;padding:20px}
+.lb img{max-width:100%;max-height:88vh;border-radius:9px;object-fit:contain}
+.lb-x{position:absolute;top:14px;right:16px;color:#fff;font-size:26px;
+  cursor:pointer;width:36px;height:36px;border-radius:50%;
+  background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center}
+
+/* MODAL */
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;
+  display:none;align-items:flex-end;justify-content:center}
+.modal{background:#fff;border-radius:20px 20px 0 0;padding:20px 16px 30px;
+  width:100%;max-width:540px;max-height:90vh;overflow-y:auto}
+.modal-title{font-size:15px;font-weight:700;color:var(--pk3);margin-bottom:15px;
+  display:flex;align-items:center;justify-content:space-between}
+.modal-x{font-size:20px;cursor:pointer;color:var(--tx2);width:30px;height:30px;
+  border-radius:50%;background:#f5f5f5;display:flex;align-items:center;justify-content:center}
+
+/* BANNER */
+.banner{background:linear-gradient(135deg,var(--pk2),#fce0ee);
+  border:1.5px solid #f0b8d0;border-radius:12px;padding:13px;
+  margin-bottom:13px;text-align:center}
+.banner .bname{font-size:21px;font-weight:700;color:var(--pk3);margin-bottom:1px}
+.banner .bsub{font-size:12px;color:var(--tx2)}
+
+/* TOAST */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+  background:#333;color:#fff;padding:11px 20px;border-radius:99px;
+  font-size:14px;z-index:900;opacity:0;transition:opacity .3s;
+  pointer-events:none;white-space:nowrap;max-width:88vw;text-align:center}
+.toast.show{opacity:1}
+.toast.ok{background:#3a9a70}.toast.err{background:var(--rd)}
+
+/* LOADING */
+.ld{text-align:center;padding:28px;color:var(--tx2);font-size:14px}
+.spin{width:26px;height:26px;border:3px solid var(--bd);border-top-color:var(--pk);
+  border-radius:50%;animation:sp .7s linear infinite;margin:0 auto 10px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.srow{display:flex;align-items:center;justify-content:space-between;
+  padding:10px 0;border-bottom:1px solid var(--bd)}
+.srow:last-child{border-bottom:none}
+.info-box{background:var(--am2);border:1px solid #f0d090;border-radius:9px;
+  padding:10px;margin-bottom:11px;font-size:12px;color:#7a5010}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span style="font-size:22px">⚖️</span>
+  <h1 id="tb-title">Weight Tracker</h1>
+  <span class="badge" id="tb-badge">Staff</span>
+</div>
+
+<div class="main">
+
+<!-- HOME -->
+<div id="pg-home" class="page active">
+  <div class="htabs" id="htabs">
+    <button class="htab on" id="ht-pt" onclick="hTab('pt')">👥 ผู้ป่วย</button>
+    <button class="htab" id="ht-add" onclick="hTab('add')">➕ เพิ่มใหม่</button>
+    <button class="htab" id="ht-cfg" onclick="hTab('cfg')">⚙️ ตั้งค่า</button>
+  </div>
+
+  <!-- ผู้ป่วย -->
+  <div id="sec-pt">
+    <div id="pt-list"><div class="ld"><div class="spin"></div>กำลังโหลด...</div></div>
+  </div>
+
+  <!-- เพิ่มใหม่ -->
+  <div id="sec-add" style="display:none">
+    <div class="card">
+      <div class="ctitle">➕ เพิ่มผู้ป่วยใหม่</div>
+      <div class="fg"><label>👤 ชื่อ</label><input type="text" id="ad-name" placeholder="เช่น คุณเมย์"></div>
+      <div class="r2">
+        <div class="fg"><label>📅 วันเริ่ม</label><input type="date" id="ad-sd"></div>
+        <div class="fg"><label>⚖️ น้ำหนักเริ่ม (kg)</label><input type="number" id="ad-sw" placeholder="101" step="0.1"></div>
+      </div>
+      <div class="r2">
+        <div class="fg"><label>🎯 เป้าหมาย (kg)</label><input type="number" id="ad-gw" placeholder="75" step="0.1"></div>
+        <div class="fg"><label>📅 กำหนดวัน</label><input type="date" id="ad-gd"></div>
+      </div>
+      <div class="info-box">ระบบจะสร้าง Google Spreadsheet ใหม่ให้อัตโนมัติ</div>
+      <button class="btn btn-gr" onclick="submitAdd()">✅ สร้างผู้ป่วยใหม่</button>
+    </div>
+  </div>
+
+  <!-- ตั้งค่า -->
+  <div id="sec-cfg" style="display:none">
+    <div class="card">
+      <div class="ctitle">⚙️ GAS URL</div>
+      <div class="fg"><label>🔗 Web App URL</label>
+        <input type="url" id="cfg-url" placeholder="https://script.google.com/macros/s/.../exec"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-pk btn-sm" onclick="saveUrl()" style="flex:1">💾 บันทึก</button>
+        <button class="btn btn-pu btn-sm" onclick="testConn()" style="flex:1">🔌 ทดสอบ</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ctitle">ℹ️ สถานะ</div>
+      <div class="srow"><span>การเชื่อมต่อ</span><span id="cfg-conn" style="font-size:13px;color:var(--tx2)">-</span></div>
+      <div class="srow"><span>ผู้ป่วยทั้งหมด</span><span id="cfg-count" style="font-size:13px;color:var(--tx2)">-</span></div>
+    </div>
+    <div class="card">
+      <div class="ctitle" style="font-size:12px">📋 วิธีติดตั้ง</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:2.2">
+        1️⃣ สร้าง Google Sheet (Master)<br>
+        2️⃣ Extensions → Apps Script → วาง Code.gs<br>
+        3️⃣ Deploy → Web App → Execute: Me / Access: Anyone<br>
+        4️⃣ คัดลอก URL มาวางด้านบน
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FACT -->
+<div id="pg-fact" class="page"><div id="fact-v"></div></div>
+<!-- SYMPTOM -->
+<div id="pg-sym" class="page"><div id="sym-v"></div></div>
+<!-- MEASURE -->
+<div id="pg-meas" class="page"><div id="meas-v"></div></div>
+<!-- BODY COMP -->
+<div id="pg-body" class="page"><div id="body-v"></div></div>
+<!-- MED -->
+<div id="pg-med" class="page"><div id="med-v"></div></div>
+
+</div><!-- main -->
+
+<div class="nav" id="nav" style="display:none"></div>
+
+<!-- LIGHTBOX -->
+<div class="lb" id="lb" onclick="closeLb()">
+  <div class="lb-x">✕</div>
+  <img id="lb-img" src="">
+</div>
+
+<!-- MODAL -->
+<div class="modal-ov" id="modal">
+  <div class="modal" id="modal-body"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const UK = "wt_v4_url";
+let gasUrl = localStorage.getItem(UK)||"";
+let patients = [], patientMode = false;
+let currentName = "";
+let wChart = null, mChart = null;
+
+// ===== INIT =====
+window.onload = async () => {
+  const p = new URLSearchParams(location.search);
+  const pn = p.get("patient");
+  if (pn) {
+    patientMode = true;
+    currentName = decodeURIComponent(pn);
+    document.getElementById("tb-title").textContent = currentName;
+    document.getElementById("tb-badge").textContent = "คนไข้";
+    document.getElementById("htabs").style.display = "none";
+    buildNav(true);
+    document.querySelector(".main").style.paddingBottom = "82px";
+    if (gasUrl) renderPatientHome();
+    else { hTab("cfg"); toast("⚠️ กรุณาตั้งค่า URL ก่อน","err"); }
+  } else {
+    buildNav(false);
+    document.querySelector(".main").style.paddingBottom = "20px";
+    const u = document.getElementById("cfg-url");
+    if (u && gasUrl) u.value = gasUrl;
+    const today = new Date().toISOString().split("T")[0];
+    ["ad-sd"].forEach(id=>{const e=document.getElementById(id);if(e)e.value=today;});
+    if (gasUrl) {
+      // แสดง tab ผู้ป่วยก่อน (default)
+      hTab("pt");
+      document.getElementById("pt-list").innerHTML = '<div class="ld"><div class="spin"></div>กำลังโหลด...</div>';
+      const ok = await loadPatients();
+      if (ok) renderPtList();
+      else {
+        document.getElementById("pt-list").innerHTML = '<div class="ld">❌ โหลดไม่ได้ ลองไปที่แท็บ ⚙️ ตั้งค่า</div>';
+        toast("❌ โหลดรายชื่อไม่ได้","err");
+      }
+    } else {
+      hTab("cfg");
+    }
+  }
+};
+
+// ===== NAV =====
+function buildNav(patient) {
+  const nav = document.getElementById("nav");
+  if (patient) {
+    nav.style.display = "flex";
+    nav.innerHTML = `
+      <button class="active" onclick="gp('home',this)"><span class="ni">📊</span>ภาพรวม</button>
+      <button onclick="gp('fact',this)"><span class="ni">⚖️</span>น้ำหนัก</button>
+      <button onclick="gp('sym',this)"><span class="ni">📞</span>ติดตาม</button>
+      <button onclick="gp('meas',this)"><span class="ni">📏</span>สัดส่วน</button>
+      <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
+      <button onclick="gp('med',this)"><span class="ni">💊</span>ยา</button>`;
+  } else {
+    nav.style.display = "none";
+    nav.innerHTML = `
+      <button class="active" onclick="gp('fact',this)"><span class="ni">⚖️</span>น้ำหนัก</button>
+      <button onclick="gp('sym',this)"><span class="ni">📞</span>ติดตาม</button>
+      <button onclick="gp('meas',this)"><span class="ni">📏</span>สัดส่วน</button>
+      <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
+      <button onclick="gp('med',this)"><span class="ni">💊</span>ยา</button>
+      <button onclick="backHome()"><span class="ni">🏠</span>หน้าแรก</button>`;
+  }
+}
+
+function gp(name, btn) {
+  if (!patientMode && !currentName && name !== "home") { toast("⚠️ เลือกผู้ป่วยก่อน","err"); return; }
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
+  document.getElementById("pg-"+name).classList.add("active");
+  if (btn) btn.classList.add("active");
+  if (name==="fact") renderFact();
+  else if (name==="sym") renderSym();
+  else if (name==="meas") renderMeas();
+  else if (name==="body") renderBody();
+  else if (name==="med") renderMed();
+  else if (name==="home") { if(patientMode) renderPatientHome(); else backHome(); }
+}
+
+// ===== API =====
+async function api(data) {
+  const r = await fetch(gasUrl,{method:"POST",body:JSON.stringify(data)});
+  return r.json();
+}
+async function apiGet(params) {
+  const u = new URL(gasUrl);
+  Object.entries(params).forEach(([k,v])=>u.searchParams.set(k,v));
+  return (await fetch(u)).json();
+}
+
+// ===== PATIENTS =====
+async function loadPatients() {
+  try {
+    const r = await apiGet({action:"getPatients"});
+    if (r.success) {
+      patients = r.patients;
+      const c = document.getElementById("cfg-count");
+      if (c) c.textContent = patients.length+" คน";
+      const cc = document.getElementById("cfg-conn");
+      if (cc) cc.textContent = "✅ เชื่อมต่อสำเร็จ";
+      return true;
+    } else {
+      const cc = document.getElementById("cfg-conn");
+      if (cc) cc.textContent = "❌ "+r.message;
+      return false;
+    }
+  } catch(e) {
+    const cc = document.getElementById("cfg-conn");
+    if (cc) cc.textContent = "❌ "+e.message;
+    return false;
+  }
+}
+
+// ===== HOME TABS =====
+function hTab(t) {
+  ["pt","add","cfg"].forEach(k=>{
+    const s = document.getElementById("sec-"+k);
+    const b = document.getElementById("ht-"+k);
+    if(s) s.style.display = k===t?"block":"none";
+    if(b) b.classList.toggle("on", k===t);
+  });
+  if (t==="pt" && patients.length > 0) renderPtList();
+  if (t==="cfg") {
+    const u = document.getElementById("cfg-url");
+    if (u && gasUrl) u.value = gasUrl;
+  }
+}
+
+function renderPtList() {
+  const el = document.getElementById("pt-list");
+  if (!patients.length) {
+    el.innerHTML=`<div class="ld"><div style="font-size:36px;margin-bottom:10px">👤</div>
+      ยังไม่มีผู้ป่วย กดแท็บ ➕ เพิ่มใหม่</div>`; return;
+  }
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px">
+      <div style="flex:1">
+        <input id="pt-search" type="text" placeholder="🔍 ค้นหาชื่อผู้ป่วย..."
+          style="width:100%;padding:10px 11px;border:1.5px solid var(--bd);border-radius:9px;
+            font-size:14px;font-family:'Sarabun',sans-serif;background:#fff"
+          oninput="filterPtList(this.value)"
+          autocomplete="off">
+      </div>
+      <button class="btn-out" onclick="loadPatients().then(renderPtList)" style="flex-shrink:0">🔄</button>
+    </div>
+    <div style="font-size:12px;color:var(--tx2);margin-bottom:10px">
+      ผู้ป่วยทั้งหมด <span style="color:var(--pk3);font-weight:700">${patients.length}</span> คน
+    </div>
+    <div id="pt-cards"></div>`;
+  renderPtCards(patients);
+}
+
+function renderPtCards(list) {
+  const el = document.getElementById("pt-cards");
+  if (!el) return;
+  const base = location.href.split("?")[0];
+  if (!list.length) {
+    el.innerHTML = '<div class="ld">ไม่พบผู้ป่วยที่ค้นหา</div>'; return;
+  }
+  el.innerHTML = list.map(p => {
+    const link = `${base}?patient=${encodeURIComponent(p.name)}`;
+    const bid = "cb_"+p.name.replace(/\s/g,"_");
+    return `<div class="pt-card">
+      <div class="pt-top" onclick="selectPt('${p.name.replace(/'/g,"\\'")}')">
+        <div class="pt-av">${p.name.charAt(0)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:15px;font-weight:700">${p.name}</div>
+          <div style="font-size:12px;color:var(--tx2)">${p.startWeight} → ${p.goalWeight} kg · เริ่ม ${p.startDate}</div>
+        </div>
+        <span style="font-size:22px;color:var(--tx3)">›</span>
+      </div>
+      <div class="pt-link">
+        <div class="pt-link-txt">${link}</div>
+        <button id="${bid}" class="btn-sm btn-bl"
+          onclick="copyLink('${link}','${bid}')">📋 คัดลอก</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function filterPtList(q) {
+  const trimmed = q.trim();
+  const filtered = trimmed
+    ? patients.filter(p => p.name.toLowerCase().includes(trimmed.toLowerCase()))
+    : patients;
+  renderPtCards(filtered);
+  showPtDrop(trimmed);
+}
+
+
+
+function copyLink(url, btnId) {
+  navigator.clipboard.writeText(url).then(()=>{
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    const orig = btn.innerHTML;
+    btn.textContent = "✅ คัดลอกแล้ว";
+    btn.style.background = "var(--gr)";
+    setTimeout(()=>{ btn.innerHTML=orig; btn.style.background=""; }, 2000);
+    toast("✅ คัดลอกลิงก์แล้ว","ok");
+  });
+}
+
+function selectPt(name) {
+  currentName = name;
+  document.getElementById("tb-title").innerHTML =
+    `<span onclick="backHome()" style="cursor:pointer;margin-right:6px;font-size:19px;opacity:.85">‹</span>${name}`;
+  document.getElementById("tb-badge").textContent = "กำลังจัดการ";
+  document.getElementById("htabs").style.display = "none";
+  document.getElementById("nav").style.display = "flex";
+  document.querySelector(".main").style.paddingBottom = "82px";
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
+  document.getElementById("pg-fact").classList.add("active");
+  document.querySelectorAll(".nav button")[0].classList.add("active");
+  renderFact();
+}
+
+function backHome() {
+  currentName = "";
+  document.getElementById("tb-title").textContent = "Weight Tracker";
+  document.getElementById("tb-badge").textContent = "Staff";
+  document.getElementById("htabs").style.display = "flex";
+  document.getElementById("nav").style.display = "none";
+  document.querySelector(".main").style.paddingBottom = "20px";
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  document.getElementById("pg-home").classList.add("active");
+  hTab("pt");
+}
+
+// ===== PATIENT HOME (patient mode) =====
+async function renderPatientHome() {
+  const body = document.getElementById("hm-body") || document.getElementById("pg-home");
+  const view = body;
+  if (!currentName||!gasUrl) return;
+  // reuse pg-home div
+  const pg = document.getElementById("pg-home");
+  pg.innerHTML = '<div class="ld"><div class="spin"></div>กำลังโหลด...</div>';
+  try {
+    const d = await apiGet({action:"getPatientData", name:currentName});
+    if (!d.success) { pg.innerHTML=`<div class="ld">❌ ${d.message}</div>`; return; }
+    const pct = Math.min(Math.max(d.progress||0,0),100);
+    pg.innerHTML = `
+      <div class="banner">
+        <div class="bname">${currentName}</div>
+        <div class="bsub">เริ่ม ${d.startDate} · กำหนด ${d.goalDate}</div>
+      </div>
+      <div class="sgrid">
+        <div class="sc"><div class="slb">น้ำหนักปัจจุบัน</div>
+          <div class="sv sn">${d.currentWeight||"-"}<span class="su">kg</span></div></div>
+        <div class="sc"><div class="slb">ลดไปแล้ว</div>
+          <div class="sv ${(d.totalLost||0)>=0?'sg':'sb'}">${(d.totalLost||0)>=0?"-":"+"}${Math.abs(d.totalLost||0).toFixed(1)}<span class="su">kg</span></div></div>
+        <div class="sc"><div class="slb">เป้าหมาย</div>
+          <div class="sv sn">${d.goalWeight||"-"}<span class="su">kg</span></div></div>
+        <div class="sc"><div class="slb">เหลืออีก</div>
+          <div class="sv sb">${Math.max(d.remaining||0,0).toFixed(1)}<span class="su">kg</span></div></div>
+      </div>
+      <div class="card">
+        <div class="plb"><span>ความคืบหน้า</span><span><b>${pct}%</b></span></div>
+        <div class="pbg"><div class="pfl" style="width:${pct}%"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--tx2);margin-top:5px">
+          <span>${d.startWeight} kg</span><span>เป้า ${d.goalWeight} kg</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ctitle">📈 กราฟน้ำหนัก</div>
+        <div class="ch-wrap"><canvas id="wc"></canvas></div>
+      </div>`;
+    setTimeout(()=>drawWeightChart(d),80);
+  } catch(e) { pg.innerHTML=`<div class="ld">❌ โหลดไม่ได้</div>`; }
+}
+
+function drawWeightChart(d) {
+  const ctx = document.getElementById("wc"); if (!ctx) return;
+  if (wChart) wChart.destroy();
+  wChart = new Chart(ctx, {
+    type:"line",
+    data:{
+      labels: d.records.map(r=>r.date),
+      datasets:[
+        { label:"น้ำหนัก(kg)", data:d.records.map(r=>r.weight||null),
+          borderColor:"#c45a7e",backgroundColor:"rgba(196,90,126,.1)",
+          borderWidth:2.5,pointBackgroundColor:"#c45a7e",pointRadius:4,tension:.3,spanGaps:true },
+        { label:"เป้าหมาย", data:d.records.map(()=>d.goalWeight),
+          borderColor:"#7060b8",borderWidth:1.5,borderDash:[5,5],pointRadius:0 }
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:"bottom",labels:{font:{family:"Sarabun",size:11},boxWidth:14}}},
+      scales:{
+        y:{suggestedMin:d.goalWeight-2,suggestedMax:d.startWeight+1,
+          ticks:{font:{family:"Sarabun",size:11}}},
+        x:{ticks:{font:{family:"Sarabun",size:10},maxRotation:45,maxTicksLimit:8}}
+      }}
+  });
+}
+
+// ===== FACT =====
+async function renderFact() {
+  const v = document.getElementById("fact-v");
+  if (!currentName) { v.innerHTML=noPatient(); return; }
+  v.innerHTML = loading();
+  try {
+    const d = await apiGet({action:"getPatientData", name:currentName});
+    if (!d.success) { v.innerHTML=err(d.message); return; }
+
+    const logForm = !patientMode ? `
+      <div class="card">
+        <div class="ctitle">📝 บันทึกน้ำหนักใหม่</div>
+        <div class="r2">
+          <div class="fg"><label>📅 วันที่</label><input type="date" id="fc-dt" value="${today()}"></div>
+          <div class="fg"><label>⚖️ น้ำหนัก (kg)</label><input type="number" id="fc-w" step="0.1"></div>
+        </div>
+        <div class="r3">
+          <div class="fg"><label>💊 โดส (mg)</label><input type="number" id="fc-ds" step="0.5" value="2.5"></div>
+          <div class="fg"><label>👩‍⚕️ แพทย์</label><select id="fc-dr"><option value="">-- เลือกแพทย์ --</option><option value="หมอชมพู่">หมอชมพู่</option><option value="หมอปาย">หมอปาย</option></select></div>
+          <div class="fg"><label>💰 งบ (฿)</label><input type="number" id="fc-bg" value="1500"></div>
+        </div>
+        <div class="fg"><label>📝 หมายเหตุ</label><textarea id="fc-nt" placeholder="บันทึกเพิ่มเติม..."></textarea></div>
+        <button class="btn btn-pk" onclick="submitFact()">💾 บันทึก</button>
+      </div>` : "";
+
+    // คำนวณงบรวม
+    const budgetRecords = d.records.filter(r=>r.budget&&parseFloat(r.budget)>0);
+    const totalBudget = budgetRecords.reduce((s,r)=>s+parseFloat(r.budget||0),0);
+    const avgBudget = budgetRecords.length ? Math.round(totalBudget/budgetRecords.length) : 0;
+
+    const budgetCard = totalBudget > 0 ? `
+      <div class="card">
+        <div class="ctitle">💰 สรุปงบประมาณ</div>
+        <div class="sgrid" style="margin-bottom:0">
+          <div class="sc">
+            <div class="slb">ใช้ไปทั้งหมด</div>
+            <div class="sv sn">${totalBudget.toLocaleString()}<span class="su">฿</span></div>
+          </div>
+          <div class="sc">
+            <div class="slb">เฉลี่ย/ครั้ง</div>
+            <div class="sv sn">${avgBudget.toLocaleString()}<span class="su">฿</span></div>
+          </div>
+        </div>
+      </div>` : "";
+
+    const rows = d.records.slice().reverse().map(r=>{
+      const chg = r.change;
+      const cs = (!chg&&chg!==0)||r.week==="Start" ? "-"
+        : `<span class="${chg<0?'cn':'cp'}">${chg>0?"+":""}${(+chg).toFixed(1)}</span>`;
+      const eb = !patientMode
+        ? `<span onclick='editFactModal(${r.row},"${r.date}",${r.weight||0},"${r.dose||""}","${r.doctor||""}",${r.budget||0},"${(r.note||"").replace(/"/g,"")}")'
+            style="cursor:pointer;font-size:15px">✏️</span>` : "";
+      const bg = r.budget ? parseFloat(r.budget).toLocaleString()+"฿" : "-";
+      return `<tr>
+        <td>${r.week==="Start"?"Start":"สป."+r.week}</td>
+        <td style="font-size:11px">${r.date}</td>
+        <td><b>${r.weight||"-"}</b></td>
+        <td>${cs}</td>
+        <td style="font-size:11px">${r.dose||"-"}</td>
+        <td style="font-size:11px">${r.doctor||"-"}</td>
+        <td style="font-size:11px;color:var(--am)">${bg}</td>
+        <td style="font-size:11px;color:var(--tx2);max-width:120px;word-break:break-word">${r.note||"-"}</td>
+        <td>${eb}</td>
+      </tr>`;
+    }).join("");
+
+    // กราฟน้ำหนัก (แสดงทั้ง staff และ patient)
+    const chartCard = `
+      <div class="card">
+        <div class="ctitle">📈 กราฟน้ำหนัก</div>
+        <div class="ch-wrap"><canvas id="fact-wc"></canvas></div>
+      </div>`;
+
+    v.innerHTML = logForm + budgetCard + chartCard + `
+      <div class="card">
+        <div class="ctitle">📋 ประวัติน้ำหนัก</div>
+        <div style="overflow-x:auto">
+          <table class="tbl">
+            <thead><tr><th>สัปดาห์</th><th>วันที่</th><th>kg</th><th>ลด/+</th><th>โดส</th><th>แพทย์</th><th>งบ(฿)</th><th>หมายเหตุ</th><th></th></tr></thead>
+            <tbody>${rows||noData(9)}</tbody>
+          </table>
+        </div>
+      </div>`;
+
+    setTimeout(()=>drawFactChart(d), 80);
+  } catch(e) { v.innerHTML=err(e.message); }
+}
+
+function drawFactChart(d) {
+  const ctx = document.getElementById("fact-wc"); if (!ctx) return;
+  if (wChart) wChart.destroy();
+  const wRecs = d.records.filter(r=>r.weight!==null);
+  wChart = new Chart(ctx, {
+    type:"line",
+    data:{
+      labels: wRecs.map(r=>r.date),
+      datasets:[
+        { label:"น้ำหนัก(kg)", data:wRecs.map(r=>r.weight),
+          borderColor:"#c45a7e",backgroundColor:"rgba(196,90,126,.1)",
+          borderWidth:2.5,pointBackgroundColor:"#c45a7e",pointRadius:4,tension:.3 },
+        { label:"เป้าหมาย", data:wRecs.map(()=>d.goalWeight),
+          borderColor:"#7060b8",borderWidth:1.5,borderDash:[5,5],pointRadius:0 }
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:"bottom",labels:{font:{family:"Sarabun",size:11},boxWidth:14}}},
+      scales:{
+        y:{suggestedMin:d.goalWeight-2,suggestedMax:(d.startWeight||d.currentWeight)+1,
+          ticks:{font:{family:"Sarabun",size:11}}},
+        x:{ticks:{font:{family:"Sarabun",size:10},maxRotation:45,maxTicksLimit:8}}
+      }}
+  });
+}
+
+async function submitFact() {
+  const date=V("fc-dt"),weight=V("fc-w");
+  if (!date||!weight){toast("⚠️ กรอกวันที่และน้ำหนัก","err");return;}
+  try {
+    const r = await api({action:"logVisit",name:currentName,date,weight,
+      dose:V("fc-ds"),doctor:V("fc-dr"),budget:V("fc-bg"),note:V("fc-nt")});
+    if (r.success){toast("✅ "+r.message,"ok");set("fc-w","");set("fc-ds","2.5");set("fc-bg","1500");set("fc-nt","");renderFact();}
+    else toast("❌ "+r.message,"err");
+  } catch(e){toast("❌ ส่งข้อมูลไม่ได้","err");}
+}
+
+function editFactModal(row,date,weight,dose,doctor,budget,note) {
+  const iso = dateToIso(date);
+  showModal(`
+    <div class="modal-title">✏️ แก้ไขข้อมูล<span class="modal-x" onclick="closeModal()">✕</span></div>
+    <div class="r2">
+      <div class="fg"><label>วันที่</label><input type="date" id="ed-dt" value="${iso}"></div>
+      <div class="fg"><label>น้ำหนัก</label><input type="number" id="ed-w" value="${weight}" step="0.1"></div>
+    </div>
+    <div class="r3">
+      <div class="fg"><label>โดส</label><input type="number" id="ed-ds" value="${dose}" step="0.5"></div>
+      <div class="fg"><label>แพทย์</label><select id="ed-dr"><option value="">-- เลือกแพทย์ --</option><option value="หมอชมพู่" ${doctor==="หมอชมพู่"?"selected":""}>หมอชมพู่</option><option value="หมอปาย" ${doctor==="หมอปาย"?"selected":""}>หมอปาย</option></select></div>
+      <div class="fg"><label>งบ</label><input type="number" id="ed-bg" value="${budget}"></div>
+    </div>
+    <div class="fg"><label>หมายเหตุ</label><textarea id="ed-nt">${note}</textarea></div>
+    <button class="btn btn-pk" onclick="submitEdit(${row})">💾 บันทึก</button>`);
+}
+
+async function submitEdit(row) {
+  try {
+    const r = await api({action:"editVisit",name:currentName,row,
+      date:V("ed-dt"),weight:V("ed-w"),dose:V("ed-ds"),
+      doctor:V("ed-dr"),budget:V("ed-bg"),note:V("ed-nt")});
+    if(r.success){toast("✅ แก้ไขสำเร็จ","ok");closeModal();renderFact();}
+    else toast("❌ "+r.message,"err");
+  } catch(e){toast("❌ ส่งไม่ได้","err");}
+}
+
+// ===== SYMPTOM =====
+async function renderSym() {
+  const v = document.getElementById("sym-v");
+  if (!currentName){v.innerHTML=noPatient();return;}
+  v.innerHTML=loading();
+  try {
+    const d = await apiGet({action:"getPatientData",name:currentName});
+    const records = (d.records||[]).slice().reverse();
+
+    const logForm = !patientMode ? `
+      <div class="card">
+        <div class="ctitle">📞 บันทึกติดตามอาการ</div>
+        <div class="r2">
+          <div class="fg"><label>📅 วันที่</label><input type="date" id="sy-dt" value="${today()}"></div>
+          <div class="fg"><label>🕐 เวลา</label><input type="time" id="sy-tm" value="${new Date().toTimeString().slice(0,5)}"></div>
+        </div>
+        <div class="fg"><label>ประเภท</label>
+          <select id="sy-tp"><option value="tel">📱 tel</option><option value="F/U">🏥 F/U</option></select></div>
+        ${symSection("🍽️ การกินและความหิว","s1",[
+          fmChip("ความหิว","hunger",["ไม่หิวเลย","หิวน้อยลง","หิวพอเดิม","ยังหิวปกติ"]),
+          fmChip("ความอิ่ม","full",["อิ่มนาน","อิ่มมากขึ้น","อิ่มพอเดิม","ไม่ค่อยอิ่ม"]),
+          `<div class="fg"><label>คุมอาหาร</label><textarea id="sy-diet" placeholder="เช่น ทานโปรตีน หลีกเลี่ยงแป้ง"></textarea></div>`
+        ])}
+        ${symSection("💊 สุขภาพ S/E","s2",[
+          `<div class="r2">
+            <div class="fg">${fmChip("โปรตีน","protein",["ดี","พอใช้","ต่ำ"])}</div>
+            <div class="fg"><label>ดื่มน้ำ</label><input type="text" id="sy-water" placeholder="2-3 L/วัน"></div>
+          </div>`,
+          `<div class="r2">
+            <div class="fg">${fmChip("ไฟเบอร์","fiber",["ดี","น้อย","-"])}</div>
+            <div class="fg">${fmChip("ขับถ่าย","bowel",["ดี","ท้องผูก","ท้องเสีย"])}</div>
+          </div>`,
+          `<div class="fg"><label>ออกกำลังกาย</label><input type="text" id="sy-ex" placeholder="เช่น เดิน 30 นาที"></div>`,
+          `<div class="fg"><label>S/E</label><input type="text" id="sy-se" placeholder="เช่น ไม่มี / คลื่นไส้"></div>`
+        ])}
+        ${symSection("😊 Mood & กำลังใจ","s3",[
+          fmChip("Mood","mood",["ดีมาก","ดี","กลางๆ","ไม่ดี"]),
+          `<div class="r2">
+            <div class="fg">${fmChip("นอนหลับ","sleep",["ดีมาก","ปกติ","ไม่ดี"])}</div>
+            <div class="fg">${fmChip("กำลังใจ","motiv",["ดีมาก","ดี","ท้อ"])}</div>
+          </div>`,
+          `<div class="fg"><label>น้ำเสียง</label><input type="text" id="sy-tone" placeholder="เช่น ร่าเริง สดใส"></div>`,
+          `<div class="fg"><label>ใจความสำคัญ</label><textarea id="sy-note" placeholder="สิ่งที่พูดคุย..."></textarea></div>`
+        ])}
+        <button class="btn btn-pu" onclick="submitSym()">💾 บันทึกติดตามอาการ</button>
+      </div>` : "";
+
+    const cards = records.length ? records.map(r=>{
+      const fields=[["ความหิว",r.hunger],["ความอิ่ม",r.fullness],
+        ["โปรตีน",r.protein],["น้ำ",r.water],["ไฟเบอร์",r.fiber],
+        ["ขับถ่าย",r.bowel],["ออกกำลัง",r.exercise],["S/E",r.se],
+        ["Mood",r.mood],["นอน",r.sleep],["กำลังใจ",r.motivation]].filter(([,v])=>v);
+      return `<div class="sym-card">
+        <div class="sym-dt">${r.date} ${r.time||""}
+          ${r.type?`<span class="sym-tp">${r.type}</span>`:""}
+        </div>
+        <div class="sym-grid">${fields.map(([k,v])=>`
+          <div class="sym-item"><div class="sk">${k}</div><div class="sv2">${v}</div></div>`).join("")}
+        </div>
+        ${r.note?`<div class="sym-note">💬 ${r.note}</div>`:""}
+        ${r.tone?`<div class="sym-note" style="color:var(--pu)">🎤 ${r.tone}</div>`:""}
+        ${r.diet?`<div class="sym-note" style="color:var(--gr)">🍽️ ${r.diet}</div>`:""}
+      </div>`;
+    }).join("") : '<div class="ld">ยังไม่มีประวัติการติดตาม</div>';
+
+    v.innerHTML = logForm + `
+      <div class="card"><div class="ctitle">📋 ประวัติติดตามอาการ</div>${cards}</div>`;
+
+    // open all sections
+    ["sy-s1","sy-s2","sy-s3"].forEach(id=>{
+      const el=document.getElementById(id);if(el)el.style.maxHeight="2000px";
+      const tog=document.getElementById("tog-"+id);if(tog)tog.classList.add("open");
+    });
+  } catch(e){v.innerHTML=err(e.message);}
+}
+
+function symSection(title, id, contents) {
+  return `<div class="sh" onclick="toggleSec('sy-${id}')">
+      <h3>${title}</h3><span class="st" id="tog-sy-${id}">▼</span></div>
+    <div class="sb2" id="sy-${id}" style="max-height:0">${contents.join("")}</div>`;
+}
+
+function fmChip(label, name, opts) {
+  return `<div class="fg"><label>${label}</label><div class="chips" id="ch-${name}">
+    ${opts.map(o=>`<button type="button" class="chip" onclick="pickChip('${name}','${o}',this)">${o}</button>`).join("")}
+  </div></div>`;
+}
+
+function pickChip(name, val, btn) {
+  document.querySelectorAll(`#ch-${name} .chip`).forEach(b=>b.classList.remove("on"));
+  btn.classList.add("on");
+  btn.dataset.val = val;
+}
+
+function getChip(name) {
+  const el = document.querySelector(`#ch-${name} .chip.on`);
+  return el ? el.dataset.val || el.textContent : "";
+}
+
+async function submitSym() {
+  const date=V("sy-dt");
+  if(!date){toast("⚠️ กรอกวันที่","err");return;}
+  try {
+    const r = await api({action:"logVisit",name:currentName,date,
+      hunger:getChip("hunger"),fullness:getChip("full"),
+      diet:V("sy-diet"),exercise:V("sy-ex"),
+      protein:getChip("protein"),water:V("sy-water"),
+      fiber:getChip("fiber"),se:V("sy-se"),bowel:getChip("bowel"),
+      mood:getChip("mood"),sleep:getChip("sleep"),motivation:getChip("motiv"),
+      tone:V("sy-tone"),remark:V("sy-note")});
+    if(r.success){toast("✅ "+r.message,"ok");renderSym();}
+    else toast("❌ "+r.message,"err");
+  } catch(e){toast("❌ ส่งไม่ได้","err");}
+}
+
+// ===== MEASURE =====
+async function renderMeas() {
+  const v = document.getElementById("meas-v");
+  if (!currentName){v.innerHTML=noPatient();return;}
+  v.innerHTML=loading();
+  try {
+    const d = await apiGet({action:"getPatientData",name:currentName});
+    const logForm = !patientMode ? `
+      <div class="card">
+        <div class="ctitle">📏 บันทึกสัดส่วน</div>
+        <div class="fg"><label>📅 วันที่</label><input type="date" id="ms-dt" value="${today()}"></div>
+        <div class="r2">
+          <div class="fg"><label>หน้าอก (นิ้ว)</label><input type="number" id="ms-ch" step="0.5"></div>
+          <div class="fg"><label>เอว (นิ้ว)</label><input type="number" id="ms-wa" step="0.5"></div>
+        </div>
+        <div class="r2">
+          <div class="fg"><label>สะโพก (นิ้ว)</label><input type="number" id="ms-hi" step="0.5"></div>
+        </div>
+        <div class="r2">
+          <div class="fg"><label>ต้นแขนขวา</label><input type="number" id="ms-ar" step="0.5"></div>
+          <div class="fg"><label>ต้นแขนซ้าย</label><input type="number" id="ms-al" step="0.5"></div>
+        </div>
+        <div class="r2">
+          <div class="fg"><label>ต้นขาขวา</label><input type="number" id="ms-tr" step="0.5"></div>
+          <div class="fg"><label>ต้นขาซ้าย</label><input type="number" id="ms-tl" step="0.5"></div>
+        </div>
+        <button class="btn btn-gr" onclick="submitMeas()">💾 บันทึกสัดส่วน</button>
+      </div>` : "";
+
+    // แนวนอน = ส่วนต่างๆ, แนวตั้ง = วันที่
+    const measLabels = ["หน้าอก","เอว","สะโพก","ต้นแขนขวา","ต้นแขนซ้าย","ต้นขาขวา","ต้นขาซ้าย"];
+    const measKeys   = ["chest","waist","hip","armR","armL","thighR","thighL"];
+    const recs = (d.records||[]).filter(r=>r.chest||r.waist||r.hip||r.armR||r.armL||r.thighR||r.thighL);
+
+    const tableHtml = recs.length ? `
+      <div class="card">
+        <div class="ctitle">📋 ตารางสัดส่วน (นิ้ว)</div>
+        <div style="overflow-x:auto">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>วันที่</th>
+                ${measLabels.map(l=>`<th style="font-size:11px">${l}</th>`).join("")}
+              </tr>
+            </thead>
+            <tbody>
+              ${recs.map(r=>`<tr>
+                <td style="font-size:11px;white-space:nowrap">${r.date}</td>
+                ${measKeys.map(k=>`<td>${r[k]||"-"}</td>`).join("")}
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>` : '<div class="ld">ยังไม่มีข้อมูลสัดส่วน</div>';
+
+    v.innerHTML = logForm + tableHtml;
+  } catch(e){v.innerHTML=err(e.message);}
+}
+
+async function submitMeas() {
+  const date=V("ms-dt");
+  if(!date){toast("⚠️ กรอกวันที่","err");return;}
+  try {
+    const r=await api({action:"logVisit",name:currentName,date,
+      chest:V("ms-ch"),waist:V("ms-wa"),hip:V("ms-hi"),
+      armR:V("ms-ar"),armL:V("ms-al"),thighR:V("ms-tr"),thighL:V("ms-tl")});
+    if(r.success){toast("✅ "+r.message,"ok");renderMeas();}
+    else toast("❌ "+r.message,"err");
+  } catch(e){toast("❌ ส่งไม่ได้","err");}
+}
+
+// ===== BODY COMP =====
+async function renderBody() {
+  const v=document.getElementById("body-v");
+  if(!currentName){v.innerHTML=noPatient();return;}
+  v.innerHTML=loading();
+  try {
+    const d=await apiGet({action:"getBodyCompImages",name:currentName});
+    const uploadForm=!patientMode?`
+      <div class="card">
+        <div class="ctitle">📤 อัปโหลดรูป Body Composition</div>
+        <div class="fg"><label>📅 วันที่</label><input type="date" id="bc-dt" value="${today()}"></div>
+        <div class="up-area" id="bc-area"
+          onclick="document.getElementById('bc-file').click()"
+          ondrop="dropFile(event)" ondragover="event.preventDefault();this.classList.add('drag')"
+          ondragleave="this.classList.remove('drag')">
+          <div style="font-size:30px;margin-bottom:6px">📷</div>
+          <p style="font-size:13px;color:var(--tx2)">แตะเพื่อเลือกรูป หรือลากมาวาง</p>
+        </div>
+        <img id="bc-prev" class="up-prev">
+        <input type="file" id="bc-file" accept="image/*" style="display:none" onchange="prevFile(event)">
+        <button class="btn btn-bl" onclick="submitBody()">📤 อัปโหลด</button>
+      </div>` : "";
+
+    const imgs=d.images&&d.images.length
+      ?`<div class="img-grid">${d.images.slice().reverse().map(img=>`
+          <div class="img-card">
+            <img src="https://drive.google.com/thumbnail?id=${img.fileId}&sz=w400"
+              loading="lazy" onclick="openLb('${img.fileId}')"
+              onerror="this.src='https://drive.google.com/uc?export=view&id=${img.fileId}'">
+            <div class="img-date">${img.date}</div>
+            ${!patientMode?`<button class="img-del" onclick="deleteBody('${img.fileId}')">🗑️ ลบ</button>`:""}
+          </div>`).join("")}</div>`
+      :'<div class="ld">ยังไม่มีรูป Body Composition</div>';
+
+    v.innerHTML=uploadForm+`
+      <div class="card"><div class="ctitle">🫀 Body Composition</div>${imgs}</div>`;
+  } catch(e){v.innerHTML=err(e.message);}
+}
+
+function prevFile(e) {
+  const f=e.target.files[0];if(!f)return;
+  const p=document.getElementById("bc-prev");
+  p.src=URL.createObjectURL(f);p.style.display="block";
+}
+function dropFile(e) {
+  e.preventDefault();
+  document.getElementById("bc-area").classList.remove("drag");
+  const f=e.dataTransfer.files[0];if(!f)return;
+  const inp=document.getElementById("bc-file");
+  const dt=new DataTransfer();dt.items.add(f);inp.files=dt.files;
+  const p=document.getElementById("bc-prev");
+  p.src=URL.createObjectURL(f);p.style.display="block";
+}
+async function submitBody() {
+  const date=V("bc-dt"),file=document.getElementById("bc-file").files[0];
+  if(!date){toast("⚠️ กรอกวันที่","err");return;}
+  if(!file){toast("⚠️ เลือกรูปก่อน","err");return;}
+  if(file.size>8*1024*1024){toast("⚠️ รูปใหญ่เกิน 8MB","err");return;}
+  toast("⏳ กำลังอัปโหลด...");
+  const reader=new FileReader();
+  reader.onload=async e=>{
+    const b64=e.target.result.split(",")[1];
+    try {
+      const r=await api({action:"uploadBodyComp",name:currentName,date,
+        imageBase64:b64,mimeType:file.type,fileName:file.name});
+      if(r.success){toast("✅ อัปโหลดสำเร็จ","ok");renderBody();}
+      else toast("❌ "+r.message,"err");
+    } catch(e){toast("❌ อัปโหลดไม่ได้","err");}
+  };
+  reader.readAsDataURL(file);
+}
+async function deleteBody(fileId) {
+  if(!confirm("ลบรูปนี้?"))return;
+  try {
+    const r=await api({action:"deleteBodyComp",name:currentName,fileId});
+    if(r.success){toast("✅ ลบแล้ว","ok");renderBody();}
+    else toast("❌ "+r.message,"err");
+  } catch(e){toast("❌ ลบไม่ได้","err");}
+}
+function openLb(fileId) {
+  const img=document.getElementById("lb-img");
+  img.src=`https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
+  img.onerror=()=>img.src=`https://drive.google.com/uc?export=view&id=${fileId}`;
+  document.getElementById("lb").style.display="flex";
+}
+function closeLb(){
+  document.getElementById("lb").style.display="none";
+  document.getElementById("lb-img").src="";
+}
+
+// ===== MEDICATION =====
+let medRowCount = 0;
+
+async function renderMed() {
+  const v = document.getElementById("med-v");
+  if (!currentName) { v.innerHTML = noPatient(); return; }
+  v.innerHTML = loading();
+  try {
+    const d = await apiGet({action:"getMedication", name:currentName});
+    const items = d.items || [];
+    window._medItems = items;
+    medRowCount = 0;
+
+    if (patientMode) {
+      // patient — แสดงอย่างเดียว
+      const viewHtml = items.length
+        ? items.map(it=>`<div class="med-row">
+            <span class="med-no">${it.no||""}</span>
+            <span class="med-name">${it.name}</span>
+            <span class="med-dose">${it.dose||""}</span>
+            ${it.note?`<span class="med-note">${it.note}</span>`:""}
+          </div>`).join("")
+        : '<div class="ld">ยังไม่มีรายการยา</div>';
+      v.innerHTML = `<div class="card"><div class="ctitle">💊 รายการยาปัจจุบัน</div>${viewHtml}</div>`;
+    } else {
+      // staff — แสดง inline edit พร้อมปุ่ม ✕ และ ➕
+      const rowsHtml = items.map((it,i) => medRow(i, it.name, it.dose, it.note)).join("");
+      v.innerHTML = `
+        <div class="card">
+          <div class="ctitle">💊 รายการยาปัจจุบัน</div>
+          <div id="med-rows">${rowsHtml}</div>
+          <button class="btn-out" style="width:100%;margin:10px 0 8px" onclick="addMedRow()">➕ เพิ่มรายการ</button>
+          <button class="btn btn-pk" onclick="submitMed()">💾 บันทึกรายการยา</button>
+        </div>`;
+    }
+  } catch(e) { v.innerHTML = err(e.message); }
+}
+
+function medRow(i, name="", dose="", note="") {
+  medRowCount = Math.max(medRowCount, i + 1);
+  return `<div class="med-edit-row" id="mr-${i}">
+    <input placeholder="ชื่อยา" value="${name}" id="mn-${i}">
+    <input placeholder="ขนาด/วิธี" value="${dose}" id="md-${i}" style="max-width:110px">
+    <input placeholder="หมายเหตุ" value="${note}" id="mnote-${i}" style="max-width:90px">
+    <button class="del-btn" onclick="document.getElementById('mr-${i}').remove()">✕</button>
+  </div>`;
+}
+
+function addMedRow() {
+  const c = document.getElementById("med-rows");
+  if (!c) return;
+  const div = document.createElement("div");
+  div.innerHTML = medRow(medRowCount++);
+  c.appendChild(div.firstElementChild);
+}
+
+async function submitMed() {
+  const rows = document.querySelectorAll("[id^='mr-']");
+  const items = [];
+  rows.forEach(r => {
+    const i = r.id.split("-")[1];
+    const n = V("mn-" + i);
+    if (n) items.push({name:n, dose:V("md-"+i), note:V("mnote-"+i)});
+  });
+  try {
+    const r = await api({action:"saveMedication", name:currentName, items});
+    if (r.success) { toast("✅ "+r.message, "ok"); renderMed(); }
+    else toast("❌ "+r.message, "err");
+  } catch(e) { toast("❌ บันทึกไม่ได้", "err"); }
+}
+
+// ===== ADD PATIENT =====
+async function submitAdd(){
+  const name=V("ad-name"),sd=V("ad-sd"),sw=V("ad-sw"),gw=V("ad-gw"),gd=V("ad-gd");
+  if(!name||!sd||!sw||!gw||!gd){toast("⚠️ กรอกให้ครบ","err");return;}
+  toast("⏳ กำลังสร้าง Spreadsheet...");
+  try {
+    const r=await api({action:"addPatient",name,startDate:sd,startWeight:sw,goalWeight:gw,goalDate:gd});
+    if(r.success){
+      toast("✅ "+r.message,"ok");
+      ["ad-name","ad-sw","ad-gw"].forEach(id=>set(id,""));
+      await loadPatients();
+      hTab("pt");
+    } else toast("❌ "+r.message,"err");
+  } catch(e){toast("❌ สร้างไม่ได้","err");}
+}
+
+// ===== SETTINGS =====
+function saveUrl(){
+  const url=V("cfg-url").trim();
+  if(!url){toast("⚠️ ใส่ URL ก่อน","err");return;}
+  gasUrl=url;localStorage.setItem(UK,url);
+  toast("✅ บันทึกสำเร็จ","ok");
+  loadPatients().then(renderPtList);
+}
+async function testConn(){
+  if(!gasUrl){toast("⚠️ ใส่ URL ก่อน","err");return;}
+  toast("🔌 กำลังทดสอบ...");
+  try {
+    const r=await apiGet({action:"getPatients"});
+    if(r.success){
+      patients=r.patients;
+      document.getElementById("cfg-count").textContent=patients.length+" คน";
+      document.getElementById("cfg-conn").textContent="✅ เชื่อมต่อสำเร็จ";
+      toast("✅ เชื่อมต่อสำเร็จ "+patients.length+" ผู้ป่วย","ok");
+    } else toast("❌ "+r.message,"err");
+  } catch(e){toast("❌ เชื่อมต่อไม่ได้","err");}
+}
+
+// ===== SECTION TOGGLE =====
+function toggleSec(id){
+  const b=document.getElementById(id),t=document.getElementById("tog-"+id);
+  if(!b)return;
+  const open=b.style.maxHeight&&b.style.maxHeight!=="0px";
+  b.style.maxHeight=open?"0px":"2000px";
+  if(t)t.classList.toggle("open",!open);
+}
+
+// ===== MODAL =====
+function showModal(html){
+  document.getElementById("modal-body").innerHTML=html;
+  document.getElementById("modal").style.display="flex";
+}
+function closeModal(){document.getElementById("modal").style.display="none";}
+document.addEventListener("click",e=>{
+  if(e.target===document.getElementById("modal"))closeModal();
+});
+
+// ===== TOAST =====
+function toast(msg,type=""){
+  const t=document.getElementById("toast");
+  t.textContent=msg;t.className="toast show "+(type||"");
+  clearTimeout(t._t);t._t=setTimeout(()=>t.className="toast",3200);
+}
+
+// ===== HELPERS =====
+function V(id){const e=document.getElementById(id);return e?e.value:"";}
+function set(id,v){const e=document.getElementById(id);if(e)e.value=v;}
+function today(){return new Date().toLocaleDateString("sv-SE",{timeZone:"Asia/Bangkok"});}
+function loading(){return '<div class="ld"><div class="spin"></div>กำลังโหลด...</div>';}
+function err(m){return `<div class="ld">❌ ${m||"เกิดข้อผิดพลาด"}</div>`;}
+function noPatient(){return '<div class="ld">กลับไปเลือกผู้ป่วยก่อนครับ</div>';}
+function noData(cols){return `<tr><td colspan="${cols}" style="color:var(--tx2);padding:14px">ยังไม่มีข้อมูล</td></tr>`;}
+function dateToIso(d){
+  if(!d)return today();
+  const p=d.split("/");
+  return p.length===3?`${p[2].length===4?p[2]:"25"+p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`:d;
+}
+</script>
+</body>
+</html>
