@@ -227,7 +227,7 @@ textarea{resize:vertical;min-height:56px}
 <body>
 
 <div class="topbar">
-  <span style="font-size:22px">⚖️</span>
+  <span style="font-size:22px"></span>
   <h1 id="tb-title">Weight Tracker</h1>
   <span class="badge" id="tb-badge">Staff</span>
 </div>
@@ -251,16 +251,8 @@ textarea{resize:vertical;min-height:56px}
   <div id="sec-add" style="display:none">
     <div class="card">
       <div class="ctitle">➕ เพิ่มผู้ป่วยใหม่</div>
-      <div class="fg"><label>👤 ชื่อ</label><input type="text" id="ad-name" placeholder="เช่น คุณเมย์"></div>
-      <div class="r2">
-        <div class="fg"><label>📅 วันเริ่ม</label><input type="date" id="ad-sd"></div>
-        <div class="fg"><label>⚖️ น้ำหนักเริ่ม (kg)</label><input type="number" id="ad-sw" placeholder="101" step="0.1"></div>
-      </div>
-      <div class="r2">
-        <div class="fg"><label>🎯 เป้าหมาย (kg)</label><input type="number" id="ad-gw" placeholder="75" step="0.1"></div>
-        <div class="fg"><label>📅 กำหนดวัน</label><input type="date" id="ad-gd"></div>
-      </div>
-      <div class="info-box">ระบบจะสร้าง Google Spreadsheet ใหม่ให้อัตโนมัติ</div>
+      <div class="fg"><label>👤 ชื่อผู้ป่วย</label><input type="text" id="ad-name" placeholder="เช่น คุณเมย์"></div>
+      <div class="info-box">กรอกชื่อแล้วสร้างได้เลย สามารถเพิ่มข้อมูล Plan ได้ทีหลัง</div>
       <button class="btn btn-gr" onclick="submitAdd()">✅ สร้างผู้ป่วยใหม่</button>
     </div>
   </div>
@@ -303,6 +295,8 @@ textarea{resize:vertical;min-height:56px}
 <div id="pg-body" class="page"><div id="body-v"></div></div>
 <!-- MED -->
 <div id="pg-med" class="page"><div id="med-v"></div></div>
+<!-- PLAN -->
+<div id="pg-plan" class="page"><div id="plan-v"></div></div>
 
 </div><!-- main -->
 
@@ -310,7 +304,7 @@ textarea{resize:vertical;min-height:56px}
 
 <!-- LIGHTBOX -->
 <div class="lb" id="lb" onclick="closeLb()">
-  <div class="lb-x">✕</div>
+  <div class="lb-x"></div>
   <img id="lb-img" src="">
 </div>
 
@@ -342,7 +336,7 @@ window.onload = async () => {
     buildNav(true);
     document.querySelector(".main").style.paddingBottom = "82px";
     if (gasUrl) renderPatientHome();
-    else { hTab("cfg"); toast("⚠️ กรุณาตั้งค่า URL ก่อน","err"); }
+    else { hTab("cfg"); toast(" กรุณาตั้งค่า URL ก่อน","err"); }
   } else {
     buildNav(false);
     document.querySelector(".main").style.paddingBottom = "20px";
@@ -357,8 +351,8 @@ window.onload = async () => {
       const ok = await loadPatients();
       if (ok) renderPtList();
       else {
-        document.getElementById("pt-list").innerHTML = '<div class="ld">❌ โหลดไม่ได้ ลองไปที่แท็บ ⚙️ ตั้งค่า</div>';
-        toast("❌ โหลดรายชื่อไม่ได้","err");
+        document.getElementById("pt-list").innerHTML = '<div class="ld"> โหลดไม่ได้ ลองไปที่แท็บ  ตั้งค่า</div>';
+        toast(" โหลดรายชื่อไม่ได้","err");
       }
     } else {
       hTab("cfg");
@@ -377,7 +371,8 @@ function buildNav(patient) {
       <button onclick="gp('sym',this)"><span class="ni">📞</span>ติดตาม</button>
       <button onclick="gp('meas',this)"><span class="ni">📏</span>สัดส่วน</button>
       <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
-      <button onclick="gp('med',this)"><span class="ni">💊</span>ยา</button>`;
+      <button onclick="gp('med',this)"><span class="ni">💊</span>ยา</button>
+      <button onclick="gp('plan',this)"><span class="ni">🎯</span>Plan</button>`;
   } else {
     nav.style.display = "none";
     nav.innerHTML = `
@@ -386,12 +381,13 @@ function buildNav(patient) {
       <button onclick="gp('meas',this)"><span class="ni">📏</span>สัดส่วน</button>
       <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
       <button onclick="gp('med',this)"><span class="ni">💊</span>ยา</button>
+      <button onclick="gp('plan',this)"><span class="ni">🎯</span>Plan</button>
       <button onclick="backHome()"><span class="ni">🏠</span>หน้าแรก</button>`;
   }
 }
 
 function gp(name, btn) {
-  if (!patientMode && !currentName && name !== "home") { toast("⚠️ เลือกผู้ป่วยก่อน","err"); return; }
+  if (!patientMode && !currentName && name !== "home") { toast(" เลือกผู้ป่วยก่อน","err"); return; }
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
   document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
   document.getElementById("pg-"+name).classList.add("active");
@@ -401,6 +397,7 @@ function gp(name, btn) {
   else if (name==="meas") renderMeas();
   else if (name==="body") renderBody();
   else if (name==="med") renderMed();
+  else if (name==="plan") renderPlan();
   else if (name==="home") { if(patientMode) renderPatientHome(); else backHome(); }
 }
 
@@ -424,16 +421,16 @@ async function loadPatients() {
       const c = document.getElementById("cfg-count");
       if (c) c.textContent = patients.length+" คน";
       const cc = document.getElementById("cfg-conn");
-      if (cc) cc.textContent = "✅ เชื่อมต่อสำเร็จ";
+      if (cc) cc.textContent = " เชื่อมต่อสำเร็จ";
       return true;
     } else {
       const cc = document.getElementById("cfg-conn");
-      if (cc) cc.textContent = "❌ "+r.message;
+      if (cc) cc.textContent = " "+r.message;
       return false;
     }
   } catch(e) {
     const cc = document.getElementById("cfg-conn");
-    if (cc) cc.textContent = "❌ "+e.message;
+    if (cc) cc.textContent = " "+e.message;
     return false;
   }
 }
@@ -457,7 +454,7 @@ function renderPtList() {
   const el = document.getElementById("pt-list");
   if (!patients.length) {
     el.innerHTML=`<div class="ld"><div style="font-size:36px;margin-bottom:10px">👤</div>
-      ยังไม่มีผู้ป่วย กดแท็บ ➕ เพิ่มใหม่</div>`; return;
+      ยังไม่มีผู้ป่วย กดแท็บ  เพิ่มใหม่</div>`; return;
   }
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px">
@@ -521,10 +518,10 @@ function copyLink(url, btnId) {
     const btn = document.getElementById(btnId);
     if (!btn) return;
     const orig = btn.innerHTML;
-    btn.textContent = "✅ คัดลอกแล้ว";
+    btn.textContent = " คัดลอกแล้ว";
     btn.style.background = "var(--gr)";
     setTimeout(()=>{ btn.innerHTML=orig; btn.style.background=""; }, 2000);
-    toast("✅ คัดลอกลิงก์แล้ว","ok");
+    toast(" คัดลอกลิงก์แล้ว","ok");
   });
 }
 
@@ -565,7 +562,7 @@ async function renderPatientHome() {
   pg.innerHTML = '<div class="ld"><div class="spin"></div>กำลังโหลด...</div>';
   try {
     const d = await apiGet({action:"getPatientData", name:currentName});
-    if (!d.success) { pg.innerHTML=`<div class="ld">❌ ${d.message}</div>`; return; }
+    if (!d.success) { pg.innerHTML=`<div class="ld"> ${d.message}</div>`; return; }
     const pct = Math.min(Math.max(d.progress||0,0),100);
     pg.innerHTML = `
       <div class="banner">
@@ -590,11 +587,11 @@ async function renderPatientHome() {
         </div>
       </div>
       <div class="card">
-        <div class="ctitle">📈 กราฟน้ำหนัก</div>
+        <div class="ctitle">กราฟน้ำหนัก</div>
         <div class="ch-wrap"><canvas id="wc"></canvas></div>
       </div>`;
     setTimeout(()=>drawWeightChart(d),80);
-  } catch(e) { pg.innerHTML=`<div class="ld">❌ โหลดไม่ได้</div>`; }
+  } catch(e) { pg.innerHTML=`<div class="ld"> โหลดไม่ได้</div>`; }
 }
 
 function drawWeightChart(d) {
@@ -622,6 +619,53 @@ function drawWeightChart(d) {
   });
 }
 
+// ===== PLAN =====
+async function renderPlan() {
+  const v = document.getElementById("plan-v");
+  if (!currentName) { v.innerHTML = noPatient(); return; }
+  v.innerHTML = loading();
+  try {
+    const d = await apiGet({action:"getPatientData", name:currentName});
+    const p = d.success ? d : {};
+    const readOnly = patientMode;
+    const form = !readOnly ? `
+      <div class="card">
+        <div class="ctitle">🎯 ข้อมูล Plan</div>
+        <div class="r2">
+          <div class="fg"><label>วันเริ่มต้น</label><input type="date" id="pl-sd" value="${p.startDate||today()}"></div>
+          <div class="fg"><label>น้ำหนักเริ่ม (kg)</label><input type="number" id="pl-sw" step="0.1" placeholder="101" value="${p.startWeight||""}"></div>
+        </div>
+        <div class="r2">
+          <div class="fg"><label>เป้าหมาย (kg)</label><input type="number" id="pl-gw" step="0.1" placeholder="75" value="${p.goalWeight||""}"></div>
+          <div class="fg"><label>กำหนดวัน</label><input type="date" id="pl-gd" value="${p.goalDate||""}"></div>
+        </div>
+        <button class="btn btn-pk" onclick="submitPlan()">💾 บันทึก Plan</button>
+      </div>` : "";
+
+    const info = p.startWeight ? `
+      <div class="card">
+        <div class="ctitle">สรุป Plan ปัจจุบัน</div>
+        <div class="srow"><span>วันเริ่มต้น</span><span>${p.startDate||"-"}</span></div>
+        <div class="srow"><span>น้ำหนักเริ่ม</span><span>${p.startWeight||"-"} kg</span></div>
+        <div class="srow"><span>เป้าหมาย</span><span>${p.goalWeight||"-"} kg</span></div>
+        <div class="srow"><span>ต้องลด</span><span>${p.startWeight&&p.goalWeight?Math.max(0,p.startWeight-p.goalWeight).toFixed(1):"-"} kg</span></div>
+        <div class="srow"><span>กำหนดวัน</span><span>${p.goalDate||"-"}</span></div>
+      </div>` : '<div class="ld">ยังไม่มีข้อมูล Plan</div>';
+
+    v.innerHTML = form + info;
+  } catch(e) { v.innerHTML = err(e.message); }
+}
+
+async function submitPlan() {
+  const sd = V("pl-sd"), sw = V("pl-sw"), gw = V("pl-gw"), gd = V("pl-gd");
+  if (!sd||!sw||!gw||!gd) { toast("กรอกข้อมูลให้ครบ","err"); return; }
+  try {
+    const r = await api({action:"savePlan", name:currentName, startDate:sd, startWeight:sw, goalWeight:gw, goalDate:gd});
+    if (r.success) { toast("✅ "+r.message,"ok"); renderPlan(); }
+    else toast("❌ "+r.message,"err");
+  } catch(e) { toast("❌ บันทึกไม่ได้","err"); }
+}
+
 // ===== FACT =====
 async function renderFact() {
   const v = document.getElementById("fact-v");
@@ -633,17 +677,17 @@ async function renderFact() {
 
     const logForm = !patientMode ? `
       <div class="card">
-        <div class="ctitle">📝 บันทึกน้ำหนักใหม่</div>
+        <div class="ctitle">บันทึกน้ำหนักใหม่</div>
         <div class="r2">
-          <div class="fg"><label>📅 วันที่</label><input type="date" id="fc-dt" value="${today()}"></div>
-          <div class="fg"><label>⚖️ น้ำหนัก (kg)</label><input type="number" id="fc-w" step="0.1"></div>
+          <div class="fg"><label>วันที่</label><input type="date" id="fc-dt" value="${today()}"></div>
+          <div class="fg"><label>น้ำหนัก (kg)</label><input type="number" id="fc-w" step="0.1"></div>
         </div>
         <div class="r3">
-          <div class="fg"><label>💊 โดส (mg)</label><input type="number" id="fc-ds" step="0.5" value="2.5"></div>
-          <div class="fg"><label>👩‍⚕️ แพทย์</label><select id="fc-dr"><option value="">-- เลือกแพทย์ --</option><option value="หมอชมพู่">หมอชมพู่</option><option value="หมอปาย">หมอปาย</option></select></div>
-          <div class="fg"><label>💰 งบ (฿)</label><input type="number" id="fc-bg" value="1500"></div>
+          <div class="fg"><label>โดส (mg)</label><input type="number" id="fc-ds" step="0.5" value="2.5"></div>
+          <div class="fg"><label>แพทย์</label><select id="fc-dr"><option value="">-- เลือกแพทย์ --</option><option value="หมอชมพู่">หมอชมพู่</option><option value="หมอปาย">หมอปาย</option></select></div>
+          <div class="fg"><label>งบ (฿)</label><input type="number" id="fc-bg" value="1500"></div>
         </div>
-        <div class="fg"><label>📝 หมายเหตุ</label><textarea id="fc-nt" placeholder="บันทึกเพิ่มเติม..."></textarea></div>
+        <div class="fg"><label>หมายเหตุ</label><textarea id="fc-nt" placeholder="บันทึกเพิ่มเติม..."></textarea></div>
         <button class="btn btn-pk" onclick="submitFact()">💾 บันทึก</button>
       </div>` : "";
 
@@ -654,7 +698,7 @@ async function renderFact() {
 
     const budgetCard = totalBudget > 0 ? `
       <div class="card">
-        <div class="ctitle">💰 สรุปงบประมาณ</div>
+        <div class="ctitle">สรุปงบประมาณ</div>
         <div class="sgrid" style="margin-bottom:0">
           <div class="sc">
             <div class="slb">ใช้ไปทั้งหมด</div>
@@ -673,7 +717,7 @@ async function renderFact() {
         : `<span class="${chg<0?'cn':'cp'}">${chg>0?"+":""}${(+chg).toFixed(1)}</span>`;
       const eb = !patientMode
         ? `<span onclick='editFactModal(${r.row},"${r.date}",${r.weight||0},"${r.dose||""}","${r.doctor||""}",${r.budget||0},"${(r.note||"").replace(/"/g,"")}")'
-            style="cursor:pointer;font-size:15px">✏️</span>` : "";
+            style="cursor:pointer;font-size:15px"></span>` : "";
       const bg = r.budget ? parseFloat(r.budget).toLocaleString()+"฿" : "-";
       return `<tr>
         <td>${r.week==="Start"?"Start":"สป."+r.week}</td>
@@ -691,13 +735,13 @@ async function renderFact() {
     // กราฟน้ำหนัก (แสดงทั้ง staff และ patient)
     const chartCard = `
       <div class="card">
-        <div class="ctitle">📈 กราฟน้ำหนัก</div>
+        <div class="ctitle">กราฟน้ำหนัก</div>
         <div class="ch-wrap"><canvas id="fact-wc"></canvas></div>
       </div>`;
 
     v.innerHTML = logForm + budgetCard + chartCard + `
       <div class="card">
-        <div class="ctitle">📋 ประวัติน้ำหนัก</div>
+        <div class="ctitle">ประวัติน้ำหนัก</div>
         <div style="overflow-x:auto">
           <table class="tbl">
             <thead><tr><th>สัปดาห์</th><th>วันที่</th><th>kg</th><th>ลด/+</th><th>โดส</th><th>แพทย์</th><th>งบ(฿)</th><th>หมายเหตุ</th><th></th></tr></thead>
@@ -738,19 +782,19 @@ function drawFactChart(d) {
 
 async function submitFact() {
   const date=V("fc-dt"),weight=V("fc-w");
-  if (!date||!weight){toast("⚠️ กรอกวันที่และน้ำหนัก","err");return;}
+  if (!date||!weight){toast(" กรอกวันที่และน้ำหนัก","err");return;}
   try {
     const r = await api({action:"logVisit",name:currentName,date,weight,
       dose:V("fc-ds"),doctor:V("fc-dr"),budget:V("fc-bg"),note:V("fc-nt")});
-    if (r.success){toast("✅ "+r.message,"ok");set("fc-w","");set("fc-ds","2.5");set("fc-bg","1500");set("fc-nt","");renderFact();}
-    else toast("❌ "+r.message,"err");
-  } catch(e){toast("❌ ส่งข้อมูลไม่ได้","err");}
+    if (r.success){toast(" "+r.message,"ok");set("fc-w","");set("fc-ds","2.5");set("fc-bg","1500");set("fc-nt","");renderFact();}
+    else toast(" "+r.message,"err");
+  } catch(e){toast(" ส่งข้อมูลไม่ได้","err");}
 }
 
 function editFactModal(row,date,weight,dose,doctor,budget,note) {
   const iso = dateToIso(date);
   showModal(`
-    <div class="modal-title">✏️ แก้ไขข้อมูล<span class="modal-x" onclick="closeModal()">✕</span></div>
+    <div class="modal-title">แก้ไขข้อมูล<span class="modal-x" onclick="closeModal()"></span></div>
     <div class="r2">
       <div class="fg"><label>วันที่</label><input type="date" id="ed-dt" value="${iso}"></div>
       <div class="fg"><label>น้ำหนัก</label><input type="number" id="ed-w" value="${weight}" step="0.1"></div>
@@ -769,9 +813,9 @@ async function submitEdit(row) {
     const r = await api({action:"editVisit",name:currentName,row,
       date:V("ed-dt"),weight:V("ed-w"),dose:V("ed-ds"),
       doctor:V("ed-dr"),budget:V("ed-bg"),note:V("ed-nt")});
-    if(r.success){toast("✅ แก้ไขสำเร็จ","ok");closeModal();renderFact();}
-    else toast("❌ "+r.message,"err");
-  } catch(e){toast("❌ ส่งไม่ได้","err");}
+    if(r.success){toast(" แก้ไขสำเร็จ","ok");closeModal();renderFact();}
+    else toast(" "+r.message,"err");
+  } catch(e){toast(" ส่งไม่ได้","err");}
 }
 
 // ===== SYMPTOM =====
@@ -785,14 +829,14 @@ async function renderSym() {
 
     const logForm = !patientMode ? `
       <div class="card">
-        <div class="ctitle">📞 บันทึกติดตามอาการ</div>
+        <div class="ctitle">บันทึกติดตามอาการ</div>
         <div class="r2">
-          <div class="fg"><label>📅 วันที่</label><input type="date" id="sy-dt" value="${today()}"></div>
-          <div class="fg"><label>🕐 เวลา</label><input type="time" id="sy-tm" value="${new Date().toTimeString().slice(0,5)}"></div>
+          <div class="fg"><label>วันที่</label><input type="date" id="sy-dt" value="${today()}"></div>
+          <div class="fg"><label>เวลา</label><input type="time" id="sy-tm" value="${new Date().toTimeString().slice(0,5)}"></div>
         </div>
         <div class="fg"><label>ประเภท</label>
           <select id="sy-tp"><option value="tel">📱 tel</option><option value="F/U">🏥 F/U</option></select></div>
-        ${symSection("🍽️ การกินและความหิว","s1",[
+        ${symSection("🍽 การกินและความหิว","s1",[
           fmChip("ความหิว","hunger",["ไม่หิวเลย","หิวน้อยลง","หิวพอเดิม","ยังหิวปกติ"]),
           fmChip("ความอิ่ม","full",["อิ่มนาน","อิ่มมากขึ้น","อิ่มพอเดิม","ไม่ค่อยอิ่ม"]),
           `<div class="fg"><label>คุมอาหาร</label><textarea id="sy-diet" placeholder="เช่น ทานโปรตีน หลีกเลี่ยงแป้ง"></textarea></div>`
@@ -835,12 +879,12 @@ async function renderSym() {
         </div>
         ${r.note?`<div class="sym-note">💬 ${r.note}</div>`:""}
         ${r.tone?`<div class="sym-note" style="color:var(--pu)">🎤 ${r.tone}</div>`:""}
-        ${r.diet?`<div class="sym-note" style="color:var(--gr)">🍽️ ${r.diet}</div>`:""}
+        ${r.diet?`<div class="sym-note" style="color:var(--gr)">🍽 ${r.diet}</div>`:""}
       </div>`;
     }).join("") : '<div class="ld">ยังไม่มีประวัติการติดตาม</div>';
 
     v.innerHTML = logForm + `
-      <div class="card"><div class="ctitle">📋 ประวัติติดตามอาการ</div>${cards}</div>`;
+      <div class="card"><div class="ctitle">ประวัติติดตามอาการ</div>${cards}</div>`;
 
     // open all sections
     ["sy-s1","sy-s2","sy-s3"].forEach(id=>{
@@ -875,7 +919,7 @@ function getChip(name) {
 
 async function submitSym() {
   const date=V("sy-dt");
-  if(!date){toast("⚠️ กรอกวันที่","err");return;}
+  if(!date){toast(" กรอกวันที่","err");return;}
   try {
     const r = await api({action:"logVisit",name:currentName,date,
       hunger:getChip("hunger"),fullness:getChip("full"),
@@ -884,9 +928,9 @@ async function submitSym() {
       fiber:getChip("fiber"),se:V("sy-se"),bowel:getChip("bowel"),
       mood:getChip("mood"),sleep:getChip("sleep"),motivation:getChip("motiv"),
       tone:V("sy-tone"),remark:V("sy-note")});
-    if(r.success){toast("✅ "+r.message,"ok");renderSym();}
-    else toast("❌ "+r.message,"err");
-  } catch(e){toast("❌ ส่งไม่ได้","err");}
+    if(r.success){toast(" "+r.message,"ok");renderSym();}
+    else toast(" "+r.message,"err");
+  } catch(e){toast(" ส่งไม่ได้","err");}
 }
 
 // ===== MEASURE =====
@@ -898,8 +942,8 @@ async function renderMeas() {
     const d = await apiGet({action:"getPatientData",name:currentName});
     const logForm = !patientMode ? `
       <div class="card">
-        <div class="ctitle">📏 บันทึกสัดส่วน</div>
-        <div class="fg"><label>📅 วันที่</label><input type="date" id="ms-dt" value="${today()}"></div>
+        <div class="ctitle">บันทึกสัดส่วน</div>
+        <div class="fg"><label>วันที่</label><input type="date" id="ms-dt" value="${today()}"></div>
         <div class="r2">
           <div class="fg"><label>หน้าอก (นิ้ว)</label><input type="number" id="ms-ch" step="0.5"></div>
           <div class="fg"><label>เอว (นิ้ว)</label><input type="number" id="ms-wa" step="0.5"></div>
@@ -925,7 +969,7 @@ async function renderMeas() {
 
     const tableHtml = recs.length ? `
       <div class="card">
-        <div class="ctitle">📋 ตารางสัดส่วน (นิ้ว)</div>
+        <div class="ctitle">ตารางสัดส่วน (นิ้ว)</div>
         <div style="overflow-x:auto">
           <table class="tbl">
             <thead>
@@ -950,14 +994,14 @@ async function renderMeas() {
 
 async function submitMeas() {
   const date=V("ms-dt");
-  if(!date){toast("⚠️ กรอกวันที่","err");return;}
+  if(!date){toast(" กรอกวันที่","err");return;}
   try {
     const r=await api({action:"logVisit",name:currentName,date,
       chest:V("ms-ch"),waist:V("ms-wa"),hip:V("ms-hi"),
       armR:V("ms-ar"),armL:V("ms-al"),thighR:V("ms-tr"),thighL:V("ms-tl")});
-    if(r.success){toast("✅ "+r.message,"ok");renderMeas();}
-    else toast("❌ "+r.message,"err");
-  } catch(e){toast("❌ ส่งไม่ได้","err");}
+    if(r.success){toast(" "+r.message,"ok");renderMeas();}
+    else toast(" "+r.message,"err");
+  } catch(e){toast(" ส่งไม่ได้","err");}
 }
 
 // ===== BODY COMP =====
@@ -969,8 +1013,8 @@ async function renderBody() {
     const d=await apiGet({action:"getBodyCompImages",name:currentName});
     const uploadForm=!patientMode?`
       <div class="card">
-        <div class="ctitle">📤 อัปโหลดรูป Body Composition</div>
-        <div class="fg"><label>📅 วันที่</label><input type="date" id="bc-dt" value="${today()}"></div>
+        <div class="ctitle">อัปโหลดรูป Body Composition</div>
+        <div class="fg"><label>วันที่</label><input type="date" id="bc-dt" value="${today()}"></div>
         <div class="up-area" id="bc-area"
           onclick="document.getElementById('bc-file').click()"
           ondrop="dropFile(event)" ondragover="event.preventDefault();this.classList.add('drag')"
@@ -990,12 +1034,12 @@ async function renderBody() {
               loading="lazy" onclick="openLb('${img.fileId}')"
               onerror="this.src='https://drive.google.com/uc?export=view&id=${img.fileId}'">
             <div class="img-date">${img.date}</div>
-            ${!patientMode?`<button class="img-del" onclick="deleteBody('${img.fileId}')">🗑️ ลบ</button>`:""}
+            ${!patientMode?`<button class="img-del" onclick="deleteBody('${img.fileId}')">🗑 ลบ</button>`:""}
           </div>`).join("")}</div>`
       :'<div class="ld">ยังไม่มีรูป Body Composition</div>';
 
     v.innerHTML=uploadForm+`
-      <div class="card"><div class="ctitle">🫀 Body Composition</div>${imgs}</div>`;
+      <div class="card"><div class="ctitle">Body Composition</div>${imgs}</div>`;
   } catch(e){v.innerHTML=err(e.message);}
 }
 
@@ -1015,19 +1059,19 @@ function dropFile(e) {
 }
 async function submitBody() {
   const date=V("bc-dt"),file=document.getElementById("bc-file").files[0];
-  if(!date){toast("⚠️ กรอกวันที่","err");return;}
-  if(!file){toast("⚠️ เลือกรูปก่อน","err");return;}
-  if(file.size>8*1024*1024){toast("⚠️ รูปใหญ่เกิน 8MB","err");return;}
-  toast("⏳ กำลังอัปโหลด...");
+  if(!date){toast(" กรอกวันที่","err");return;}
+  if(!file){toast(" เลือกรูปก่อน","err");return;}
+  if(file.size>8*1024*1024){toast(" รูปใหญ่เกิน 8MB","err");return;}
+  toast(" กำลังอัปโหลด...");
   const reader=new FileReader();
   reader.onload=async e=>{
     const b64=e.target.result.split(",")[1];
     try {
       const r=await api({action:"uploadBodyComp",name:currentName,date,
         imageBase64:b64,mimeType:file.type,fileName:file.name});
-      if(r.success){toast("✅ อัปโหลดสำเร็จ","ok");renderBody();}
-      else toast("❌ "+r.message,"err");
-    } catch(e){toast("❌ อัปโหลดไม่ได้","err");}
+      if(r.success){toast(" อัปโหลดสำเร็จ","ok");renderBody();}
+      else toast(" "+r.message,"err");
+    } catch(e){toast(" อัปโหลดไม่ได้","err");}
   };
   reader.readAsDataURL(file);
 }
@@ -1035,9 +1079,9 @@ async function deleteBody(fileId) {
   if(!confirm("ลบรูปนี้?"))return;
   try {
     const r=await api({action:"deleteBodyComp",name:currentName,fileId});
-    if(r.success){toast("✅ ลบแล้ว","ok");renderBody();}
-    else toast("❌ "+r.message,"err");
-  } catch(e){toast("❌ ลบไม่ได้","err");}
+    if(r.success){toast(" ลบแล้ว","ok");renderBody();}
+    else toast(" "+r.message,"err");
+  } catch(e){toast(" ลบไม่ได้","err");}
 }
 function openLb(fileId) {
   const img=document.getElementById("lb-img");
@@ -1073,15 +1117,15 @@ async function renderMed() {
             ${it.note?`<span class="med-note">${it.note}</span>`:""}
           </div>`).join("")
         : '<div class="ld">ยังไม่มีรายการยา</div>';
-      v.innerHTML = `<div class="card"><div class="ctitle">💊 รายการยาปัจจุบัน</div>${viewHtml}</div>`;
+      v.innerHTML = `<div class="card"><div class="ctitle">รายการยาปัจจุบัน</div>${viewHtml}</div>`;
     } else {
-      // staff — แสดง inline edit พร้อมปุ่ม ✕ และ ➕
+      // staff — แสดง inline edit พร้อมปุ่ม  และ 
       const rowsHtml = items.map((it,i) => medRow(i, it.name, it.dose, it.note)).join("");
       v.innerHTML = `
         <div class="card">
-          <div class="ctitle">💊 รายการยาปัจจุบัน</div>
+          <div class="ctitle">รายการยาปัจจุบัน</div>
           <div id="med-rows">${rowsHtml}</div>
-          <button class="btn-out" style="width:100%;margin:10px 0 8px" onclick="addMedRow()">➕ เพิ่มรายการ</button>
+          <button class="btn-out" style="width:100%;margin:10px 0 8px" onclick="addMedRow()"> เพิ่มรายการ</button>
           <button class="btn btn-pk" onclick="submitMed()">💾 บันทึกรายการยา</button>
         </div>`;
     }
@@ -1116,47 +1160,53 @@ async function submitMed() {
   });
   try {
     const r = await api({action:"saveMedication", name:currentName, items});
-    if (r.success) { toast("✅ "+r.message, "ok"); renderMed(); }
-    else toast("❌ "+r.message, "err");
-  } catch(e) { toast("❌ บันทึกไม่ได้", "err"); }
+    if (r.success) { toast(" "+r.message, "ok"); renderMed(); }
+    else toast(" "+r.message, "err");
+  } catch(e) { toast(" บันทึกไม่ได้", "err"); }
 }
 
 // ===== ADD PATIENT =====
-async function submitAdd(){
-  const name=V("ad-name"),sd=V("ad-sd"),sw=V("ad-sw"),gw=V("ad-gw"),gd=V("ad-gd");
-  if(!name||!sd||!sw||!gw||!gd){toast("⚠️ กรอกให้ครบ","err");return;}
-  toast("⏳ กำลังสร้าง Spreadsheet...");
+async function submitAdd() {
+  const name = V("ad-name").trim();
+  if (!name) { toast("กรอกชื่อผู้ป่วยก่อน","err"); return; }
+  try {
+    const r = await api({action:"addPatient", name});
+    if (r.success) { toast("✅ "+r.message,"ok"); set("ad-name",""); await loadPatients(); hTab("pt"); }
+    else toast("❌ "+r.message,"err");
+  } catch(e) { toast("❌ เพิ่มไม่ได้","err"); }
+}
+  toast(" กำลังสร้าง Spreadsheet...");
   try {
     const r=await api({action:"addPatient",name,startDate:sd,startWeight:sw,goalWeight:gw,goalDate:gd});
     if(r.success){
-      toast("✅ "+r.message,"ok");
+      toast(" "+r.message,"ok");
       ["ad-name","ad-sw","ad-gw"].forEach(id=>set(id,""));
       await loadPatients();
       hTab("pt");
-    } else toast("❌ "+r.message,"err");
-  } catch(e){toast("❌ สร้างไม่ได้","err");}
+    } else toast(" "+r.message,"err");
+  } catch(e){toast(" สร้างไม่ได้","err");}
 }
 
 // ===== SETTINGS =====
 function saveUrl(){
   const url=V("cfg-url").trim();
-  if(!url){toast("⚠️ ใส่ URL ก่อน","err");return;}
+  if(!url){toast(" ใส่ URL ก่อน","err");return;}
   gasUrl=url;localStorage.setItem(UK,url);
-  toast("✅ บันทึกสำเร็จ","ok");
+  toast(" บันทึกสำเร็จ","ok");
   loadPatients().then(renderPtList);
 }
 async function testConn(){
-  if(!gasUrl){toast("⚠️ ใส่ URL ก่อน","err");return;}
+  if(!gasUrl){toast(" ใส่ URL ก่อน","err");return;}
   toast("🔌 กำลังทดสอบ...");
   try {
     const r=await apiGet({action:"getPatients"});
     if(r.success){
       patients=r.patients;
       document.getElementById("cfg-count").textContent=patients.length+" คน";
-      document.getElementById("cfg-conn").textContent="✅ เชื่อมต่อสำเร็จ";
-      toast("✅ เชื่อมต่อสำเร็จ "+patients.length+" ผู้ป่วย","ok");
-    } else toast("❌ "+r.message,"err");
-  } catch(e){toast("❌ เชื่อมต่อไม่ได้","err");}
+      document.getElementById("cfg-conn").textContent=" เชื่อมต่อสำเร็จ";
+      toast(" เชื่อมต่อสำเร็จ "+patients.length+" ผู้ป่วย","ok");
+    } else toast(" "+r.message,"err");
+  } catch(e){toast(" เชื่อมต่อไม่ได้","err");}
 }
 
 // ===== SECTION TOGGLE =====
@@ -1190,7 +1240,7 @@ function V(id){const e=document.getElementById(id);return e?e.value:"";}
 function set(id,v){const e=document.getElementById(id);if(e)e.value=v;}
 function today(){return new Date().toLocaleDateString("sv-SE",{timeZone:"Asia/Bangkok"});}
 function loading(){return '<div class="ld"><div class="spin"></div>กำลังโหลด...</div>';}
-function err(m){return `<div class="ld">❌ ${m||"เกิดข้อผิดพลาด"}</div>`;}
+function err(m){return `<div class="ld"> ${m||"เกิดข้อผิดพลาด"}</div>`;}
 function noPatient(){return '<div class="ld">กลับไปเลือกผู้ป่วยก่อนครับ</div>';}
 function noData(cols){return `<tr><td colspan="${cols}" style="color:var(--tx2);padding:14px">ยังไม่มีข้อมูล</td></tr>`;}
 function dateToIso(d){
