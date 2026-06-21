@@ -1175,17 +1175,7 @@ async function submitAdd() {
     else toast("❌ "+r.message,"err");
   } catch(e) { toast("❌ เพิ่มไม่ได้","err"); }
 }
-  toast(" กำลังสร้าง Spreadsheet...");
-  try {
-    const r=await api({action:"addPatient",name,startDate:sd,startWeight:sw,goalWeight:gw,goalDate:gd});
-    if(r.success){
-      toast(" "+r.message,"ok");
-      ["ad-name","ad-sw","ad-gw"].forEach(id=>set(id,""));
-      await loadPatients();
-      hTab("pt");
-    } else toast(" "+r.message,"err");
-  } catch(e){toast(" สร้างไม่ได้","err");}
-}
+
 
 // ===== SETTINGS =====
 function saveUrl(){
