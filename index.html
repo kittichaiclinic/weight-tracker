@@ -367,21 +367,21 @@ function buildNav(patient) {
     nav.style.display = "flex";
     nav.innerHTML = `
       <button class="active" onclick="gp('home',this)"><span class="ni">📊</span>ภาพรวม</button>
+      <button onclick="gp('plan',this)"><span class="ni">🎯</span>Plan</button>
+      <button onclick="gp('fact',this)"><span class="ni">⚖️</span>น้ำหนัก</button>
+      <button onclick="gp('sym',this)"><span class="ni">📞</span>ติดตาม</button>
+      <button onclick="gp('meas',this)"><span class="ni">📏</span>สัดส่วน</button>
+      <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
+      <button onclick="gp('med',this)"><span class="ni">💊</span>ยา</button>`;
+  } else {
+    nav.style.display = "none";
+    nav.innerHTML = `
+      <button class="active" onclick="gp('plan',this)"><span class="ni">🎯</span>Plan</button>
       <button onclick="gp('fact',this)"><span class="ni">⚖️</span>น้ำหนัก</button>
       <button onclick="gp('sym',this)"><span class="ni">📞</span>ติดตาม</button>
       <button onclick="gp('meas',this)"><span class="ni">📏</span>สัดส่วน</button>
       <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
       <button onclick="gp('med',this)"><span class="ni">💊</span>ยา</button>
-      <button onclick="gp('plan',this)"><span class="ni">🎯</span>Plan</button>`;
-  } else {
-    nav.style.display = "none";
-    nav.innerHTML = `
-      <button class="active" onclick="gp('fact',this)"><span class="ni">⚖️</span>น้ำหนัก</button>
-      <button onclick="gp('sym',this)"><span class="ni">📞</span>ติดตาม</button>
-      <button onclick="gp('meas',this)"><span class="ni">📏</span>สัดส่วน</button>
-      <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
-      <button onclick="gp('med',this)"><span class="ni">💊</span>ยา</button>
-      <button onclick="gp('plan',this)"><span class="ni">🎯</span>Plan</button>
       <button onclick="backHome()"><span class="ni">🏠</span>หน้าแรก</button>`;
   }
 }
@@ -535,9 +535,9 @@ function selectPt(name) {
   document.querySelector(".main").style.paddingBottom = "82px";
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
   document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
-  document.getElementById("pg-fact").classList.add("active");
-  document.querySelectorAll(".nav button")[0].classList.add("active");
-  renderFact();
+  document.getElementById("pg-plan").classList.add("active");
+  document.querySelectorAll(".nav button")[1].classList.add("active");
+  renderPlan();
 }
 
 function backHome() {
