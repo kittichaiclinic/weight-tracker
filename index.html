@@ -319,6 +319,8 @@ textarea{resize:vertical;min-height:56px}
 const UK = "wt_v4_url";
 const DEFAULT_URL = "https://script.google.com/macros/s/AKfycbxSuRw6QoX1GLG0SOPKANGhSNAnJ5JE14f98HllG8bnC92LwlK91LaVYkfXrwajVHMo/exec";
 let gasUrl = localStorage.getItem(UK) || DEFAULT_URL;
+let _cache = {};           // cache ข้อมูลผู้ป่วย { name: data }
+let _patientsLoaded = false; // cache รายชื่อ
 let patients = [], patientMode = false;
 let currentName = "";
 let wChart = null, mChart = null;
@@ -402,6 +404,18 @@ function gp(name, btn) {
 }
 
 // ===== API =====
+// ── CACHE HELPERS ─────────────────────────────────────────
+async function getPatientCached(name, force=false) {
+  if (!force && _cache[name]) return _cache[name];
+  const d = await apiGet({action:"getPatientData", name});
+  if (d.success) _cache[name] = d;
+  return d;
+}
+function invalidateCache(name) {
+  if (name) delete _cache[name];
+  else _cache = {};
+}
+
 async function api(data) {
   const r = await fetch(gasUrl,{method:"POST",body:JSON.stringify(data)});
   return r.json();
@@ -413,24 +427,26 @@ async function apiGet(params) {
 }
 
 // ===== PATIENTS =====
-async function loadPatients() {
+async function loadPatients(force=false) {
+  if (!force && _patientsLoaded && patients.length) return true;
   try {
     const r = await apiGet({action:"getPatients"});
     if (r.success) {
       patients = r.patients;
+      _patientsLoaded = true;
       const c = document.getElementById("cfg-count");
       if (c) c.textContent = patients.length+" คน";
       const cc = document.getElementById("cfg-conn");
-      if (cc) cc.textContent = " เชื่อมต่อสำเร็จ";
+      if (cc) cc.textContent = "เชื่อมต่อสำเร็จ";
       return true;
     } else {
       const cc = document.getElementById("cfg-conn");
-      if (cc) cc.textContent = " "+r.message;
+      if (cc) cc.textContent = r.message;
       return false;
     }
   } catch(e) {
     const cc = document.getElementById("cfg-conn");
-    if (cc) cc.textContent = " "+e.message;
+    if (cc) cc.textContent = e.message;
     return false;
   }
 }
@@ -557,7 +573,7 @@ async function renderPatientHome() {
   const pg = document.getElementById("pg-home");
   pg.innerHTML = '<div class="ld"><div class="spin"></div>กำลังโหลด...</div>';
   try {
-    const d = await apiGet({action:"getPatientData", name:currentName});
+    const d = await getPatientCached(currentName);
     if (!d.success) { pg.innerHTML=`<div class="ld"> ${d.message}</div>`; return; }
     const pct = Math.min(Math.max(d.progress||0,0),100);
     pg.innerHTML = `
@@ -621,7 +637,7 @@ async function renderPlan() {
   if (!currentName) { v.innerHTML = noPatient(); return; }
   v.innerHTML = loading();
   try {
-    const d = await apiGet({action:"getPatientData", name:currentName});
+    const d = await getPatientCached(currentName);
     const p = d.success ? d : {};
     const readOnly = patientMode;
     const form = !readOnly ? `
@@ -657,7 +673,7 @@ async function submitPlan() {
   if (!sd||!sw||!gw||!gd) { toast("กรอกข้อมูลให้ครบ","err"); return; }
   try {
     const r = await api({action:"savePlan", name:currentName, startDate:sd, startWeight:sw, goalWeight:gw, goalDate:gd});
-    if (r.success) { toast("✅ "+r.message,"ok"); renderPlan(); }
+    if (r.success) { toast("✅ "+r.message,"ok"); invalidateCache(currentName); renderPlan(); }
     else toast("❌ "+r.message,"err");
   } catch(e) { toast("❌ บันทึกไม่ได้","err"); }
 }
@@ -668,7 +684,7 @@ async function renderFact() {
   if (!currentName) { v.innerHTML=noPatient(); return; }
   v.innerHTML = loading();
   try {
-    const d = await apiGet({action:"getPatientData", name:currentName});
+    const d = await getPatientCached(currentName);
     if (!d.success) { v.innerHTML=err(d.message); return; }
 
     const logForm = !patientMode ? `
@@ -782,7 +798,7 @@ async function submitFact() {
   try {
     const r = await api({action:"logVisit",name:currentName,date,weight,
       dose:V("fc-ds"),doctor:V("fc-dr"),budget:V("fc-bg"),note:V("fc-nt")});
-    if (r.success){toast(" "+r.message,"ok");set("fc-w","");set("fc-ds","2.5");set("fc-bg","1500");set("fc-nt","");renderFact();}
+    if (r.success){toast(" "+r.message,"ok");set("fc-w","");set("fc-ds","2.5");set("fc-bg","1500");set("fc-nt","");invalidateCache(currentName);renderFact();}
     else toast(" "+r.message,"err");
   } catch(e){toast(" ส่งข้อมูลไม่ได้","err");}
 }
@@ -809,7 +825,7 @@ async function submitEdit(row) {
     const r = await api({action:"editVisit",name:currentName,row,
       date:V("ed-dt"),weight:V("ed-w"),dose:V("ed-ds"),
       doctor:V("ed-dr"),budget:V("ed-bg"),note:V("ed-nt")});
-    if(r.success){toast(" แก้ไขสำเร็จ","ok");closeModal();renderFact();}
+    if(r.success){toast(" แก้ไขสำเร็จ","ok");closeModal();invalidateCache(currentName);renderFact();}
     else toast(" "+r.message,"err");
   } catch(e){toast(" ส่งไม่ได้","err");}
 }
@@ -820,7 +836,7 @@ async function renderSym() {
   if (!currentName){v.innerHTML=noPatient();return;}
   v.innerHTML=loading();
   try {
-    const d = await apiGet({action:"getPatientData",name:currentName});
+    const d = await getPatientCached(currentName);
     const records = (d.records||[]).slice().reverse();
 
     const logForm = !patientMode ? `
@@ -935,7 +951,7 @@ async function renderMeas() {
   if (!currentName){v.innerHTML=noPatient();return;}
   v.innerHTML=loading();
   try {
-    const d = await apiGet({action:"getPatientData",name:currentName});
+    const d = await getPatientCached(currentName);
     const logForm = !patientMode ? `
       <div class="card">
         <div class="ctitle">บันทึกสัดส่วน</div>
@@ -1006,7 +1022,7 @@ async function renderBody() {
   if(!currentName){v.innerHTML=noPatient();return;}
   v.innerHTML=loading();
   try {
-    const d=await apiGet({action:"getBodyCompImages",name:currentName});
+    const d=await getPatientCached(currentName);
     const uploadForm=!patientMode?`
       <div class="card">
         <div class="ctitle">อัปโหลดรูป Body Composition</div>
@@ -1065,7 +1081,7 @@ async function submitBody() {
     try {
       const r=await api({action:"uploadBodyComp",name:currentName,date,
         imageBase64:b64,mimeType:file.type,fileName:file.name});
-      if(r.success){toast(" อัปโหลดสำเร็จ","ok");renderBody();}
+      if(r.success){toast(" อัปโหลดสำเร็จ","ok");invalidateCache(currentName);renderBody();}
       else toast(" "+r.message,"err");
     } catch(e){toast(" อัปโหลดไม่ได้","err");}
   };
