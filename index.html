@@ -533,11 +533,7 @@ function selectPt(name) {
   document.getElementById("htabs").style.display = "none";
   document.getElementById("nav").style.display = "flex";
   document.querySelector(".main").style.paddingBottom = "82px";
-  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
-  document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
-  document.getElementById("pg-plan").classList.add("active");
-  document.querySelectorAll(".nav button")[1].classList.add("active");
-  renderPlan();
+  gp("plan", document.querySelector('.nav button[onclick*="plan"]'));
 }
 
 function backHome() {
