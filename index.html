@@ -1022,7 +1022,7 @@ async function renderBody() {
   if(!currentName){v.innerHTML=noPatient();return;}
   v.innerHTML=loading();
   try {
-    const d=await getPatientCached(currentName);
+    const d=await apiGet({action:"getBodyCompImages",name:currentName});
     const uploadForm=!patientMode?`
       <div class="card">
         <div class="ctitle">อัปโหลดรูป Body Composition</div>
@@ -1081,7 +1081,7 @@ async function submitBody() {
     try {
       const r=await api({action:"uploadBodyComp",name:currentName,date,
         imageBase64:b64,mimeType:file.type,fileName:file.name});
-      if(r.success){toast(" อัปโหลดสำเร็จ","ok");invalidateCache(currentName);renderBody();}
+      if(r.success){toast(" อัปโหลดสำเร็จ","ok");renderBody();}
       else toast(" "+r.message,"err");
     } catch(e){toast(" อัปโหลดไม่ได้","err");}
   };
