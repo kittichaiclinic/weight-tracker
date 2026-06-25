@@ -511,11 +511,43 @@ function renderPtCards(list) {
       </div>
       <div class="pt-link">
         <div class="pt-link-txt">${link}</div>
-        <button id="${bid}" class="btn-sm btn-bl"
-          onclick="copyLink('${link}','${bid}')">📋 คัดลอก</button>
+        <div style="display:flex;gap:6px">
+          <button id="${bid}" class="btn-sm btn-bl"
+            onclick="copyLink('${link}','${bid}')">📋 คัดลอก</button>
+          <button class="btn-sm" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5"
+            onclick="confirmDeletePt('${p.name.replace(/'/g,"\\'")}')">🗑 ลบ</button>
+        </div>
       </div>
     </div>`;
   }).join("");
+}
+
+async function confirmDeletePt(name) {
+  showModal(`
+    <div class="modal-title">🗑 ลบผู้ป่วย<span class="modal-x" onclick="closeModal()">✕</span></div>
+    <div style="text-align:center;padding:10px 0 18px">
+      <div style="font-size:36px;margin-bottom:10px">⚠️</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:6px">ลบ "${name}" ออกจากระบบ?</div>
+      <div style="font-size:13px;color:var(--tx2);margin-bottom:18px">ข้อมูลทั้งหมดจะถูกลบออกจาก Google Sheet<br>และไม่สามารถกู้คืนได้</div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="btn-out" onclick="closeModal()">ยกเลิก</button>
+        <button class="btn" style="background:#dc2626" onclick="deletePt('${name.replace(/'/g,"\\'")}')">🗑 ยืนยันลบ</button>
+      </div>
+    </div>`);
+}
+
+async function deletePt(name) {
+  try {
+    const r = await api({action:"deletePatient", name});
+    if (r.success) {
+      toast("✅ ลบ "+name+" สำเร็จ","ok");
+      closeModal();
+      invalidateCache(name);
+      _patientsLoaded = false;
+      await loadPatients(true);
+      renderPtList();
+    } else toast("❌ "+r.message,"err");
+  } catch(e) { toast("❌ ลบไม่ได้","err"); }
 }
 
 function filterPtList(q) {
