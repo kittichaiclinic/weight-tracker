@@ -674,14 +674,10 @@ async function renderPlan() {
     const readOnly = patientMode;
     const form = !readOnly ? `
       <div class="card">
-        <div class="ctitle">🎯 ข้อมูล Plan</div>
-        <div class="r2">
-          <div class="fg"><label>วันเริ่มต้น</label><input type="date" id="pl-sd" value="${p.startDate||today()}"></div>
-          <div class="fg"><label>น้ำหนักเริ่ม (kg)</label><input type="number" id="pl-sw" step="0.1" placeholder="101" value="${p.startWeight||""}"></div>
-        </div>
+        <div class="ctitle">🎯 ตั้งเป้าหมาย</div>
         <div class="r2">
           <div class="fg"><label>เป้าหมาย (kg)</label><input type="number" id="pl-gw" step="0.1" placeholder="75" value="${p.goalWeight||""}"></div>
-          <div class="fg"><label>กำหนดวัน</label><input type="date" id="pl-gd" value="${p.goalDate||""}"></div>
+          <div class="fg"><label>กำหนดวัน</label><input type="date" id="pl-gd" value="${p.goalDate||today()}"></div>
         </div>
         <button class="btn btn-pk" onclick="submitPlan()">💾 บันทึก Plan</button>
       </div>` : "";
@@ -689,22 +685,29 @@ async function renderPlan() {
     const info = p.startWeight ? `
       <div class="card">
         <div class="ctitle">สรุป Plan ปัจจุบัน</div>
-        <div class="srow"><span>วันเริ่มต้น</span><span>${p.startDate||"-"}</span></div>
-        <div class="srow"><span>น้ำหนักเริ่ม</span><span>${p.startWeight||"-"} kg</span></div>
+        <div class="srow"><span>วันเริ่มต้น (สป.1)</span><span>${p.startDate||"-"}</span></div>
+        <div class="srow"><span>น้ำหนักเริ่ม (สป.1)</span><span>${p.startWeight||"-"} kg</span></div>
         <div class="srow"><span>เป้าหมาย</span><span>${p.goalWeight||"-"} kg</span></div>
         <div class="srow"><span>ต้องลด</span><span>${p.startWeight&&p.goalWeight?Math.max(0,p.startWeight-p.goalWeight).toFixed(1):"-"} kg</span></div>
         <div class="srow"><span>กำหนดวัน</span><span>${p.goalDate||"-"}</span></div>
-      </div>` : '<div class="ld">ยังไม่มีข้อมูล Plan</div>';
+      </div>` : \`<div class="card">
+        <div class="ctitle">🎯 ตั้งเป้าหมาย</div>
+        <div class="r2">
+          <div class="fg"><label>เป้าหมาย (kg)</label><input type="number" id="pl-gw" step="0.1" placeholder="75"></div>
+          <div class="fg"><label>กำหนดวัน</label><input type="date" id="pl-gd" value="${today()}"></div>
+        </div>
+        <button class="btn btn-pk" onclick="submitPlan()">💾 บันทึก Plan</button>
+      </div>\`;
 
     v.innerHTML = form + info;
   } catch(e) { v.innerHTML = err(e.message); }
 }
 
 async function submitPlan() {
-  const sd = V("pl-sd"), sw = V("pl-sw"), gw = V("pl-gw"), gd = V("pl-gd");
-  if (!sd||!sw||!gw||!gd) { toast("กรอกข้อมูลให้ครบ","err"); return; }
+  const gw = V("pl-gw"), gd = V("pl-gd");
+  if (!gw||!gd) { toast("กรอกเป้าหมายให้ครบ","err"); return; }
   try {
-    const r = await api({action:"savePlan", name:currentName, startDate:sd, startWeight:sw, goalWeight:gw, goalDate:gd});
+    const r = await api({action:"savePlan", name:currentName, goalWeight:gw, goalDate:gd});
     if (r.success) { toast("✅ "+r.message,"ok"); invalidateCache(currentName); renderPlan(); }
     else toast("❌ "+r.message,"err");
   } catch(e) { toast("❌ บันทึกไม่ได้","err"); }
@@ -757,14 +760,14 @@ async function renderFact() {
 
     const rows = d.records.slice().reverse().map(r=>{
       const chg = r.change;
-      const cs = (!chg&&chg!==0)||r.week==="Start" ? "-"
+      const cs = (!chg&&chg!==0) ? "-"
         : `<span class="${chg<0?'cn':'cp'}">${chg>0?"+":""}${(+chg).toFixed(1)}</span>`;
       const eb = !patientMode
         ? `<span onclick='editFactModal(${r.row},"${r.date}",${r.weight||0},"${r.dose||""}","${r.doctor||""}",${r.budget||0},"${(r.note||"").replace(/"/g,"")}")'
             style="cursor:pointer;font-size:15px"></span>` : "";
       const bg = r.budget ? parseFloat(r.budget).toLocaleString()+"฿" : "-";
       return `<tr>
-        <td>${r.week==="Start"?"Start":"สป."+r.week}</td>
+        <td>สป.${r.week}</td>
         <td style="font-size:11px">${r.date}</td>
         <td><b>${r.weight||"-"}</b></td>
         <td>${cs}</td>
