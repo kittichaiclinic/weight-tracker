@@ -682,14 +682,6 @@ async function renderPlan() {
         <button class="btn btn-pk" onclick="submitPlan()">💾 บันทึก Plan</button>
       </div>` : "";
 
-    const noPlan = `<div class="card">
-        <div class="ctitle">🎯 ตั้งเป้าหมาย</div>
-        <div class="r2">
-          <div class="fg"><label>เป้าหมาย (kg)</label><input type="number" id="pl-gw" step="0.1" placeholder="75"></div>
-          <div class="fg"><label>กำหนดวัน</label><input type="date" id="pl-gd"></div>
-        </div>
-        <button class="btn btn-pk" onclick="submitPlan()">💾 บันทึก Plan</button>
-      </div>`;
     const info = p.startWeight ? `
       <div class="card">
         <div class="ctitle">สรุป Plan ปัจจุบัน</div>
@@ -698,7 +690,7 @@ async function renderPlan() {
         <div class="srow"><span>เป้าหมาย</span><span>${p.goalWeight||"-"} kg</span></div>
         <div class="srow"><span>ต้องลด</span><span>${(p.startWeight&&p.goalWeight)?Math.max(0,p.startWeight-p.goalWeight).toFixed(1):"-"} kg</span></div>
         <div class="srow"><span>กำหนดวัน</span><span>${p.goalDate||"-"}</span></div>
-      </div>` : noPlan;
+      </div>` : "";
 
     v.innerHTML = form + info;
     const gwEl = document.getElementById("pl-gw"); if(gwEl) gwEl.value = p.goalWeight||"";
