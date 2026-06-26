@@ -762,7 +762,7 @@ async function renderFact() {
             style="cursor:pointer;font-size:15px"></span>` : "";
       const bg = r.budget ? parseFloat(r.budget).toLocaleString()+"฿" : "-";
       return `<tr>
-        <td>สป.${r.week}</td>
+        <td>${r.week}</td>
         <td style="font-size:11px">${r.date}</td>
         <td><b>${r.weight||"-"}</b></td>
         <td>${cs}</td>
@@ -786,7 +786,7 @@ async function renderFact() {
         <div class="ctitle">ประวัติน้ำหนัก</div>
         <div style="overflow-x:auto">
           <table class="tbl">
-            <thead><tr><th>สัปดาห์</th><th>วันที่</th><th>kg</th><th>ลด/+</th><th>โดส</th><th>แพทย์</th><th>งบ(฿)</th><th>หมายเหตุ</th><th></th></tr></thead>
+            <thead><tr><th>ครั้งที่</th><th>วันที่</th><th>kg</th><th>ลด/+</th><th>โดส</th><th>แพทย์</th><th>งบ(฿)</th><th>หมายเหตุ</th><th></th></tr></thead>
             <tbody>${rows||noData(9)}</tbody>
           </table>
         </div>
