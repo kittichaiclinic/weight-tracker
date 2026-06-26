@@ -584,8 +584,8 @@ function selectPt(name) {
     `<span onclick="backHome()" style="cursor:pointer;margin-right:6px;font-size:19px;opacity:.85">‹</span>${name}`;
   document.getElementById("tb-badge").textContent = "กำลังจัดการ";
   document.getElementById("htabs").style.display = "none";
-  document.getElementById("nav").style.display = "flex";
   document.querySelector(".main").style.paddingBottom = "82px";
+  buildNav(true);
   if (patientMode) gp("fact", document.querySelector('.nav button[onclick*="fact"]'));
   else gp("plan", document.querySelector('.nav button[onclick*="plan"]'));
 }
