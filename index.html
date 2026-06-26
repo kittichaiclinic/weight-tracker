@@ -378,8 +378,7 @@ function buildNav(patient) {
   } else {
     nav.style.display = "none";
     nav.innerHTML = `
-      <button class="active" onclick="gp('plan',this)"><span class="ni">🎯</span>Plan</button>
-      <button onclick="gp('fact',this)"><span class="ni">⚖️</span>น้ำหนัก</button>
+      <button class="active" onclick="gp('fact',this)"><span class="ni">⚖️</span>น้ำหนัก</button>
       <button onclick="gp('sym',this)"><span class="ni">📞</span>ติดตาม</button>
       <button onclick="gp('meas',this)"><span class="ni">📏</span>สัดส่วน</button>
       <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
@@ -581,7 +580,8 @@ function selectPt(name) {
   document.getElementById("htabs").style.display = "none";
   document.getElementById("nav").style.display = "flex";
   document.querySelector(".main").style.paddingBottom = "82px";
-  gp("plan", document.querySelector('.nav button[onclick*="plan"]'));
+  if (patientMode) gp("fact", document.querySelector('.nav button[onclick*="fact"]'));
+  else gp("plan", document.querySelector('.nav button[onclick*="plan"]'));
 }
 
 function backHome() {
