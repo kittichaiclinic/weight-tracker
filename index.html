@@ -385,7 +385,17 @@ let wChart = null, mChart = null;
 
 // ===== INIT =====
 window.onload = async () => {
-  await loadClinicHours();
+  // โหลดตารางเวลาจากระบบจองคิว
+  try {
+    const r = await fetch(BOOKING_URL + "?action=getSchedule").then(x => x.json());
+    if (r.success) {
+      _bookingSchedule = {
+        daysOpen:    r.daysOpen    || {0:true,1:true,2:true,3:true,4:true,5:false,6:true},
+        openDates:   r.openDates   || {},
+        closedDates: r.closedDates || []
+      };
+    }
+  } catch(e) {}
   const p = new URLSearchParams(location.search);
   const pn = p.get("patient");
   if (pn) {
@@ -466,7 +476,7 @@ function gp(name, btn) {
   else if (name==="body") renderBody();
   else if (name==="med") renderMed();
   else if (name==="plan") renderPlan();
-  else if (name==="appt") { loadClinicHours().then(()=>renderAppt()); }
+  else if (name==="appt") renderAppt();
   else if (name==="apts") renderApptStaff();
   else if (name==="home") { if(patientMode) renderPatientHome(); else backHome(); }
 }
@@ -1438,7 +1448,8 @@ async function renderAppt() {
     const d = await apiGet({action:"getApptData"});
     const appts = d.appts || [];
     const overrides = d.overrides || {};
-    const myAppt = appts.find(a => a.name === currentName);
+    const todayStr0 = today();
+    const myAppt = appts.find(a => a.name === currentName && a.date >= todayStr0);
 
     const todayStr = today();
     const todayD = new Date(todayStr);
