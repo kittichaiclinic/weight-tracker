@@ -1505,7 +1505,9 @@ async function renderAppt() {
       const slots = isOpen ? getSlots(ds, overrides) : [];
       const booked = slots.reduce((s,t)=>s+(slotCount[ds+"_"+t]||0),0);
       const total = slots.length * CLINIC_CONFIG.maxPerSlot;
-      allDays.push({ds, d, isOpen, booked, total, slots});
+      // ถ้า isOpen แต่ไม่มี slot แสดงว่าวันนั้นปิดจริงๆ (เช่น ศุกร์)
+      const actuallyOpen = isOpen && total > 0;
+      allDays.push({ds, d, isOpen: actuallyOpen, booked, total, slots});
     }
     const openDays = allDays; // ใช้ทุกวัน
 
