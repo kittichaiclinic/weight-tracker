@@ -1469,7 +1469,7 @@ async function renderAppt() {
         <div style="background:var(--gr2);border:1.5px solid #b0ddc0;border-radius:12px;padding:16px;text-align:center;margin-bottom:14px">
           <div style="font-size:13px;font-weight:700;color:var(--gr);margin-bottom:6px">✅ มีเวลานัดแล้ว</div>
           <div style="font-size:16px;font-weight:700;color:var(--tx);margin-bottom:4px">${thDate(myAppt.date)}</div>
-          <div style="font-size:32px;font-weight:700;color:var(--pk3)">${myAppt.time} น.</div>
+          <div style="font-size:32px;font-weight:700;color:var(--pk3)">${String(myAppt.time).substring(0,5)} น.</div>
         </div>
         <button class="btn" style="background:#fee2e2;color:#dc2626;font-size:13px" onclick="cancelAppt('${myAppt.id}')">ยกเลิกการนัด</button>
       </div>`;
