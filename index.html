@@ -1653,151 +1653,126 @@ async function renderApptHome() {
 
 async function renderApptStaff() {
   const v = document.getElementById("apts-v");
+  if (!v) return;
   v.innerHTML = loading();
   await _renderApptStaffInto(v);
 }
 
 async function _renderApptStaffInto(v) {
+  let appts = [], overrides = {};
   try {
     const d = await apiGet({action:"getApptData"});
-    const appts = d.appts || [];
-    const overrides = d.overrides || {};
-    const todayStr = today();
+    appts = d.appts || [];
+    overrides = d.overrides || {};
+  } catch(e) {}
 
-    // ปฏิทิน
-    const yr = apptCalDate.getFullYear();
-    const mo = apptCalDate.getMonth();
-    const moName = apptCalDate.toLocaleDateString("th-TH",{month:"long",year:"numeric"});
+  const todayStr = today();
+  const yr = apptCalDate.getFullYear();
+  const mo = apptCalDate.getMonth();
+  const moName = apptCalDate.toLocaleDateString("th-TH",{month:"long",year:"numeric"});
+  const firstDay = new Date(yr, mo, 1).getDay();
+  const daysInMonth = new Date(yr, mo+1, 0).getDate();
 
-    const firstDay = new Date(yr, mo, 1).getDay();
-    const daysInMonth = new Date(yr, mo+1, 0).getDate();
+  const slotCount = {}, slotNames = {};
+  appts.forEach(a => {
+    const k = a.date+"_"+a.time;
+    slotCount[k] = (slotCount[k]||0)+1;
+    slotNames[k] = slotNames[k] ? slotNames[k]+", "+a.name : a.name;
+  });
 
-    const slotCount = {};
-    const slotNames = {};
-    appts.forEach(a => {
-      const k = a.date+"_"+a.time;
-      slotCount[k] = (slotCount[k]||0)+1;
-      slotNames[k] = slotNames[k] ? slotNames[k]+", "+a.name : a.name;
-    });
+  const days = ["อา","จ","อ","พ","พฤ","ศ","ส"];
+  let calHtml = `<div class="cal-nav">
+    <button id="cal-prev">‹</button>
+    <div class="cal-month">${moName}</div>
+    <button id="cal-next">›</button>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px">`;
+  days.forEach(d => { calHtml += `<div class="appt-day-hd">${d}</div>`; });
+  calHtml += `</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">`;
 
-    const days = ["อา","จ","อ","พ","พฤ","ศ","ส"];
-    let calHtml = `<div class="cal-nav">
-      <button id="cal-prev">‹</button>
-      <div class="cal-month">${moName}</div>
-      <button id="cal-next">›</button>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px">`;
-    days.forEach(d => { calHtml += `<div class="appt-day-hd">${d}</div>`; });
-    calHtml += `</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">`;
+  for (let i = 0; i < firstDay; i++) calHtml += `<div></div>`;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const ds = `${yr}-${String(mo+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+    const open = isDayOpen(ds, overrides);
+    const slots = getSlots(ds, overrides);
+    const booked = slots.reduce((s,t)=>s+(slotCount[ds+"_"+t]||0),0);
+    const total = slots.length * CLINIC_CONFIG.maxPerSlot;
+    const isToday = ds === todayStr;
+    const isSel = ds === apptSelDate;
+    let cls = "appt-day" + (!open ? " closed" : booked>=total&&total>0 ? " full" : " open");
+    if (isToday) cls += " today";
+    if (isSel) cls += " selected";
+    const dot = open && booked>0 ? `<div style="font-size:9px;color:var(--pk3)">${booked}/${total}</div>` : "";
+    calHtml += `<div class="${cls}" data-ds="${ds}" data-open="${open}">
+      <div class="appt-day-num">${day}</div>${dot}
+    </div>`;
+  }
+  calHtml += `</div>`;
 
-    for (let i = 0; i < firstDay; i++) calHtml += `<div></div>`;
-    for (let day = 1; day <= daysInMonth; day++) {
-      const ds = `${yr}-${String(mo+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-      const open = isDayOpen(ds, overrides);
-      const slots = getSlots(ds, overrides);
-      const booked = slots.reduce((s,t)=>s+(slotCount[ds+"_"+t]||0),0);
-      const total = slots.length * CLINIC_CONFIG.maxPerSlot;
-      const isToday = ds === todayStr;
-      const isSel = ds === apptSelDate;
+  let detailHtml = "";
+  if (apptSelDate) {
+    const open = isDayOpen(apptSelDate, overrides);
+    const slots = getSlots(apptSelDate, overrides);
+    const ovStatus = overrides[apptSelDate];
+    const ovTime = overrides[apptSelDate+"_time"];
+    const defaultH = CLINIC_CONFIG.hours[new Date(apptSelDate).getDay()];
+    const curStart = ovTime ? ovTime.split("-")[0] : (defaultH&&defaultH.start||"09:00");
+    const curEnd   = ovTime ? ovTime.split("-")[1] : (defaultH&&defaultH.end||"16:00");
 
-      let cls = "appt-day";
-      if (!open) cls += " closed";
-      else if (booked >= total && total > 0) cls += " full";
-      else if (booked > 0) cls += " open";
-      else cls += " open";
-      if (isToday) cls += " today";
-      if (isSel) cls += " selected";
-
-      const dot = open && booked > 0 ? `<div style="font-size:9px;color:var(--pk3)">${booked}/${total}</div>` : "";
-      calHtml += `<div class="${cls}" data-ds="${ds}" data-open="${open}">
-        <div class="appt-day-num">${day}</div>${dot}
+    detailHtml = `<div class="card" style="margin-top:10px">
+      <div class="ctitle">📋 ${apptSelDate}
+        <span style="margin-left:auto;display:flex;gap:4px">
+          ${open
+            ? `<button class="day-close-btn" data-action="close" data-ds="${apptSelDate}">🔴 ปิด</button>`
+            : `<button class="day-open-btn" data-action="open" data-ds="${apptSelDate}">🟢 เปิด</button>`}
+          ${ovStatus||ovTime ? `<button class="btn-out" style="font-size:10px" data-action="reset" data-ds="${apptSelDate}">รีเซ็ต</button>` : ""}
+        </span>
       </div>`;
-    }
-    calHtml += `</div>`;
 
-    // รายการนัดวันที่เลือก
-    let detailHtml = "";
-    if (apptSelDate) {
-      const open = isDayOpen(apptSelDate, overrides);
-      const slots = getSlots(apptSelDate);
-      const ovStatus = overrides[apptSelDate];
-      // ดึง override time ถ้ามี
-      const ovTime = overrides[apptSelDate+"_time"];
-      const defaultH = CLINIC_CONFIG.hours[new Date(apptSelDate).getDay()];
-      const curStart = ovTime ? ovTime.split("-")[0] : (defaultH.start||"09:00");
-      const curEnd   = ovTime ? ovTime.split("-")[1] : (defaultH.end||"16:00");
+    if (open) {
+      detailHtml += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--tx2);font-weight:600">เวลาพิเศษ:</span>
+        <input type="time" id="ov-start" value="${curStart}" style="width:105px;padding:6px 8px;font-size:13px;border:1.5px solid var(--bd);border-radius:8px">
+        <span style="font-size:12px;color:var(--tx2)">ถึง</span>
+        <input type="time" id="ov-end" value="${curEnd}" style="width:105px;padding:6px 8px;font-size:13px;border:1.5px solid var(--bd);border-radius:8px">
+        <button class="btn-sm btn-pu" data-action="savetime" data-ds="${apptSelDate}">💾 บันทึก</button>
+        ${ovTime ? `<span style="font-size:11px;color:var(--am)">⚡ มีเวลาพิเศษ</span>` : ""}
+      </div>`;
 
-      detailHtml = `<div class="card" style="margin-top:10px">
-        <div class="ctitle">📋 ${apptSelDate}
-          <span style="margin-left:auto;display:flex;gap:4px">
-            ${open
-              ? `<button class="day-close-btn" onclick="setDayOverride('${apptSelDate}','closed')">🔴 ปิด</button>`
-              : `<button class="day-open-btn" onclick="setDayOverride('${apptSelDate}','open')">🟢 เปิด</button>`}
-            ${ovStatus||ovTime ? `<button class="btn-out" style="font-size:10px" onclick="resetDayOverride('${apptSelDate}')">รีเซ็ต</button>` : ""}
-          </span>
-        </div>
-        ${open ? `
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-          <span style="font-size:12px;color:var(--tx2);font-weight:600">เวลาพิเศษ:</span>
-          <input type="time" id="ov-start" value="${curStart}" style="width:105px;padding:6px 8px;font-size:13px;border:1.5px solid var(--bd);border-radius:8px">
-          <span style="font-size:12px;color:var(--tx2)">ถึง</span>
-          <input type="time" id="ov-end" value="${curEnd}" style="width:105px;padding:6px 8px;font-size:13px;border:1.5px solid var(--bd);border-radius:8px">
-          <button class="btn-sm btn-pu" onclick="saveDayTime('${apptSelDate}')">💾 บันทึก</button>
-          ${ovTime ? `<span style="font-size:11px;color:var(--am)">⚡ มีเวลาพิเศษ</span>` : ""}
-        </div>` : ""}`;
-      if (!open) {
-        detailHtml += `<div class="ld" style="padding:10px">วันนี้ปิดทำการ</div>`;
-      } else if (!slots.length) {
-        detailHtml += `<div class="ld" style="padding:10px">ไม่มี slot</div>`;
-      } else {
-        slots.forEach(t => {
-          const k = apptSelDate+"_"+t;
-          const cnt = slotCount[k]||0;
-          const names = slotNames[k]||"";
-          const max = CLINIC_CONFIG.maxPerSlot;
-          const isFull = cnt >= max;
-          detailHtml += `<div class="appt-slot ${isFull?"full":""}">
-            <div>
-              <div class="appt-slot-time">${t} น.</div>
-              <div class="appt-slot-info" style="color:var(--tx)">${names||"ว่าง"}</div>
-            </div>
-            <span class="appt-slot-badge ${isFull?"full":"ok"}">${cnt}/${max}</span>
+      slots.forEach(t => {
+        const k = apptSelDate+"_"+t;
+        const cnt = slotCount[k]||0;
+        const names = slotNames[k]||"";
+        const max = CLINIC_CONFIG.maxPerSlot;
+        detailHtml += `<div class="appt-slot ${cnt>=max?"full":""}">
+          <div>
+            <div class="appt-slot-time">${t} น.</div>
+            <div class="appt-slot-info" style="color:var(--tx)">${names||"ว่าง"}</div>
+          </div>
+          <span class="appt-slot-badge ${cnt>=max?"full":"ok"}">${cnt}/${max}</span>
+        </div>`;
+      });
+
+      const dayAppts = appts.filter(a => a.date === apptSelDate);
+      if (dayAppts.length) {
+        detailHtml += `<div style="margin-top:10px;border-top:1px solid var(--bd);padding-top:10px">
+          <div style="font-size:12px;font-weight:700;color:var(--tx2);margin-bottom:8px">รายการนัด</div>`;
+        dayAppts.forEach(a => {
+          detailHtml += `<div class="appt-card">
+            <div class="appt-card-time">${a.time} น.</div>
+            <div class="appt-card-name">${a.name}</div>
+            <button class="appt-card-del" data-action="delappt" data-id="${a.id}">✕</button>
           </div>`;
         });
-
-        // รายการนัดของวันนี้พร้อมปุ่มลบ
-        const dayAppts = appts.filter(a => a.date === apptSelDate);
-        if (dayAppts.length) {
-          detailHtml += `<div style="margin-top:10px;border-top:1px solid var(--bd);padding-top:10px">
-            <div style="font-size:12px;font-weight:700;color:var(--tx2);margin-bottom:8px">รายการนัด</div>`;
-          dayAppts.forEach(a => {
-            detailHtml += `<div class="appt-card">
-              <div class="appt-card-time">${a.time} น.</div>
-              <div class="appt-card-name">${a.name}</div>
-              <button class="appt-card-del" onclick="staffCancelAppt('${a.id}')">✕</button>
-            </div>`;
-          });
-          detailHtml += `</div>`;
-        }
+        detailHtml += `</div>`;
       }
-      detailHtml += `</div>`;
+    } else {
+      detailHtml += `<div class="ld" style="padding:10px">วันนี้ปิดทำการ</div>`;
     }
+    detailHtml += `</div>`;
+  }
 
-    v.innerHTML = `<div class="card">${calHtml}</div>${detailHtml}`;
-  } catch(e) {
-    // ถ้า API ล้มเหลว แสดงปฏิทินเปล่าพร้อม error
-    const yr = apptCalDate.getFullYear();
-    const mo = apptCalDate.getMonth();
-    const moName = apptCalDate.toLocaleDateString("th-TH",{month:"long",year:"numeric"});
-    v.innerHTML = `<div class="card">
-      <div class="cal-nav">
-        <button id="cal-prev">‹</button>
-        <div class="cal-month">${moName}</div>
-        <button id="cal-next">›</button>
-      </div>
-      <div class="ld">❌ ${e.message||"โหลดไม่ได้"}</div>
-    </div>`;
-
+  v.innerHTML = `<div class="card">${calHtml}</div>${detailHtml}`;
 }
 
 function apptCalMove(dir) {
@@ -1808,7 +1783,7 @@ function apptCalMove(dir) {
   if (v) { v.innerHTML = loading(); _renderApptStaffInto(v); }
 }
 
-function staffSelDay(ds, open) {
+function staffSelDay(ds) {
   apptSelDate = ds;
   const v = document.getElementById("apts-v") || document.getElementById("apts-home-v");
   if (v) { v.innerHTML = loading(); _renderApptStaffInto(v); }
@@ -1828,7 +1803,7 @@ async function setDayOverride(ds, status) {
 async function saveDayTime(ds) {
   const start = document.getElementById("ov-start")?.value;
   const end   = document.getElementById("ov-end")?.value;
-  if (!start || !end) { toast("กรอกเวลาให้ครบ","err"); return; }
+  if (!start||!end) { toast("กรอกเวลาให้ครบ","err"); return; }
   if (start >= end) { toast("เวลาเริ่มต้องน้อยกว่าเวลาสิ้นสุด","err"); return; }
   try {
     const r = await api({action:"setDayOverride", date:ds, status:"time", timeVal: start+"-"+end});
@@ -1852,7 +1827,7 @@ async function resetDayOverride(ds) {
 }
 
 async function staffCancelAppt(id) {
-  if (!confirm("ยืนยันลบนัดนี้?")) return;
+  if (!id) return;
   try {
     const r = await api({action:"cancelAppt", id});
     if (r.success) {
@@ -1861,8 +1836,6 @@ async function staffCancelAppt(id) {
       if (v) { v.innerHTML = loading(); _renderApptStaffInto(v); }
     } else toast("❌ "+r.message,"err");
   } catch(e) { toast("❌ ลบไม่ได้","err"); }
-}
-
 }
 
 // ===== HELPERS =====
