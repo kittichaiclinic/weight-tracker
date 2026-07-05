@@ -1775,17 +1775,26 @@ async function _renderApptStaffInto(v) {
   v.innerHTML = `<div class="card">${calHtml}</div>${detailHtml}`;
 }
 
+function getApptContainer() {
+  const v1 = document.getElementById("apts-home-v");
+  const v2 = document.getElementById("apts-v");
+  // ใช้ apts-home-v ถ้า parent มองเห็น (display != none)
+  if (v1 && v1.closest("#sec-apts") && getComputedStyle(v1.closest("#sec-apts")).display !== "none") return v1;
+  if (v2 && v2.closest("#pg-apts") && getComputedStyle(v2.closest("#pg-apts")).display !== "none") return v2;
+  return v1 || v2;
+}
+
 function apptCalMove(dir) {
   const yr = apptCalDate.getFullYear();
   const mo = apptCalDate.getMonth() + dir;
   apptCalDate = new Date(yr, mo, 1);
-  const v = document.getElementById("apts-v") || document.getElementById("apts-home-v");
+  const v = getApptContainer();
   if (v) { v.innerHTML = loading(); _renderApptStaffInto(v); }
 }
 
 function staffSelDay(ds) {
   apptSelDate = ds;
-  const v = document.getElementById("apts-v") || document.getElementById("apts-home-v");
+  const v = getApptContainer();
   if (v) { v.innerHTML = loading(); _renderApptStaffInto(v); }
 }
 
@@ -1794,7 +1803,7 @@ async function setDayOverride(ds, status) {
     const r = await api({action:"setDayOverride", date:ds, status});
     if (r.success) {
       toast("✅ "+r.message,"ok");
-      const v = document.getElementById("apts-v") || document.getElementById("apts-home-v");
+      const v = getApptContainer();
       if (v) { v.innerHTML = loading(); _renderApptStaffInto(v); }
     } else toast("❌ "+r.message,"err");
   } catch(e) { toast("❌ ไม่สำเร็จ","err"); }
@@ -1809,7 +1818,7 @@ async function saveDayTime(ds) {
     const r = await api({action:"setDayOverride", date:ds, status:"time", timeVal: start+"-"+end});
     if (r.success) {
       toast("✅ บันทึกเวลาพิเศษแล้ว","ok");
-      const v = document.getElementById("apts-v") || document.getElementById("apts-home-v");
+      const v = getApptContainer();
       if (v) { v.innerHTML = loading(); _renderApptStaffInto(v); }
     } else toast("❌ "+r.message,"err");
   } catch(e) { toast("❌ บันทึกไม่ได้","err"); }
@@ -1820,7 +1829,7 @@ async function resetDayOverride(ds) {
     const r = await api({action:"setDayOverride", date:ds, status:"reset"});
     if (r.success) {
       toast("✅ รีเซ็ตแล้ว","ok");
-      const v = document.getElementById("apts-v") || document.getElementById("apts-home-v");
+      const v = getApptContainer();
       if (v) { v.innerHTML = loading(); _renderApptStaffInto(v); }
     } else toast("❌ "+r.message,"err");
   } catch(e) { toast("❌ รีเซ็ตไม่ได้","err"); }
@@ -1832,7 +1841,7 @@ async function staffCancelAppt(id) {
     const r = await api({action:"cancelAppt", id});
     if (r.success) {
       toast("✅ ลบนัดแล้ว","ok");
-      const v = document.getElementById("apts-v") || document.getElementById("apts-home-v");
+      const v = getApptContainer();
       if (v) { v.innerHTML = loading(); _renderApptStaffInto(v); }
     } else toast("❌ "+r.message,"err");
   } catch(e) { toast("❌ ลบไม่ได้","err"); }
