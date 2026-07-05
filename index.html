@@ -1422,16 +1422,13 @@ function generateBookingSlots(start, end) {
 function isDayOpen(dateStr, overrides) {
   const d = new Date(dateStr);
   const dow = d.getDay();
-  // ตรวจ override จาก staff (Weight Tracker)
   const ov = overrides ? overrides[dateStr] : null;
   if (ov === "open") return true;
   if (ov === "closed") return false;
-  // ตรวจ closedDates จากระบบจองคิว
   if (_bookingSchedule.closedDates.includes(dateStr)) return false;
-  // ตรวจ openDates จากระบบจองคิว (เปิดพิเศษ)
   if (_bookingSchedule.openDates[dateStr]) return true;
-  // ตรวจ daysOpen จากระบบจองคิว
-  return !!_bookingSchedule.daysOpen[String(dow)];
+  const val = _bookingSchedule.daysOpen[dow] ?? _bookingSchedule.daysOpen[String(dow)];
+  return !!val;
 }
 
 // format วันที่เป็น yyyy-MM-dd
