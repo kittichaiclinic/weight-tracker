@@ -530,12 +530,7 @@ async function loadPatients(force=false) {
 
 // ===== HOME TABS =====
 // ผูก event delegation บน sec-apts ครั้งเดียวตอนเริ่ม
-document.addEventListener("click", function(e) {
-  if (e.target.id === "cal-prev") { apptCalMove(-1); return; }
-  if (e.target.id === "cal-next") { apptCalMove(1);  return; }
-  const day = e.target.closest("[data-ds]");
-  if (day) { staffSelDay(day.dataset.ds, day.dataset.open === "true"); return; }
-});
+
 
 function hTab(t) {
   ["pt","add","apts","cfg"].forEach(k=>{
@@ -1888,6 +1883,12 @@ function dateToIso(d){
   const p=d.split("/");
   return p.length===3?`${p[2].length===4?p[2]:"25"+p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`:d;
 }
+document.addEventListener("click", function(e) {
+  if (e.target.id === "cal-prev") { apptCalMove(-1); return; }
+  if (e.target.id === "cal-next") { apptCalMove(1);  return; }
+  const day = e.target.closest("[data-ds]");
+  if (day) { staffSelDay(day.dataset.ds, day.dataset.open === "true"); return; }
+});
 </script>
 </body>
 </html>
