@@ -430,6 +430,25 @@ window.onload = async () => {
       hTab("cfg");
     }
   }
+
+  // event delegation ปฏิทิน staff
+  setTimeout(function() {
+    document.addEventListener("click", function calClick(e) {
+      if (e.target.id === "cal-prev") { apptCalMove(-1); return; }
+      if (e.target.id === "cal-next") { apptCalMove(1);  return; }
+      const btn = e.target.closest("[data-action]");
+      if (btn) {
+        const action = btn.dataset.action, ds = btn.dataset.ds;
+        if (action === "close")    { setDayOverride(ds,"closed"); return; }
+        if (action === "open")     { setDayOverride(ds,"open");   return; }
+        if (action === "reset")    { resetDayOverride(ds);        return; }
+        if (action === "savetime") { saveDayTime(ds);             return; }
+        if (action === "delappt")  { staffCancelAppt(btn.dataset.id); return; }
+      }
+      const day = e.target.closest("[data-ds]");
+      if (day && !day.dataset.action) { staffSelDay(day.dataset.ds); return; }
+    });
+  }, 100);
 };
 
 // ===== NAV =====
