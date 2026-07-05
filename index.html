@@ -529,6 +529,14 @@ async function loadPatients(force=false) {
 }
 
 // ===== HOME TABS =====
+// ผูก event delegation บน sec-apts ครั้งเดียวตอนเริ่ม
+document.addEventListener("click", function(e) {
+  if (e.target.id === "cal-prev") { apptCalMove(-1); return; }
+  if (e.target.id === "cal-next") { apptCalMove(1);  return; }
+  const day = e.target.closest("[data-ds]");
+  if (day) { staffSelDay(day.dataset.ds, day.dataset.open === "true"); return; }
+});
+
 function hTab(t) {
   ["pt","add","apts","cfg"].forEach(k=>{
     const s = document.getElementById("sec-"+k);
@@ -1706,7 +1714,7 @@ async function _renderApptStaffInto(v) {
       if (isSel) cls += " selected";
 
       const dot = open && booked > 0 ? `<div style="font-size:9px;color:var(--pk3)">${booked}/${total}</div>` : "";
-      calHtml += `<div class="${cls}" onclick="staffSelDay('${ds}',${open})">
+      calHtml += `<div class="${cls}" data-ds="${ds}" data-open="${open}">
         <div class="appt-day-num">${day}</div>${dot}
       </div>`;
     }
@@ -1781,10 +1789,6 @@ async function _renderApptStaffInto(v) {
     }
 
     v.innerHTML = `<div class="card">${calHtml}</div>${detailHtml}`;
-    const bp = document.getElementById("cal-prev");
-    const bn = document.getElementById("cal-next");
-    if (bp) bp.addEventListener("click", () => apptCalMove(-1));
-    if (bn) bn.addEventListener("click", () => apptCalMove(1));
   } catch(e) {
     // ถ้า API ล้มเหลว แสดงปฏิทินเปล่าพร้อม error
     const yr = apptCalDate.getFullYear();
@@ -1798,11 +1802,7 @@ async function _renderApptStaffInto(v) {
       </div>
       <div class="ld">❌ ${e.message||"โหลดไม่ได้"}</div>
     </div>`;
-    const bp2 = document.getElementById("cal-prev");
-    const bn2 = document.getElementById("cal-next");
-    if (bp2) bp2.addEventListener("click", () => apptCalMove(-1));
-    if (bn2) bn2.addEventListener("click", () => apptCalMove(1));
-  }
+
 }
 
 function apptCalMove(dir) {
@@ -1868,7 +1868,7 @@ async function staffCancelAppt(id) {
   } catch(e) { toast("❌ ลบไม่ได้","err"); }
 }
 
-
+}
 
 // ===== HELPERS =====
 function V(id){const e=document.getElementById(id);return e?e.value:"";}
