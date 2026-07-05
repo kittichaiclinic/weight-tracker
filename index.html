@@ -1558,12 +1558,12 @@ async function renderAppt() {
         diffColor = "var(--pk3)";
         dot = `<span style="font-size:9px;color:var(--gr)">●${total-booked}</span>`;
       }
-      click = !isClosed ? `onclick="selApptDay2('${ds}')"` : `onclick="selApptDay2('${ds}')"`;
+      click = isClosed ? '' : `onclick="selApptDay2('${ds}')"`;
 
       dayTabItems += `<div ${click}
         style="text-align:center;padding:8px 4px;border-radius:10px;
           border:1.5px solid ${border};background:${bg};color:${color};
-          cursor:pointer;transition:all .15s;${isClosed?"opacity:.6":""}">
+          cursor:${isClosed?"not-allowed":"pointer"};transition:all .15s;${isClosed?"opacity:.5":""}">
         <div style="font-size:9px;font-weight:700;color:${diffColor};margin-bottom:1px">${diffLabel}</div>
         <div style="font-size:10px;opacity:.8">${dow}</div>
         <div style="font-size:15px;font-weight:700;line-height:1.2">${dayNum}</div>
@@ -1732,31 +1732,12 @@ async function _renderApptStaffInto(v) {
   if (apptSelDate) {
     const open = isDayOpen(apptSelDate, overrides);
     const slots = getSlots(apptSelDate, overrides);
-    const ovStatus = overrides[apptSelDate];
-    const ovTime = overrides[apptSelDate+"_time"];
-    const defaultH = CLINIC_CONFIG.hours[new Date(apptSelDate).getDay()];
-    const curStart = ovTime ? ovTime.split("-")[0] : (defaultH&&defaultH.start||"09:00");
-    const curEnd   = ovTime ? ovTime.split("-")[1] : (defaultH&&defaultH.end||"16:00");
-
     detailHtml = `<div class="card" style="margin-top:10px">
       <div class="ctitle">📋 ${apptSelDate}
-        <span style="margin-left:auto;display:flex;gap:4px">
-          ${open
-            ? `<button class="day-close-btn" data-action="close" data-ds="${apptSelDate}">🔴 ปิด</button>`
-            : `<button class="day-open-btn" data-action="open" data-ds="${apptSelDate}">🟢 เปิด</button>`}
-          ${ovStatus||ovTime ? `<button class="btn-out" style="font-size:10px" data-action="reset" data-ds="${apptSelDate}">รีเซ็ต</button>` : ""}
-        </span>
+        <span style="font-size:11px;color:var(--tx2);margin-left:8px">${open ? "เปิด" : "ปิด"}</span>
       </div>`;
 
     if (open) {
-      detailHtml += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-        <span style="font-size:12px;color:var(--tx2);font-weight:600">เวลาพิเศษ:</span>
-        <input type="time" id="ov-start" value="${curStart}" style="width:105px;padding:6px 8px;font-size:13px;border:1.5px solid var(--bd);border-radius:8px">
-        <span style="font-size:12px;color:var(--tx2)">ถึง</span>
-        <input type="time" id="ov-end" value="${curEnd}" style="width:105px;padding:6px 8px;font-size:13px;border:1.5px solid var(--bd);border-radius:8px">
-        <button class="btn-sm btn-pu" data-action="savetime" data-ds="${apptSelDate}">💾 บันทึก</button>
-        ${ovTime ? `<span style="font-size:11px;color:var(--am)">⚡ มีเวลาพิเศษ</span>` : ""}
-      </div>`;
 
       slots.forEach(t => {
         const k = apptSelDate+"_"+t;
