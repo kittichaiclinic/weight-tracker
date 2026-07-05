@@ -301,6 +301,7 @@ textarea{resize:vertical;min-height:56px}
   </div>
 
   <!-- ตั้งค่า -->
+  <div id="sec-apts" style="display:none"><div id="apts-home-v"></div></div>
   <div id="sec-cfg" style="display:none">
     <div class="card">
       <div class="ctitle">⚙️ GAS URL</div>
@@ -455,8 +456,7 @@ function buildNav(patient) {
         <button onclick="gp('meas',this)"><span class="ni">📏</span>สัดส่วน</button>
         <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
         <button onclick="gp('med',this)"><span class="ni">💊</span>ยา</button>
-        <button onclick="gp('appt',this)"><span class="ni">📅</span>เลือกเวลา</button>
-        <button onclick="backHome()"><span class="ni">🏠</span>หน้าแรก</button>`;
+        <button onclick="gp('appt',this)"><span class="ni">📅</span>เลือกเวลา</button>`;
     }
   } else {
     nav.style.display = "none";
@@ -499,9 +499,8 @@ async function api(data) {
   return r.json();
 }
 async function apiGet(params) {
-  const u = new URL(gasUrl);
-  Object.entries(params).forEach(([k,v])=>u.searchParams.set(k,v));
-  return (await fetch(u)).json();
+  const qs = Object.entries(params).map(([k,v])=>encodeURIComponent(k)+"="+encodeURIComponent(v)).join("&");
+  return (await fetch(gasUrl + "?" + qs)).json();
 }
 
 // ===== PATIENTS =====
@@ -531,13 +530,14 @@ async function loadPatients(force=false) {
 
 // ===== HOME TABS =====
 function hTab(t) {
-  ["pt","add","cfg"].forEach(k=>{
+  ["pt","add","apts","cfg"].forEach(k=>{
     const s = document.getElementById("sec-"+k);
     const b = document.getElementById("ht-"+k);
     if(s) s.style.display = k===t?"block":"none";
     if(b) b.classList.toggle("on", k===t);
   });
   if (t==="pt" && patients.length > 0) renderPtList();
+  if (t==="apts") renderApptHome();
   if (t==="cfg") {
     const u = document.getElementById("cfg-url");
     if (u && gasUrl) u.value = gasUrl;
@@ -1376,7 +1376,7 @@ const CLINIC_CONFIG = {
   }
 };
 
-let apptCalDate = new Date(); // เดือนที่แสดงในปฏิทิน
+let apptCalDate = new Date(); apptCalDate.setDate(1); // เดือนที่แสดงในปฏิทิน
 let apptSelDate = null;       // วันที่เลือก
 
 // สร้าง time slots ของวัน
@@ -1682,9 +1682,9 @@ async function _renderApptStaffInto(v) {
 
     const days = ["อา","จ","อ","พ","พฤ","ศ","ส"];
     let calHtml = `<div class="cal-nav">
-      <button onclick="apptCalMove(-1)">‹</button>
+      <button id="cal-prev">‹</button>
       <div class="cal-month">${moName}</div>
-      <button onclick="apptCalMove(1)">›</button>
+      <button id="cal-next">›</button>
     </div>
     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px">`;
     days.forEach(d => { calHtml += `<div class="appt-day-hd">${d}</div>`; });
@@ -1784,11 +1784,34 @@ async function _renderApptStaffInto(v) {
     }
 
     v.innerHTML = `<div class="card">${calHtml}</div>${detailHtml}`;
-  } catch(e) { v.innerHTML = err(e.message); }
+    const bp = document.getElementById("cal-prev");
+    const bn = document.getElementById("cal-next");
+    if (bp) bp.addEventListener("click", () => apptCalMove(-1));
+    if (bn) bn.addEventListener("click", () => apptCalMove(1));
+  } catch(e) {
+    // ถ้า API ล้มเหลว แสดงปฏิทินเปล่าพร้อม error
+    const yr = apptCalDate.getFullYear();
+    const mo = apptCalDate.getMonth();
+    const moName = apptCalDate.toLocaleDateString("th-TH",{month:"long",year:"numeric"});
+    v.innerHTML = `<div class="card">
+      <div class="cal-nav">
+        <button id="cal-prev">‹</button>
+        <div class="cal-month">${moName}</div>
+        <button id="cal-next">›</button>
+      </div>
+      <div class="ld">❌ ${e.message||"โหลดไม่ได้"}</div>
+    </div>`;
+    const bp2 = document.getElementById("cal-prev");
+    const bn2 = document.getElementById("cal-next");
+    if (bp2) bp2.addEventListener("click", () => apptCalMove(-1));
+    if (bn2) bn2.addEventListener("click", () => apptCalMove(1));
+  }
 }
 
 function apptCalMove(dir) {
-  apptCalDate.setMonth(apptCalDate.getMonth() + dir);
+  const yr = apptCalDate.getFullYear();
+  const mo = apptCalDate.getMonth() + dir;
+  apptCalDate = new Date(yr, mo, 1);
   const v = document.getElementById("apts-v") || document.getElementById("apts-home-v");
   if (v) { v.innerHTML = loading(); _renderApptStaffInto(v); }
 }
