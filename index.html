@@ -386,19 +386,20 @@ let wChart = null, mChart = null;
 
 // ===== INIT =====
 window.onload = async () => {
-  // โหลดตารางเวลาจากระบบจองคิว
-  try {
-    const r = await fetch(BOOKING_URL + "?action=getSchedule").then(x => x.json());
-    if (r.success) {
+  const p = new URLSearchParams(location.search);
+  const pn = p.get("patient");
+
+  // โหลด booking schedule ใน background (ไม่ await)
+  fetch(BOOKING_URL + "?action=getSchedule").then(x => x.json()).then(r => {
+    if (r && r.success) {
       _bookingSchedule = {
         daysOpen:    r.daysOpen    || {0:true,1:true,2:true,3:true,4:true,5:false,6:true},
         openDates:   r.openDates   || {},
         closedDates: r.closedDates || []
       };
     }
-  } catch(e) {}
-  const p = new URLSearchParams(location.search);
-  const pn = p.get("patient");
+  }).catch(()=>{});
+
   if (pn) {
     patientMode = true;
     currentName = decodeURIComponent(pn);
@@ -417,15 +418,16 @@ window.onload = async () => {
     const today = new Date().toISOString().split("T")[0];
     ["ad-sd"].forEach(id=>{const e=document.getElementById(id);if(e)e.value=today;});
     if (gasUrl) {
-      // แสดง tab ผู้ป่วยก่อน (default)
       hTab("pt");
       document.getElementById("pt-list").innerHTML = '<div class="ld"><div class="spin"></div>กำลังโหลด...</div>';
-      const ok = await loadPatients();
-      if (ok) renderPtList();
-      else {
-        document.getElementById("pt-list").innerHTML = '<div class="ld"> โหลดไม่ได้ ลองไปที่แท็บ  ตั้งค่า</div>';
-        toast(" โหลดรายชื่อไม่ได้","err");
-      }
+      // โหลด patients แบบ non-blocking แสดง UI ก่อน
+      loadPatients().then(ok => {
+        if (ok) renderPtList();
+        else {
+          document.getElementById("pt-list").innerHTML = '<div class="ld"> โหลดไม่ได้ ลองไปที่แท็บ  ตั้งค่า</div>';
+          toast(" โหลดรายชื่อไม่ได้","err");
+        }
+      });
     } else {
       hTab("cfg");
     }
