@@ -389,16 +389,18 @@ window.onload = async () => {
   const p = new URLSearchParams(location.search);
   const pn = p.get("patient");
 
-  // โหลด booking schedule ใน background (ไม่ await)
-  fetch(BOOKING_URL + "?action=getSchedule").then(x => x.json()).then(r => {
-    if (r && r.success) {
-      _bookingSchedule = {
-        daysOpen:    r.daysOpen    || {0:true,1:true,2:true,3:true,4:true,5:false,6:true},
-        openDates:   r.openDates   || {},
-        closedDates: r.closedDates || []
-      };
-    }
-  }).catch(()=>{});
+  // โหลด booking schedule — เก็บ promise ไว้รอตอนเปิดหน้านัด
+  window._scheduleReady = fetch(BOOKING_URL + "?action=getSchedule")
+    .then(x => x.json())
+    .then(r => {
+      if (r && r.success) {
+        _bookingSchedule = {
+          daysOpen:    r.daysOpen    || {0:true,1:true,2:true,3:true,4:true,5:false,6:true},
+          openDates:   r.openDates   || {},
+          closedDates: r.closedDates || []
+        };
+      }
+    }).catch(()=>{});
 
   if (pn) {
     patientMode = true;
@@ -1465,6 +1467,8 @@ async function renderAppt() {
   const v = document.getElementById("appt-v");
   if (!currentName) { v.innerHTML = noPatient(); return; }
   v.innerHTML = loading();
+  // รอ booking schedule โหลดเสร็จก่อน
+  if (window._scheduleReady) await window._scheduleReady;
   try {
     const d = await apiGet({action:"getApptData"});
     const appts = d.appts || [];
