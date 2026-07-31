@@ -376,6 +376,8 @@ const TIME_SLOTS_WEEKDAY = ["17:00","17:30","18:00","18:30","19:00","19:30","20:
 const TIME_SLOTS_WEEKEND = ["09:00","09:30","10:00","10:30","11:00","11:30","13:00","13:30","14:00","14:30","15:00","15:30"];
 let gasUrl = localStorage.getItem(UK) || DEFAULT_URL;
 let _cache = {};           // cache ข้อมูลผู้ป่วย { name: data }
+let _medCache = {};        // cache รายการยา { name: items }
+let _bodyCache = {};       // cache รูป body composition { name: images }
 let _bookingSchedule = {   // ตารางเวลาจากระบบจองคิว
   daysOpen:    {"0":true,"1":true,"2":true,"3":true,"4":true,"5":false,"6":true},
   openDates:   {},
@@ -467,7 +469,6 @@ function buildNav(patient) {
       nav.innerHTML = `
         <button onclick="gp('plan',this)"><span class="ni">🎯</span>Plan</button>
         <button onclick="gp('entry',this)"><span class="ni">📝</span>ลงข้อมูล</button>
-        <button onclick="gp('sym',this)"><span class="ni">📞</span>ติดตาม</button>
         <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
         <button onclick="gp('med',this)"><span class="ni">💊</span>ยา</button>
         <button onclick="gp('appt',this)"><span class="ni">📅</span>เลือกเวลา</button>
@@ -718,8 +719,8 @@ function selectPt(name) {
     apiGet({action:"getBodyCompImages", name})
   ]).then(([patientData, medData, bodyData]) => {
     if (patientData.success) _cache[name] = patientData;
-    if (medData.success)     { _medCache = _medCache || {}; _medCache[name] = medData.items || []; }
-    if (bodyData.success)    { _bodyCache = _bodyCache || {}; _bodyCache[name] = bodyData.images || []; }
+    if (medData.success)     _medCache[name] = medData.items || [];
+    if (bodyData.success)    _bodyCache[name] = bodyData.images || [];
     // ถ้ามี plan แล้ว (goalWeight มีค่า) เปิด entry, ถ้าไม่มีเปิด plan
     if (!patientMode) {
       const hasPlan = patientData.success && patientData.goalWeight;
@@ -819,7 +820,7 @@ function buildSymForm(prefix) {
     fmChip("ความหิว",    prefix+"-hunger",  ["ไม่หิวเลย","หิวน้อยลง","หิวพอเดิม","ยังหิวปกติ"]),
     fmChip("ความอิ่ม",  prefix+"-full",    ["อิ่มนาน","อิ่มมากขึ้น","อิ่มพอเดิม","ไม่ค่อยอิ่ม"]),
     `<div class="fg"><label>คุมอาหาร</label><textarea id="${prefix}-diet" placeholder="เช่น ทานโปรตีน หลีกเลี่ยงแป้ง"></textarea></div>`
-  ]) +
+  ], true) +
   symSection("💊 สุขภาพ S/E", prefix+"-s2", [
     `<div class="r2"><div class="fg">${fmChip("โปรตีน",prefix+"-protein",["ดี","พอใช้","ต่ำ"])}</div>
      <div class="fg"><label>ดื่มน้ำ</label><input type="text" id="${prefix}-water" placeholder="2-3 L/วัน"></div></div>`,
@@ -827,14 +828,12 @@ function buildSymForm(prefix) {
      <div class="fg">${fmChip("ขับถ่าย",prefix+"-bowel",["ดี","ท้องผูก","ท้องเสีย"])}</div></div>`,
     `<div class="fg"><label>ออกกำลังกาย</label><input type="text" id="${prefix}-ex" placeholder="เช่น เดิน 30 นาที"></div>`,
     `<div class="fg"><label>S/E</label><input type="text" id="${prefix}-se" placeholder="เช่น ไม่มี / คลื่นไส้"></div>`
-  ]) +
+  ], true) +
   symSection("😊 Mood & กำลังใจ", prefix+"-s3", [
     fmChip("Mood", prefix+"-mood", ["ดีมาก","ดี","กลางๆ","ไม่ดี"]),
     `<div class="r2"><div class="fg">${fmChip("นอนหลับ",prefix+"-sleep",["ดีมาก","ปกติ","ไม่ดี"])}</div>
-     <div class="fg">${fmChip("กำลังใจ",prefix+"-motiv",["ดีมาก","ดี","ท้อ"])}</div></div>`,
-    `<div class="fg"><label>น้ำเสียง</label><input type="text" id="${prefix}-tone" placeholder="เช่น ร่าเริง สดใส"></div>`,
-    `<div class="fg"><label>ใจความสำคัญ</label><textarea id="${prefix}-remark" placeholder="สิ่งที่พูดคุย..."></textarea></div>`
-  ]);
+     <div class="fg">${fmChip("กำลังใจ",prefix+"-motiv",["ดีมาก","ดี","ท้อ"])}</div></div>`
+  ], true);
 }
 
 // ===== ENTRY (Staff only) — ลงข้อมูลน้ำหนัก + สัดส่วน =====
@@ -953,6 +952,33 @@ async function renderEntry() {
             })()}</tbody>
           </table>
         </div>
+      </div>
+
+      <div class="card">
+        <div class="sh" onclick="toggleSec('en-symhist')">
+          <h3>📞 ประวัติติดตามอาการ</h3><span class="st" id="tog-en-symhist">▼</span></div>
+        <div class="sb2" id="en-symhist" style="max-height:0">
+        ${(()=>{
+          const symRecs = d.records.slice().reverse();
+          const symCards = symRecs.map(r=>{
+            const fields=[["ความหิว",r.hunger],["ความอิ่ม",r.fullness],
+              ["โปรตีน",r.protein],["น้ำ",r.water],["ไฟเบอร์",r.fiber],
+              ["ขับถ่าย",r.bowel],["ออกกำลัง",r.exercise],["S/E",r.se],
+              ["Mood",r.mood],["นอน",r.sleep],["กำลังใจ",r.motivation]].filter(([,v])=>v);
+            if (!fields.length && !r.diet) return "";
+            return `<div class="sym-card">
+              <div class="sym-dt">${r.date} ${r.time||""}
+                ${r.type?`<span class="sym-tp">${r.type}</span>`:""}
+              </div>
+              <div class="sym-grid">${fields.map(([k,v])=>`
+                <div class="sym-item"><div class="sk">${k}</div><div class="sv2">${v}</div></div>`).join("")}
+              </div>
+              ${r.diet?`<div class="sym-note" style="color:var(--gr)">🍽 ${r.diet}</div>`:""}
+            </div>`;
+          }).filter(Boolean).join("");
+          return symCards || '<div class="ld">ยังไม่มีประวัติการติดตาม</div>';
+        })()}
+        </div>
       </div>`;
 
     setTimeout(()=>{
@@ -1005,8 +1031,7 @@ async function submitEntry() {
     diet:V("en-diet"), exercise:V("en-ex"),
     protein:getChip("en-protein"), water:V("en-water"),
     fiber:getChip("en-fiber"), se:V("en-se"), bowel:getChip("en-bowel"),
-    mood:getChip("en-mood"), sleep:getChip("en-sleep"), motivation:getChip("en-motiv"),
-    tone:V("en-tone"), remark:V("en-remark")
+    mood:getChip("en-mood"), sleep:getChip("en-sleep"), motivation:getChip("en-motiv")
   };
   // ลบ field ว่างออก
   Object.keys(payload).forEach(k => { if(payload[k]==="") delete payload[k]; });
@@ -1331,7 +1356,12 @@ async function renderSym() {
   } catch(e){v.innerHTML=err(e.message);}
 }
 
-function symSection(title, id, contents) {
+function symSection(title, id, contents, expanded) {
+  if (expanded) {
+    return `<div class="sh" style="cursor:default">
+        <h3>${title}</h3></div>
+      <div class="sb2" id="sy-${id}" style="max-height:none;overflow:visible">${contents.join("")}</div>`;
+  }
   return `<div class="sh" onclick="toggleSec('sy-${id}')">
       <h3>${title}</h3><span class="st" id="tog-sy-${id}">▼</span></div>
     <div class="sb2" id="sy-${id}" style="max-height:0">${contents.join("")}</div>`;
@@ -1449,7 +1479,7 @@ async function renderBody() {
   try {
     const cachedBody = _bodyCache && _bodyCache[currentName];
     const d = cachedBody ? {success:true, images:cachedBody} : await apiGet({action:"getBodyCompImages",name:currentName});
-    if (d.success && !cachedBody) { _bodyCache = _bodyCache||{}; _bodyCache[currentName] = d.images||[]; }
+    if (d.success && !cachedBody) _bodyCache[currentName] = d.images||[];
     const uploadForm=!patientMode?`
       <div class="card">
         <div class="ctitle">อัปโหลดรูป Body Composition</div>
@@ -1508,7 +1538,7 @@ async function submitBody() {
     try {
       const r=await api({action:"uploadBodyComp",name:currentName,date,
         imageBase64:b64,mimeType:file.type,fileName:file.name});
-      if(r.success){toast(" อัปโหลดสำเร็จ","ok");if(_bodyCache)delete _bodyCache[currentName];renderBody();}
+      if(r.success){toast(" อัปโหลดสำเร็จ","ok");delete _bodyCache[currentName];renderBody();}
       else toast(" "+r.message,"err");
     } catch(e){toast(" อัปโหลดไม่ได้","err");}
   };
@@ -1518,7 +1548,7 @@ async function deleteBody(fileId) {
   if(!confirm("ลบรูปนี้?"))return;
   try {
     const r=await api({action:"deleteBodyComp",name:currentName,fileId});
-    if(r.success){toast(" ลบแล้ว","ok");if(_bodyCache)delete _bodyCache[currentName];renderBody();}
+    if(r.success){toast(" ลบแล้ว","ok");delete _bodyCache[currentName];renderBody();}
     else toast(" "+r.message,"err");
   } catch(e){toast(" ลบไม่ได้","err");}
 }
@@ -1543,7 +1573,7 @@ async function renderMed() {
   try {
     const cached = _medCache && _medCache[currentName];
     const d = cached ? {success:true, items:cached} : await apiGet({action:"getMedication", name:currentName});
-    if (d.success && !cached) { _medCache = _medCache||{}; _medCache[currentName] = d.items||[]; }
+    if (d.success && !cached) _medCache[currentName] = d.items||[];
     const items = d.items || [];
     window._medItems = items;
     medRowCount = 0;
