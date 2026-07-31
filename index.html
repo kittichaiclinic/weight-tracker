@@ -342,6 +342,8 @@ textarea{resize:vertical;min-height:56px}
 <div id="pg-med" class="page"><div id="med-v"></div></div>
 <!-- PLAN -->
 <div id="pg-plan" class="page"><div id="plan-v"></div></div>
+<!-- ENTRY -->
+<div id="pg-entry" class="page"><div id="entry-v"></div></div>
 <!-- APPT -->
 <div id="pg-appt" class="page"><div id="appt-v"></div></div>
 <!-- APPT STAFF -->
@@ -461,12 +463,11 @@ function buildNav(patient) {
   if (patient) {
     nav.style.display = "flex";
     if (!patientMode) {
-      // Staff nav — มี Plan + กลับหน้าแรก
+      // Staff nav — มี Plan + ลงข้อมูล
       nav.innerHTML = `
         <button onclick="gp('plan',this)"><span class="ni">🎯</span>Plan</button>
-        <button onclick="gp('fact',this)"><span class="ni">⚖️</span>น้ำหนัก</button>
+        <button onclick="gp('entry',this)"><span class="ni">📝</span>ลงข้อมูล</button>
         <button onclick="gp('sym',this)"><span class="ni">📞</span>ติดตาม</button>
-        <button onclick="gp('meas',this)"><span class="ni">📏</span>สัดส่วน</button>
         <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
         <button onclick="gp('med',this)"><span class="ni">💊</span>ยา</button>
         <button onclick="gp('appt',this)"><span class="ni">📅</span>เลือกเวลา</button>
@@ -499,6 +500,7 @@ function gp(name, btn) {
   else if (name==="body") renderBody();
   else if (name==="med") renderMed();
   else if (name==="plan") renderPlan();
+  else if (name==="entry") renderEntry();
   else if (name==="appt") renderAppt();
   else if (name==="apts") renderApptStaff();
   else if (name==="home") { if(patientMode) renderPatientHome(); else backHome(); }
@@ -518,12 +520,35 @@ function invalidateCache(name) {
 }
 
 async function api(data) {
-  const r = await fetch(gasUrl,{method:"POST",body:JSON.stringify(data)});
-  return r.json();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const r = await fetch(gasUrl, {
+      method: "POST",
+      body: JSON.stringify(data),
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    return r.json();
+  } catch(e) {
+    clearTimeout(timer);
+    if (e.name === "AbortError") throw new Error("หมดเวลา กรุณาลองใหม่");
+    throw e;
+  }
 }
 async function apiGet(params) {
   const qs = Object.entries(params).map(([k,v])=>encodeURIComponent(k)+"="+encodeURIComponent(v)).join("&");
-  return (await fetch(gasUrl + "?" + qs)).json();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const r = await fetch(gasUrl + "?" + qs, {signal: controller.signal});
+    clearTimeout(timer);
+    return r.json();
+  } catch(e) {
+    clearTimeout(timer);
+    if (e.name === "AbortError") throw new Error("หมดเวลา กรุณาลองใหม่");
+    throw e;
+  }
 }
 
 // ===== PATIENTS =====
@@ -685,8 +710,27 @@ function selectPt(name) {
   document.getElementById("htabs").style.display = "none";
   document.querySelector(".main").style.paddingBottom = "82px";
   buildNav(true);
+
+  // preload ข้อมูลทั้งหมดพร้อมกัน
+  Promise.all([
+    getPatientCached(name, true),
+    apiGet({action:"getMedication", name}),
+    apiGet({action:"getBodyCompImages", name})
+  ]).then(([patientData, medData, bodyData]) => {
+    if (patientData.success) _cache[name] = patientData;
+    if (medData.success)     { _medCache = _medCache || {}; _medCache[name] = medData.items || []; }
+    if (bodyData.success)    { _bodyCache = _bodyCache || {}; _bodyCache[name] = bodyData.images || []; }
+    // ถ้ามี plan แล้ว (goalWeight มีค่า) เปิด entry, ถ้าไม่มีเปิด plan
+    if (!patientMode) {
+      const hasPlan = patientData.success && patientData.goalWeight;
+      const tab = hasPlan ? "entry" : "plan";
+      gp(tab, document.querySelector(`.nav button[onclick*="${tab}"]`));
+    }
+  }).catch(()=>{
+    if (!patientMode) gp("entry", document.querySelector('.nav button[onclick*="entry"]'));
+  });
+
   if (patientMode) gp("fact", document.querySelector('.nav button[onclick*="fact"]'));
-  else gp("plan", document.querySelector('.nav button[onclick*="plan"]'));
 }
 
 function backHome() {
@@ -767,6 +811,160 @@ function drawWeightChart(d) {
       }}
   });
 }
+
+
+// ===== ENTRY (Staff only) — ลงข้อมูลน้ำหนัก + สัดส่วน =====
+async function renderEntry() {
+  const v = document.getElementById("entry-v");
+  if (!currentName) { v.innerHTML = noPatient(); return; }
+  v.innerHTML = loading();
+  try {
+    const d = await getPatientCached(currentName);
+    if (!d.success) { v.innerHTML = err(d.message); return; }
+
+    // หาค่าล่าสุด
+    const last = d.records && d.records.length ? d.records[d.records.length-1] : null;
+
+    v.innerHTML = `
+      <div class="card">
+        <div class="ctitle">📝 ลงข้อมูล</div>
+        <div class="fg"><label>วันที่</label><input type="date" id="en-dt" value="${today()}"></div>
+
+        <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:14px 0 8px">⚖️ น้ำหนัก</div>
+        <div class="r3">
+          <div class="fg"><label>น้ำหนัก (kg)</label><input type="number" id="en-w" step="0.1"></div>
+          <div class="fg"><label>โดส (mg)</label><input type="number" id="en-ds" step="0.5" value="2.5"></div>
+          <div class="fg"><label>แพทย์</label>
+            <select id="en-dr">
+              <option value="">-- เลือกแพทย์ --</option>
+              <option value="หมอชมพู่">พ.ญ.พนิดา (หมอชมพู่)</option>
+              <option value="หมอปาย">นพ.กิตติชัย (หมอปาย)</option>
+            </select>
+          </div>
+        </div>
+        <div class="r2">
+          <div class="fg"><label>งบ (฿)</label><input type="number" id="en-bg" value="1500"></div>
+          <div class="fg"><label>หมายเหตุ</label><input type="text" id="en-nt" placeholder=""></div>
+        </div>
+
+        <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:14px 0 8px">📊 Body Composition</div>
+        <div class="r2">
+          <div class="fg"><label>มวลไขมัน (kg)</label><input type="number" id="en-fat" step="0.1"></div>
+          <div class="fg"><label>มวลกล้ามเนื้อ (kg)</label><input type="number" id="en-muscle" step="0.1"></div>
+        </div>
+
+        <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:14px 0 8px">📏 สัดส่วน (นิ้ว)</div>
+        <div class="r2">
+          <div class="fg"><label>หน้าอก</label><input type="number" id="en-ch" step="0.5" value="${last&&last.chest||""}"></div>
+          <div class="fg"><label>เอว</label><input type="number" id="en-wa" step="0.5" value="${last&&last.waist||""}"></div>
+        </div>
+        <div class="r2">
+          <div class="fg"><label>สะโพก</label><input type="number" id="en-hi" step="0.5" value="${last&&last.hip||""}"></div>
+        </div>
+        <div class="r2">
+          <div class="fg"><label>ต้นแขนขวา</label><input type="number" id="en-ar" step="0.5" value="${last&&last.armR||""}"></div>
+          <div class="fg"><label>ต้นแขนซ้าย</label><input type="number" id="en-al" step="0.5" value="${last&&last.armL||""}"></div>
+        </div>
+        <div class="r2">
+          <div class="fg"><label>ต้นขาขวา</label><input type="number" id="en-tr" step="0.5" value="${last&&last.thighR||""}"></div>
+          <div class="fg"><label>ต้นขาซ้าย</label><input type="number" id="en-tl" step="0.5" value="${last&&last.thighL||""}"></div>
+        </div>
+
+        <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:14px 0 8px">📞 ติดตามอาการ</div>
+        <div class="r2">
+          <div class="fg"><label>ประเภท</label>
+            <select id="en-type">
+              <option value="">-- เลือก --</option>
+              <option value="ฉีด">ฉีด</option>
+              <option value="ติดตาม">ติดตาม</option>
+            </select>
+          </div>
+          <div class="fg"><label>เวลา</label><input type="time" id="en-time" value="${new Date().toTimeString().slice(0,5)}"></div>
+        </div>
+        <div class="r2">
+          <div class="fg"><label>ความหิว (1-5)</label><input type="number" id="en-hunger" min="1" max="5" step="1"></div>
+          <div class="fg"><label>ความอิ่ม (1-5)</label><input type="number" id="en-full" min="1" max="5" step="1"></div>
+        </div>
+        <div class="r2">
+          <div class="fg"><label>คุมอาหาร</label><input type="text" id="en-diet" placeholder="ดี/ไม่ดี"></div>
+          <div class="fg"><label>ออกกำลังกาย</label><input type="text" id="en-ex" placeholder="เดิน 30 นาที"></div>
+        </div>
+        <div class="r2">
+          <div class="fg"><label>อาการไม่พึงประสงค์</label><input type="text" id="en-se" placeholder="คลื่นไส้"></div>
+          <div class="fg"><label>อุจจาระ</label><input type="text" id="en-bowel" placeholder="ปกติ"></div>
+        </div>
+        <div class="r2">
+          <div class="fg"><label>อารมณ์ (1-5)</label><input type="number" id="en-mood" min="1" max="5" step="1"></div>
+          <div class="fg"><label>การนอน (1-5)</label><input type="number" id="en-sleep" min="1" max="5" step="1"></div>
+        </div>
+        <div class="fg"><label>ความตั้งใจ (1-5)</label><input type="number" id="en-motiv" min="1" max="5" step="1"></div>
+        <div class="fg"><label>หมายเหตุเพิ่มเติม</label><input type="text" id="en-remark" placeholder=""></div>
+
+        <button class="btn btn-pk" onclick="submitEntry()" style="margin-top:16px">💾 บันทึกข้อมูลทั้งหมด</button>
+      </div>
+
+      <div class="card">
+        <div class="ctitle">📋 ประวัติน้ำหนัก</div>
+        <div style="overflow-x:auto">
+          <table class="tbl">
+            <thead><tr><th>ครั้งที่</th><th>วันที่</th><th>kg</th><th>ลด/+</th><th>โดส</th><th>แพทย์</th><th>งบ(฿)</th><th>หมายเหตุ</th><th></th></tr></thead>
+            <tbody>${(()=>{
+              const rows = d.records.slice().reverse().map(r=>{
+                const chg = r.change;
+                const cs = (!chg&&chg!==0) ? "-" : `<span class="${chg<0?"cn":"cp"}">${chg>0?"+":""}${(+chg).toFixed(1)}</span>`;
+                const bg = r.budget ? parseFloat(r.budget).toLocaleString()+"฿" : "-";
+                const eb = `<span onclick='editFactModal(${r.row},"${r.date}",${r.weight||0},"${r.dose||""}","${r.doctor||""}",${r.budget||0},"${(r.note||"").replace(/"/g,"")}")' style="cursor:pointer;font-size:15px">✏️</span>`;
+                return `<tr>
+                  <td>${r.week}</td>
+                  <td style="font-size:11px">${r.date}</td>
+                  <td><b>${r.weight||"-"}</b></td>
+                  <td>${cs}</td>
+                  <td style="font-size:11px">${r.dose||"-"}</td>
+                  <td style="font-size:11px">${r.doctor||"-"}</td>
+                  <td style="font-size:11px;color:var(--am)">${bg}</td>
+                  <td style="font-size:11px;color:var(--tx2)">${(r.note&&!/^\d{4}-\d{2}-\d{2}/.test(String(r.note)))?r.note:"-"}</td>
+                  <td>${eb}</td>
+                </tr>`;
+              }).join("");
+              return rows || '<tr><td colspan="9" style="color:var(--tx2);padding:14px">ยังไม่มีข้อมูล</td></tr>';
+            })()}</tbody>
+          </table>
+        </div>
+      </div>`;
+  } catch(e) { v.innerHTML = err(e.message); }
+}
+
+async function submitEntry() {
+  const dt = V("en-dt");
+  if (!dt) { toast("เลือกวันที่ก่อน","err"); return; }
+  const payload = {
+    action:"logVisit", name:currentName, date:dt,
+    weight:V("en-w"), fatMass:V("en-fat"), muscleMass:V("en-muscle"),
+    dose:V("en-ds"), doctor:V("en-dr"),
+    budget:V("en-bg"), note:V("en-nt"),
+    chest:V("en-ch"), waist:V("en-wa"), hip:V("en-hi"),
+    armR:V("en-ar"), armL:V("en-al"),
+    thighR:V("en-tr"), thighL:V("en-tl"),
+    type:V("en-type"), time:V("en-time"),
+    hunger:V("en-hunger"), fullness:V("en-full"),
+    diet:V("en-diet"), exercise:V("en-ex"),
+    se:V("en-se"), bowel:V("en-bowel"),
+    mood:V("en-mood"), sleep:V("en-sleep"),
+    motivation:V("en-motiv"), remark:V("en-remark")
+  };
+  // ลบ field ว่างออก
+  Object.keys(payload).forEach(k => { if(payload[k]==="") delete payload[k]; });
+  try {
+    const r = await api(payload);
+    if (r.success) {
+      toast("✅ "+r.message,"ok");
+      set("en-w","");
+      invalidateCache(currentName);
+      renderEntry();
+    } else toast("❌ "+r.message,"err");
+  } catch(e) { toast("❌ บันทึกไม่ได้: "+e.message,"err"); }
+}
+
 
 // ===== PLAN =====
 async function renderPlan() {
@@ -874,7 +1072,7 @@ async function renderFact() {
         <td style="font-size:11px">${r.dose||"-"}</td>
         <td style="font-size:11px">${r.doctor||"-"}</td>
         <td style="font-size:11px;color:var(--am)">${bg}</td>
-        <td style="font-size:11px;color:var(--tx2);max-width:120px;word-break:break-word">${r.note||"-"}</td>
+        <td style="font-size:11px;color:var(--tx2);max-width:120px;word-break:break-word">${(r.note&&!/^\d{4}-\d{2}-\d{2}/.test(String(r.note)))?r.note:"-"}</td>
         <td>${eb}</td>
       </tr>`;
     }).join("");
@@ -897,34 +1095,58 @@ async function renderFact() {
         </div>
       </div>`;
 
-    setTimeout(()=>drawFactChart(d), 80);
+    setTimeout(()=>{
+      drawFactChart(d);
+      if (d.records.some(r=>r.fatMass))    drawFatChart(d);
+      if (d.records.some(r=>r.muscleMass)) drawMuscleChart(d);
+    }, 80);
   } catch(e) { v.innerHTML=err(e.message); }
+}
+
+let fChart = null, mChart2 = null;
+
+function makeLineChart(ctx, label, data, labels, color, goalLine) {
+  const datasets = [{
+    label, data, borderColor:color, backgroundColor:color+"22",
+    borderWidth:2.5, pointBackgroundColor:color, pointRadius:4, tension:.3, spanGaps:true
+  }];
+  if (goalLine) datasets.push({
+    label:"เป้าหมาย", data:labels.map(()=>goalLine),
+    borderColor:"#7060b8", borderWidth:1.5, borderDash:[5,5], pointRadius:0
+  });
+  return new Chart(ctx, {
+    type:"line", data:{labels, datasets},
+    options:{responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:"bottom",labels:{font:{family:"Sarabun",size:11},boxWidth:14}}},
+      scales:{
+        y:{ticks:{font:{family:"Sarabun",size:11}}},
+        x:{ticks:{font:{family:"Sarabun",size:10},maxRotation:45,maxTicksLimit:8}}
+      }}
+  });
 }
 
 function drawFactChart(d) {
   const ctx = document.getElementById("fact-wc"); if (!ctx) return;
   if (wChart) wChart.destroy();
-  const wRecs = d.records.filter(r=>r.weight!==null);
-  wChart = new Chart(ctx, {
-    type:"line",
-    data:{
-      labels: wRecs.map(r=>r.date),
-      datasets:[
-        { label:"น้ำหนัก(kg)", data:wRecs.map(r=>r.weight),
-          borderColor:"#c45a7e",backgroundColor:"rgba(196,90,126,.1)",
-          borderWidth:2.5,pointBackgroundColor:"#c45a7e",pointRadius:4,tension:.3 },
-        { label:"เป้าหมาย", data:wRecs.map(()=>d.goalWeight),
-          borderColor:"#7060b8",borderWidth:1.5,borderDash:[5,5],pointRadius:0 }
-      ]
-    },
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{position:"bottom",labels:{font:{family:"Sarabun",size:11},boxWidth:14}}},
-      scales:{
-        y:{suggestedMin:d.goalWeight-2,suggestedMax:(d.startWeight||d.currentWeight)+1,
-          ticks:{font:{family:"Sarabun",size:11}}},
-        x:{ticks:{font:{family:"Sarabun",size:10},maxRotation:45,maxTicksLimit:8}}
-      }}
-  });
+  const recs = d.records.filter(r=>r.weight!==null);
+  wChart = makeLineChart(ctx, "น้ำหนัก (kg)",
+    recs.map(r=>r.weight), recs.map(r=>r.date), "#c45a7e", d.goalWeight);
+}
+
+function drawFatChart(d) {
+  const ctx = document.getElementById("fact-fc"); if (!ctx) return;
+  if (fChart) fChart.destroy();
+  const recs = d.records.filter(r=>r.fatMass);
+  fChart = makeLineChart(ctx, "มวลไขมัน (kg)",
+    recs.map(r=>parseFloat(r.fatMass)), recs.map(r=>r.date), "#f59e0b");
+}
+
+function drawMuscleChart(d) {
+  const ctx = document.getElementById("fact-mc"); if (!ctx) return;
+  if (mChart2) mChart2.destroy();
+  const recs = d.records.filter(r=>r.muscleMass);
+  mChart2 = makeLineChart(ctx, "มวลกล้ามเนื้อ (kg)",
+    recs.map(r=>parseFloat(r.muscleMass)), recs.map(r=>r.date), "#10b981");
 }
 
 async function submitFact() {
@@ -1157,7 +1379,9 @@ async function renderBody() {
   if(!currentName){v.innerHTML=noPatient();return;}
   v.innerHTML=loading();
   try {
-    const d=await apiGet({action:"getBodyCompImages",name:currentName});
+    const cachedBody = _bodyCache && _bodyCache[currentName];
+    const d = cachedBody ? {success:true, images:cachedBody} : await apiGet({action:"getBodyCompImages",name:currentName});
+    if (d.success && !cachedBody) { _bodyCache = _bodyCache||{}; _bodyCache[currentName] = d.images||[]; }
     const uploadForm=!patientMode?`
       <div class="card">
         <div class="ctitle">อัปโหลดรูป Body Composition</div>
@@ -1216,7 +1440,7 @@ async function submitBody() {
     try {
       const r=await api({action:"uploadBodyComp",name:currentName,date,
         imageBase64:b64,mimeType:file.type,fileName:file.name});
-      if(r.success){toast(" อัปโหลดสำเร็จ","ok");renderBody();}
+      if(r.success){toast(" อัปโหลดสำเร็จ","ok");if(_bodyCache)delete _bodyCache[currentName];renderBody();}
       else toast(" "+r.message,"err");
     } catch(e){toast(" อัปโหลดไม่ได้","err");}
   };
@@ -1226,7 +1450,7 @@ async function deleteBody(fileId) {
   if(!confirm("ลบรูปนี้?"))return;
   try {
     const r=await api({action:"deleteBodyComp",name:currentName,fileId});
-    if(r.success){toast(" ลบแล้ว","ok");renderBody();}
+    if(r.success){toast(" ลบแล้ว","ok");if(_bodyCache)delete _bodyCache[currentName];renderBody();}
     else toast(" "+r.message,"err");
   } catch(e){toast(" ลบไม่ได้","err");}
 }
@@ -1249,7 +1473,9 @@ async function renderMed() {
   if (!currentName) { v.innerHTML = noPatient(); return; }
   v.innerHTML = loading();
   try {
-    const d = await apiGet({action:"getMedication", name:currentName});
+    const cached = _medCache && _medCache[currentName];
+    const d = cached ? {success:true, items:cached} : await apiGet({action:"getMedication", name:currentName});
+    if (d.success && !cached) { _medCache = _medCache||{}; _medCache[currentName] = d.items||[]; }
     const items = d.items || [];
     window._medItems = items;
     medRowCount = 0;
