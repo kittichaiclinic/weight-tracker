@@ -813,6 +813,30 @@ function drawWeightChart(d) {
 }
 
 
+
+function buildSymForm(prefix) {
+  return symSection("🍽 การกินและความหิว", prefix+"-s1", [
+    fmChip("ความหิว",    prefix+"-hunger",  ["ไม่หิวเลย","หิวน้อยลง","หิวพอเดิม","ยังหิวปกติ"]),
+    fmChip("ความอิ่ม",  prefix+"-full",    ["อิ่มนาน","อิ่มมากขึ้น","อิ่มพอเดิม","ไม่ค่อยอิ่ม"]),
+    `<div class="fg"><label>คุมอาหาร</label><textarea id="${prefix}-diet" placeholder="เช่น ทานโปรตีน หลีกเลี่ยงแป้ง"></textarea></div>`
+  ]) +
+  symSection("💊 สุขภาพ S/E", prefix+"-s2", [
+    `<div class="r2"><div class="fg">${fmChip("โปรตีน",prefix+"-protein",["ดี","พอใช้","ต่ำ"])}</div>
+     <div class="fg"><label>ดื่มน้ำ</label><input type="text" id="${prefix}-water" placeholder="2-3 L/วัน"></div></div>`,
+    `<div class="r2"><div class="fg">${fmChip("ไฟเบอร์",prefix+"-fiber",["ดี","น้อย","-"])}</div>
+     <div class="fg">${fmChip("ขับถ่าย",prefix+"-bowel",["ดี","ท้องผูก","ท้องเสีย"])}</div></div>`,
+    `<div class="fg"><label>ออกกำลังกาย</label><input type="text" id="${prefix}-ex" placeholder="เช่น เดิน 30 นาที"></div>`,
+    `<div class="fg"><label>S/E</label><input type="text" id="${prefix}-se" placeholder="เช่น ไม่มี / คลื่นไส้"></div>`
+  ]) +
+  symSection("😊 Mood & กำลังใจ", prefix+"-s3", [
+    fmChip("Mood", prefix+"-mood", ["ดีมาก","ดี","กลางๆ","ไม่ดี"]),
+    `<div class="r2"><div class="fg">${fmChip("นอนหลับ",prefix+"-sleep",["ดีมาก","ปกติ","ไม่ดี"])}</div>
+     <div class="fg">${fmChip("กำลังใจ",prefix+"-motiv",["ดีมาก","ดี","ท้อ"])}</div></div>`,
+    `<div class="fg"><label>น้ำเสียง</label><input type="text" id="${prefix}-tone" placeholder="เช่น ร่าเริง สดใส"></div>`,
+    `<div class="fg"><label>ใจความสำคัญ</label><textarea id="${prefix}-remark" placeholder="สิ่งที่พูดคุย..."></textarea></div>`
+  ]);
+}
+
 // ===== ENTRY (Staff only) — ลงข้อมูลน้ำหนัก + สัดส่วน =====
 async function renderEntry() {
   const v = document.getElementById("entry-v");
@@ -904,10 +928,23 @@ async function renderEntry() {
       </div>
 
       <div class="card">
+        <div class="ctitle">📈 กราฟน้ำหนัก</div>
+        <div class="ch-wrap"><canvas id="entry-wc"></canvas></div>
+      </div>
+      ${d.records.some(r=>r.fatMass) ? `<div class="card">
+        <div class="ctitle" style="color:#f59e0b">📈 กราฟมวลไขมัน</div>
+        <div class="ch-wrap"><canvas id="entry-fc"></canvas></div>
+      </div>` : ""}
+      ${d.records.some(r=>r.muscleMass) ? `<div class="card">
+        <div class="ctitle" style="color:#10b981">📈 กราฟมวลกล้ามเนื้อ</div>
+        <div class="ch-wrap"><canvas id="entry-mc"></canvas></div>
+      </div>` : ""}
+
+      <div class="card">
         <div class="ctitle">📋 ประวัติน้ำหนัก</div>
         <div style="overflow-x:auto">
           <table class="tbl">
-            <thead><tr><th>ครั้งที่</th><th>วันที่</th><th>kg</th><th>ลด/+</th><th>โดส</th><th>แพทย์</th><th>งบ(฿)</th><th>หมายเหตุ</th><th></th></tr></thead>
+            <thead><tr><th>ครั้งที่</th><th>วันที่</th><th>kg</th><th>ลด/+</th><th>ไขมัน</th><th>กล้ามเนื้อ</th><th>โดส</th><th>แพทย์</th><th>งบ(฿)</th><th>หมายเหตุ</th><th></th></tr></thead>
             <tbody>${(()=>{
               const rows = d.records.slice().reverse().map(r=>{
                 const chg = r.change;
@@ -919,6 +956,8 @@ async function renderEntry() {
                   <td style="font-size:11px">${r.date}</td>
                   <td><b>${r.weight||"-"}</b></td>
                   <td>${cs}</td>
+                  <td style="font-size:11px;color:#f59e0b">${r.fatMass||"-"}</td>
+                  <td style="font-size:11px;color:#10b981">${r.muscleMass||"-"}</td>
                   <td style="font-size:11px">${r.dose||"-"}</td>
                   <td style="font-size:11px">${r.doctor||"-"}</td>
                   <td style="font-size:11px;color:var(--am)">${bg}</td>
@@ -926,12 +965,44 @@ async function renderEntry() {
                   <td>${eb}</td>
                 </tr>`;
               }).join("");
-              return rows || '<tr><td colspan="9" style="color:var(--tx2);padding:14px">ยังไม่มีข้อมูล</td></tr>';
+              return rows || '<tr><td colspan="11" style="color:var(--tx2);padding:14px">ยังไม่มีข้อมูล</td></tr>';
             })()}</tbody>
           </table>
         </div>
       </div>`;
+
+    setTimeout(()=>{
+      drawEntryChart(d);
+      if (d.records.some(r=>r.fatMass))    drawEntryFatChart(d);
+      if (d.records.some(r=>r.muscleMass)) drawEntryMuscleChart(d);
+    }, 80);
   } catch(e) { v.innerHTML = err(e.message); }
+}
+
+let enChart=null, enFatChart=null, enMuscleChart=null;
+
+function drawEntryChart(d) {
+  const ctx = document.getElementById("entry-wc"); if (!ctx) return;
+  if (enChart) enChart.destroy();
+  const recs = d.records.filter(r=>r.weight!==null);
+  enChart = makeLineChart(ctx, "น้ำหนัก (kg)",
+    recs.map(r=>r.weight), recs.map(r=>r.date), "#c45a7e", d.goalWeight);
+}
+
+function drawEntryFatChart(d) {
+  const ctx = document.getElementById("entry-fc"); if (!ctx) return;
+  if (enFatChart) enFatChart.destroy();
+  const recs = d.records.filter(r=>r.fatMass);
+  enFatChart = makeLineChart(ctx, "มวลไขมัน (kg)",
+    recs.map(r=>parseFloat(r.fatMass)), recs.map(r=>r.date), "#f59e0b");
+}
+
+function drawEntryMuscleChart(d) {
+  const ctx = document.getElementById("entry-mc"); if (!ctx) return;
+  if (enMuscleChart) enMuscleChart.destroy();
+  const recs = d.records.filter(r=>r.muscleMass);
+  enMuscleChart = makeLineChart(ctx, "มวลกล้ามเนื้อ (kg)",
+    recs.map(r=>parseFloat(r.muscleMass)), recs.map(r=>r.date), "#10b981");
 }
 
 async function submitEntry() {
@@ -1069,6 +1140,8 @@ async function renderFact() {
         <td style="font-size:11px">${r.date}</td>
         <td><b>${r.weight||"-"}</b></td>
         <td>${cs}</td>
+        <td style="font-size:11px;color:#f59e0b">${r.fatMass||"-"}</td>
+        <td style="font-size:11px;color:#10b981">${r.muscleMass||"-"}</td>
         <td style="font-size:11px">${r.dose||"-"}</td>
         <td style="font-size:11px">${r.doctor||"-"}</td>
         <td style="font-size:11px;color:var(--am)">${bg}</td>
@@ -1077,20 +1150,30 @@ async function renderFact() {
       </tr>`;
     }).join("");
 
-    // กราฟน้ำหนัก (แสดงทั้ง staff และ patient)
-    const chartCard = `
+    // กราฟแยก 3 อัน
+    const hasFat    = d.records.some(r=>r.fatMass);
+    const hasMuscle = d.records.some(r=>r.muscleMass);
+    const chartCards = `
       <div class="card">
-        <div class="ctitle">กราฟน้ำหนัก</div>
+        <div class="ctitle">📈 กราฟน้ำหนัก</div>
         <div class="ch-wrap"><canvas id="fact-wc"></canvas></div>
-      </div>`;
+      </div>
+      ${hasFat ? `<div class="card">
+        <div class="ctitle" style="color:#f59e0b">📈 กราฟมวลไขมัน</div>
+        <div class="ch-wrap"><canvas id="fact-fc"></canvas></div>
+      </div>` : ""}
+      ${hasMuscle ? `<div class="card">
+        <div class="ctitle" style="color:#10b981">📈 กราฟมวลกล้ามเนื้อ</div>
+        <div class="ch-wrap"><canvas id="fact-mc"></canvas></div>
+      </div>` : ""}`;
 
-    v.innerHTML = logForm + budgetCard + chartCard + `
+    v.innerHTML = logForm + budgetCard + chartCards + `
       <div class="card">
         <div class="ctitle">ประวัติน้ำหนัก</div>
         <div style="overflow-x:auto">
           <table class="tbl">
-            <thead><tr><th>ครั้งที่</th><th>วันที่</th><th>kg</th><th>ลด/+</th><th>โดส</th><th>แพทย์</th><th>งบ(฿)</th><th>หมายเหตุ</th><th></th></tr></thead>
-            <tbody>${rows||noData(9)}</tbody>
+            <thead><tr><th>ครั้งที่</th><th>วันที่</th><th>kg</th><th>ลด/+</th><th>ไขมัน</th><th>กล้ามเนื้อ</th><th>โดส</th><th>แพทย์</th><th>งบ(฿)</th><th>หมายเหตุ</th><th></th></tr></thead>
+            <tbody>${rows||noData(11)}</tbody>
           </table>
         </div>
       </div>`;
