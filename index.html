@@ -899,30 +899,14 @@ async function renderEntry() {
           <div class="fg"><label>ประเภท</label>
             <select id="en-type">
               <option value="">-- เลือก --</option>
-              <option value="ฉีด">ฉีด</option>
-              <option value="ติดตาม">ติดตาม</option>
+              <option value="tel">📱 tel</option>
+              <option value="F/U">🏥 F/U</option>
+              <option value="ฉีด">💉 ฉีด</option>
             </select>
           </div>
           <div class="fg"><label>เวลา</label><input type="time" id="en-time" value="${new Date().toTimeString().slice(0,5)}"></div>
         </div>
-        <div class="r2">
-          <div class="fg"><label>ความหิว (1-5)</label><input type="number" id="en-hunger" min="1" max="5" step="1"></div>
-          <div class="fg"><label>ความอิ่ม (1-5)</label><input type="number" id="en-full" min="1" max="5" step="1"></div>
-        </div>
-        <div class="r2">
-          <div class="fg"><label>คุมอาหาร</label><input type="text" id="en-diet" placeholder="ดี/ไม่ดี"></div>
-          <div class="fg"><label>ออกกำลังกาย</label><input type="text" id="en-ex" placeholder="เดิน 30 นาที"></div>
-        </div>
-        <div class="r2">
-          <div class="fg"><label>อาการไม่พึงประสงค์</label><input type="text" id="en-se" placeholder="คลื่นไส้"></div>
-          <div class="fg"><label>อุจจาระ</label><input type="text" id="en-bowel" placeholder="ปกติ"></div>
-        </div>
-        <div class="r2">
-          <div class="fg"><label>อารมณ์ (1-5)</label><input type="number" id="en-mood" min="1" max="5" step="1"></div>
-          <div class="fg"><label>การนอน (1-5)</label><input type="number" id="en-sleep" min="1" max="5" step="1"></div>
-        </div>
-        <div class="fg"><label>ความตั้งใจ (1-5)</label><input type="number" id="en-motiv" min="1" max="5" step="1"></div>
-        <div class="fg"><label>หมายเหตุเพิ่มเติม</label><input type="text" id="en-remark" placeholder=""></div>
+        ${buildSymForm("en")}
 
         <button class="btn btn-pk" onclick="submitEntry()" style="margin-top:16px">💾 บันทึกข้อมูลทั้งหมด</button>
       </div>
@@ -1017,11 +1001,12 @@ async function submitEntry() {
     armR:V("en-ar"), armL:V("en-al"),
     thighR:V("en-tr"), thighL:V("en-tl"),
     type:V("en-type"), time:V("en-time"),
-    hunger:V("en-hunger"), fullness:V("en-full"),
+    hunger:getChip("en-hunger"), fullness:getChip("en-full"),
     diet:V("en-diet"), exercise:V("en-ex"),
-    se:V("en-se"), bowel:V("en-bowel"),
-    mood:V("en-mood"), sleep:V("en-sleep"),
-    motivation:V("en-motiv"), remark:V("en-remark")
+    protein:getChip("en-protein"), water:V("en-water"),
+    fiber:getChip("en-fiber"), se:V("en-se"), bowel:getChip("en-bowel"),
+    mood:getChip("en-mood"), sleep:getChip("en-sleep"), motivation:getChip("en-motiv"),
+    tone:V("en-tone"), remark:V("en-remark")
   };
   // ลบ field ว่างออก
   Object.keys(payload).forEach(k => { if(payload[k]==="") delete payload[k]; });
