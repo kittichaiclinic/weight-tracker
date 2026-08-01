@@ -871,12 +871,6 @@ async function renderEntry() {
           <div class="fg"><label>หมายเหตุ</label><input type="text" id="en-nt" placeholder=""></div>
         </div>
 
-        <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:14px 0 8px">📊 Body Composition</div>
-        <div class="r2">
-          <div class="fg"><label>มวลไขมัน (kg)</label><input type="number" id="en-fat" step="0.1"></div>
-          <div class="fg"><label>มวลกล้ามเนื้อ (kg)</label><input type="number" id="en-muscle" step="0.1"></div>
-        </div>
-
         <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:14px 0 8px">📏 สัดส่วน (นิ้ว)</div>
         <div class="r2">
           <div class="fg"><label>หน้าอก</label><input type="number" id="en-ch" step="0.5" value="${last&&last.chest||""}"></div>
@@ -901,20 +895,12 @@ async function renderEntry() {
         <div class="ctitle">📈 กราฟน้ำหนัก</div>
         <div class="ch-wrap"><canvas id="entry-wc"></canvas></div>
       </div>
-      ${d.records.some(r=>r.fatMass) ? `<div class="card">
-        <div class="ctitle" style="color:#f59e0b">📈 กราฟมวลไขมัน</div>
-        <div class="ch-wrap"><canvas id="entry-fc"></canvas></div>
-      </div>` : ""}
-      ${d.records.some(r=>r.muscleMass) ? `<div class="card">
-        <div class="ctitle" style="color:#10b981">📈 กราฟมวลกล้ามเนื้อ</div>
-        <div class="ch-wrap"><canvas id="entry-mc"></canvas></div>
-      </div>` : ""}
 
       <div class="card">
         <div class="ctitle">📋 ประวัติน้ำหนัก</div>
         <div style="overflow-x:auto">
           <table class="tbl">
-            <thead><tr><th>ครั้งที่</th><th>วันที่</th><th>kg</th><th>ลด/+</th><th>ไขมัน</th><th>กล้ามเนื้อ</th><th>โดส</th><th>แพทย์</th><th>งบ(฿)</th><th>หมายเหตุ</th><th></th></tr></thead>
+            <thead><tr><th>ครั้งที่</th><th>วันที่</th><th>kg</th><th>ลด/+</th><th>โดส</th><th>แพทย์</th><th>งบ(฿)</th><th>หมายเหตุ</th><th></th></tr></thead>
             <tbody>${(()=>{
               const rows = d.records.slice().reverse().map(r=>{
                 const chg = r.change;
@@ -926,8 +912,6 @@ async function renderEntry() {
                   <td style="font-size:11px">${r.date}</td>
                   <td><b>${r.weight||"-"}</b></td>
                   <td>${cs}</td>
-                  <td style="font-size:11px;color:#f59e0b">${r.fatMass||"-"}</td>
-                  <td style="font-size:11px;color:#10b981">${r.muscleMass||"-"}</td>
                   <td style="font-size:11px">${r.dose||"-"}</td>
                   <td style="font-size:11px">${r.doctor||"-"}</td>
                   <td style="font-size:11px;color:var(--am)">${bg}</td>
@@ -935,7 +919,7 @@ async function renderEntry() {
                   <td>${eb}</td>
                 </tr>`;
               }).join("");
-              return rows || '<tr><td colspan="11" style="color:var(--tx2);padding:14px">ยังไม่มีข้อมูล</td></tr>';
+              return rows || '<tr><td colspan="9" style="color:var(--tx2);padding:14px">ยังไม่มีข้อมูล</td></tr>';
             })()}</tbody>
           </table>
         </div>
@@ -965,8 +949,6 @@ async function renderEntry() {
 
     setTimeout(()=>{
       drawEntryChart(d);
-      if (d.records.some(r=>r.fatMass))    drawEntryFatChart(d);
-      if (d.records.some(r=>r.muscleMass)) drawEntryMuscleChart(d);
     }, 80);
   } catch(e) { v.innerHTML = err(e.message); }
 }
@@ -1002,7 +984,7 @@ async function submitEntry() {
   if (!dt) { toast("เลือกวันที่ก่อน","err"); return; }
   const payload = {
     action:"logVisit", name:currentName, date:dt,
-    weight:V("en-w"), fatMass:V("en-fat"), muscleMass:V("en-muscle"),
+    weight:V("en-w"),
     dose:V("en-ds"), doctor:V("en-dr"),
     budget:V("en-bg"), note:V("en-nt"),
     chest:V("en-ch"), waist:V("en-wa"), hip:V("en-hi"),
@@ -1126,8 +1108,6 @@ async function renderFact() {
         <td style="font-size:11px">${r.date}</td>
         <td><b>${r.weight||"-"}</b></td>
         <td>${cs}</td>
-        <td style="font-size:11px;color:#f59e0b">${r.fatMass||"-"}</td>
-        <td style="font-size:11px;color:#10b981">${r.muscleMass||"-"}</td>
         <td style="font-size:11px">${r.dose||"-"}</td>
         <td style="font-size:11px">${r.doctor||"-"}</td>
         <td style="font-size:11px;color:var(--am)">${bg}</td>
@@ -1135,6 +1115,14 @@ async function renderFact() {
         <td>${eb}</td>
       </tr>`;
     }).join("");
+
+    // ตารางมวลไขมัน/กล้ามเนื้อ แยกจากตารางน้ำหนัก
+    const massRecs = d.records.filter(r=>r.fatMass||r.muscleMass);
+    const massRows = massRecs.slice().reverse().map(r=>`<tr>
+        <td style="font-size:11px">${r.date}</td>
+        <td style="color:#f59e0b">${r.fatMass||"-"}</td>
+        <td style="color:#10b981">${r.muscleMass||"-"}</td>
+      </tr>`).join("");
 
     // กราฟแยก 3 อัน
     const hasFat    = d.records.some(r=>r.fatMass);
@@ -1153,16 +1141,27 @@ async function renderFact() {
         <div class="ch-wrap"><canvas id="fact-mc"></canvas></div>
       </div>` : ""}`;
 
+    const massTableCard = massRecs.length ? `
+      <div class="card">
+        <div class="ctitle">📋 ประวัติมวลไขมัน / กล้ามเนื้อ</div>
+        <div style="overflow-x:auto">
+          <table class="tbl">
+            <thead><tr><th>วันที่</th><th>ไขมัน (kg)</th><th>กล้ามเนื้อ (kg)</th></tr></thead>
+            <tbody>${massRows}</tbody>
+          </table>
+        </div>
+      </div>` : "";
+
     v.innerHTML = logForm + budgetCard + chartCards + `
       <div class="card">
         <div class="ctitle">ประวัติน้ำหนัก</div>
         <div style="overflow-x:auto">
           <table class="tbl">
-            <thead><tr><th>ครั้งที่</th><th>วันที่</th><th>kg</th><th>ลด/+</th><th>ไขมัน</th><th>กล้ามเนื้อ</th><th>โดส</th><th>แพทย์</th><th>งบ(฿)</th><th>หมายเหตุ</th><th></th></tr></thead>
-            <tbody>${rows||noData(11)}</tbody>
+            <thead><tr><th>ครั้งที่</th><th>วันที่</th><th>kg</th><th>ลด/+</th><th>โดส</th><th>แพทย์</th><th>งบ(฿)</th><th>หมายเหตุ</th><th></th></tr></thead>
+            <tbody>${rows||noData(9)}</tbody>
           </table>
         </div>
-      </div>`;
+      </div>` + massTableCard;
 
     setTimeout(()=>{
       drawFactChart(d);
@@ -1456,6 +1455,53 @@ async function renderBody() {
     const cachedBody = _bodyCache && _bodyCache[currentName];
     const d = cachedBody ? {success:true, images:cachedBody} : await apiGet({action:"getBodyCompImages",name:currentName});
     if (d.success && !cachedBody) _bodyCache[currentName] = d.images||[];
+
+    // ดึงข้อมูลมวลไขมัน/กล้ามเนื้อจาก visit records
+    const pd = await getPatientCached(currentName);
+    const massRecs = pd.success ? pd.records.filter(r=>r.fatMass||r.muscleMass) : [];
+
+    const massForm = !patientMode ? `
+      <div class="card">
+        <div class="ctitle">📊 บันทึกมวลไขมัน / กล้ามเนื้อ</div>
+        <div class="fg"><label>วันที่</label><input type="date" id="bm-dt" value="${today()}"></div>
+        <div class="r2">
+          <div class="fg"><label>มวลไขมัน (kg)</label><input type="number" id="bm-fat" step="0.1"></div>
+          <div class="fg"><label>มวลกล้ามเนื้อ (kg)</label><input type="number" id="bm-muscle" step="0.1"></div>
+        </div>
+        <button class="btn btn-pk" onclick="submitBodyMass()">💾 บันทึก</button>
+      </div>` : "";
+
+    const hasFat    = massRecs.some(r=>r.fatMass);
+    const hasMuscle = massRecs.some(r=>r.muscleMass);
+    const massCharts = (hasFat||hasMuscle) ? `
+      ${hasFat ? `<div class="card">
+        <div class="ctitle" style="color:#f59e0b">📈 กราฟมวลไขมัน</div>
+        <div class="ch-wrap"><canvas id="body-fc"></canvas></div>
+      </div>` : ""}
+      ${hasMuscle ? `<div class="card">
+        <div class="ctitle" style="color:#10b981">📈 กราฟมวลกล้ามเนื้อ</div>
+        <div class="ch-wrap"><canvas id="body-mc"></canvas></div>
+      </div>` : ""}` : "";
+
+    const massTable = `
+      <div class="card">
+        <div class="ctitle">📋 ประวัติมวลไขมัน / กล้ามเนื้อ</div>
+        <div style="overflow-x:auto">
+          <table class="tbl">
+            <thead><tr><th>วันที่</th><th>ไขมัน (kg)</th><th>กล้ามเนื้อ (kg)</th></tr></thead>
+            <tbody>${
+              massRecs.length
+                ? massRecs.slice().reverse().map(r=>`<tr>
+                    <td style="font-size:11px">${r.date}</td>
+                    <td style="color:#f59e0b">${r.fatMass||"-"}</td>
+                    <td style="color:#10b981">${r.muscleMass||"-"}</td>
+                  </tr>`).join("")
+                : '<tr><td colspan="3" style="color:var(--tx2);padding:14px">ยังไม่มีข้อมูล</td></tr>'
+            }</tbody>
+          </table>
+        </div>
+      </div>`;
+
     const uploadForm=!patientMode?`
       <div class="card">
         <div class="ctitle">อัปโหลดรูป Body Composition</div>
@@ -1483,9 +1529,52 @@ async function renderBody() {
           </div>`).join("")}</div>`
       :'<div class="ld">ยังไม่มีรูป Body Composition</div>';
 
-    v.innerHTML=uploadForm+`
+    v.innerHTML = massForm + massCharts + massTable + uploadForm + `
       <div class="card"><div class="ctitle">Body Composition</div>${imgs}</div>`;
+
+    setTimeout(()=>{
+      if (hasFat)    drawBodyFatChart(massRecs);
+      if (hasMuscle) drawBodyMuscleChart(massRecs);
+    }, 80);
   } catch(e){v.innerHTML=err(e.message);}
+}
+
+let bodyFatChart=null, bodyMuscleChart=null;
+
+function drawBodyFatChart(recs) {
+  const ctx = document.getElementById("body-fc"); if (!ctx) return;
+  if (bodyFatChart) bodyFatChart.destroy();
+  const r = recs.filter(x=>x.fatMass);
+  bodyFatChart = makeLineChart(ctx, "มวลไขมัน (kg)",
+    r.map(x=>parseFloat(x.fatMass)), r.map(x=>x.date), "#f59e0b");
+}
+
+function drawBodyMuscleChart(recs) {
+  const ctx = document.getElementById("body-mc"); if (!ctx) return;
+  if (bodyMuscleChart) bodyMuscleChart.destroy();
+  const r = recs.filter(x=>x.muscleMass);
+  bodyMuscleChart = makeLineChart(ctx, "มวลกล้ามเนื้อ (kg)",
+    r.map(x=>parseFloat(x.muscleMass)), r.map(x=>x.date), "#10b981");
+}
+
+async function submitBodyMass() {
+  const date = V("bm-dt");
+  const fat  = V("bm-fat");
+  const musc = V("bm-muscle");
+  if (!date) { toast("กรอกวันที่ก่อน","err"); return; }
+  if (!fat && !musc) { toast("กรอกมวลไขมันหรือกล้ามเนื้ออย่างน้อย 1 ช่อง","err"); return; }
+  try {
+    const payload = { action:"logVisit", name:currentName, date };
+    if (fat)  payload.fatMass = fat;
+    if (musc) payload.muscleMass = musc;
+    const r = await api(payload);
+    if (r.success) {
+      toast("✅ บันทึกสำเร็จ","ok");
+      set("bm-fat",""); set("bm-muscle","");
+      invalidateCache(currentName);
+      renderBody();
+    } else toast("❌ "+r.message,"err");
+  } catch(e) { toast("❌ บันทึกไม่ได้: "+e.message,"err"); }
 }
 
 function prevFile(e) {
