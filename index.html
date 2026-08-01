@@ -955,6 +955,28 @@ async function renderEntry() {
       </div>
 
       <div class="card">
+        <div class="sh" onclick="toggleSec('en-meashist')">
+          <h3>📏 ประวัติสัดส่วน</h3><span class="st" id="tog-en-meashist">▼</span></div>
+        <div class="sb2" id="en-meashist" style="max-height:0">
+        ${(()=>{
+          const measLabels = ["หน้าอก","เอว","สะโพก","ต้นแขนขวา","ต้นแขนซ้าย","ต้นขาขวา","ต้นขาซ้าย"];
+          const measKeys   = ["chest","waist","hip","armR","armL","thighR","thighL"];
+          const measRecs = d.records.filter(r=>r.chest||r.waist||r.hip||r.armR||r.armL||r.thighR||r.thighL);
+          if (!measRecs.length) return '<div class="ld">ยังไม่มีข้อมูลสัดส่วน</div>';
+          return `<div style="overflow-x:auto">
+            <table class="tbl">
+              <thead><tr><th>วันที่</th>${measLabels.map(l=>`<th style="font-size:11px">${l}</th>`).join("")}</tr></thead>
+              <tbody>${measRecs.slice().reverse().map(r=>`<tr>
+                <td style="font-size:11px;white-space:nowrap">${r.date}</td>
+                ${measKeys.map(k=>`<td>${r[k]||"-"}</td>`).join("")}
+              </tr>`).join("")}</tbody>
+            </table>
+          </div>`;
+        })()}
+        </div>
+      </div>
+
+      <div class="card">
         <div class="sh" onclick="toggleSec('en-symhist')">
           <h3>📞 ประวัติติดตามอาการ</h3><span class="st" id="tog-en-symhist">▼</span></div>
         <div class="sb2" id="en-symhist" style="max-height:0">
