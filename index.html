@@ -414,7 +414,7 @@ window.onload = async () => {
     document.getElementById("htabs").style.display = "none";
     buildNav(true);
     document.querySelector(".main").style.paddingBottom = "82px";
-    if (gasUrl) renderPatientHome();
+    if (gasUrl) gp("fact", document.querySelector('.nav button[onclick*="fact"]'));
     else { hTab("cfg"); toast(" กรุณาตั้งค่า URL ก่อน","err"); }
   } else {
     buildNav(false);
