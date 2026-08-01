@@ -465,10 +465,11 @@ function buildNav(patient) {
   if (patient) {
     nav.style.display = "flex";
     if (!patientMode) {
-      // Staff nav — มี Plan + ลงข้อมูล
+      // Staff nav — มี Plan + ลงข้อมูล + ติดตาม
       nav.innerHTML = `
         <button onclick="gp('plan',this)"><span class="ni">🎯</span>Plan</button>
         <button onclick="gp('entry',this)"><span class="ni">📝</span>ลงข้อมูล</button>
+        <button onclick="gp('sym',this)"><span class="ni">📞</span>ติดตาม</button>
         <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
         <button onclick="gp('med',this)"><span class="ni">💊</span>ยา</button>
         <button onclick="gp('appt',this)"><span class="ni">📅</span>เลือกเวลา</button>
@@ -893,20 +894,6 @@ async function renderEntry() {
           <div class="fg"><label>ต้นขาซ้าย</label><input type="number" id="en-tl" step="0.5" value="${last&&last.thighL||""}"></div>
         </div>
 
-        <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:14px 0 8px">📞 ติดตามอาการ</div>
-        <div class="r2">
-          <div class="fg"><label>ประเภท</label>
-            <select id="en-type">
-              <option value="">-- เลือก --</option>
-              <option value="tel">📱 tel</option>
-              <option value="F/U">🏥 F/U</option>
-              <option value="ฉีด">💉 ฉีด</option>
-            </select>
-          </div>
-          <div class="fg"><label>เวลา</label><input type="time" id="en-time" value="${new Date().toTimeString().slice(0,5)}"></div>
-        </div>
-        ${buildSymForm("en")}
-
         <button class="btn btn-pk" onclick="submitEntry()" style="margin-top:16px">💾 บันทึกข้อมูลทั้งหมด</button>
       </div>
 
@@ -974,33 +961,6 @@ async function renderEntry() {
           </div>`;
         })()}
         </div>
-      </div>
-
-      <div class="card">
-        <div class="sh" onclick="toggleSec('en-symhist')">
-          <h3>📞 ประวัติติดตามอาการ</h3><span class="st" id="tog-en-symhist">▼</span></div>
-        <div class="sb2" id="en-symhist" style="max-height:0">
-        ${(()=>{
-          const symRecs = d.records.slice().reverse();
-          const symCards = symRecs.map(r=>{
-            const fields=[["ความหิว",r.hunger],["ความอิ่ม",r.fullness],
-              ["โปรตีน",r.protein],["น้ำ",r.water],["ไฟเบอร์",r.fiber],
-              ["ขับถ่าย",r.bowel],["ออกกำลัง",r.exercise],["S/E",r.se],
-              ["Mood",r.mood],["นอน",r.sleep],["กำลังใจ",r.motivation]].filter(([,v])=>v);
-            if (!fields.length && !r.diet) return "";
-            return `<div class="sym-card">
-              <div class="sym-dt">${r.date} ${r.time||""}
-                ${r.type?`<span class="sym-tp">${r.type}</span>`:""}
-              </div>
-              <div class="sym-grid">${fields.map(([k,v])=>`
-                <div class="sym-item"><div class="sk">${k}</div><div class="sv2">${v}</div></div>`).join("")}
-              </div>
-              ${r.diet?`<div class="sym-note" style="color:var(--gr)">🍽 ${r.diet}</div>`:""}
-            </div>`;
-          }).filter(Boolean).join("");
-          return symCards || '<div class="ld">ยังไม่มีประวัติการติดตาม</div>';
-        })()}
-        </div>
       </div>`;
 
     setTimeout(()=>{
@@ -1047,13 +1007,7 @@ async function submitEntry() {
     budget:V("en-bg"), note:V("en-nt"),
     chest:V("en-ch"), waist:V("en-wa"), hip:V("en-hi"),
     armR:V("en-ar"), armL:V("en-al"),
-    thighR:V("en-tr"), thighL:V("en-tl"),
-    type:V("en-type"), time:V("en-time"),
-    hunger:getChip("en-hunger"), fullness:getChip("en-full"),
-    diet:V("en-diet"), exercise:V("en-ex"),
-    protein:getChip("en-protein"), water:V("en-water"),
-    fiber:getChip("en-fiber"), se:V("en-se"), bowel:getChip("en-bowel"),
-    mood:getChip("en-mood"), sleep:getChip("en-sleep"), motivation:getChip("en-motiv")
+    thighR:V("en-tr"), thighL:V("en-tl")
   };
   // ลบ field ว่างออก
   Object.keys(payload).forEach(k => { if(payload[k]==="") delete payload[k]; });
