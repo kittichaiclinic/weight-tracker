@@ -937,7 +937,7 @@ async function renderEntry() {
           return `<div style="overflow-x:auto">
             <table class="tbl">
               <thead><tr><th>วันที่</th>${measLabels.map(l=>`<th style="font-size:11px">${l}</th>`).join("")}<th></th></tr></thead>
-              <tbody>${measRecs.slice().reverse().map(r=>`<tr>
+              <tbody>${measRecs.slice().sort((a,b)=>a.date.localeCompare(b.date)).reverse().map(r=>`<tr>
                 <td style="font-size:11px;white-space:nowrap">${r.date}</td>
                 ${measKeys.map(k=>`<td>${r[k]||"-"}</td>`).join("")}
                 <td><span onclick='editMeasModal(${r.row},"${r.date}",${r.chest||0},${r.waist||0},${r.hip||0},${r.armR||0},${r.armL||0},${r.thighR||0},${r.thighL||0})'
@@ -1120,7 +1120,7 @@ async function renderFact() {
 
     // ตารางมวลไขมัน/กล้ามเนื้อ แยกจากตารางน้ำหนัก
     const massRecs = d.records.filter(r=>r.fatMass||r.muscleMass);
-    const massRows = massRecs.slice().reverse().map(r=>`<tr>
+    const massRows = massRecs.slice().sort((a,b)=>a.date.localeCompare(b.date)).reverse().map(r=>`<tr>
         <td style="font-size:11px">${r.date}</td>
         <td style="color:#f59e0b">${r.fatMass||"-"}</td>
         <td style="color:#10b981">${r.muscleMass||"-"}</td>
@@ -1206,7 +1206,7 @@ function drawFactChart(d) {
 function drawFatChart(d) {
   const ctx = document.getElementById("fact-fc"); if (!ctx) return;
   if (fChart) fChart.destroy();
-  const recs = d.records.filter(r=>r.fatMass);
+  const recs = d.records.filter(r=>r.fatMass).slice().sort((a,b)=>a.date.localeCompare(b.date));
   fChart = makeLineChart(ctx, "มวลไขมัน (kg)",
     recs.map(r=>parseFloat(r.fatMass)), recs.map(r=>r.date), "#f59e0b");
 }
@@ -1214,7 +1214,7 @@ function drawFatChart(d) {
 function drawMuscleChart(d) {
   const ctx = document.getElementById("fact-mc"); if (!ctx) return;
   if (mChart2) mChart2.destroy();
-  const recs = d.records.filter(r=>r.muscleMass);
+  const recs = d.records.filter(r=>r.muscleMass).slice().sort((a,b)=>a.date.localeCompare(b.date));
   mChart2 = makeLineChart(ctx, "มวลกล้ามเนื้อ (kg)",
     recs.map(r=>parseFloat(r.muscleMass)), recs.map(r=>r.date), "#10b981");
 }
@@ -1528,7 +1528,7 @@ async function renderBody() {
             <thead><tr><th>วันที่</th><th>ไขมัน (kg)</th><th>กล้ามเนื้อ (kg)</th></tr></thead>
             <tbody>${
               massRecs.length
-                ? massRecs.slice().reverse().map(r=>`<tr>
+                ? massRecs.slice().sort((a,b)=>a.date.localeCompare(b.date)).reverse().map(r=>`<tr>
                     <td style="font-size:11px">${r.date}</td>
                     <td style="color:#f59e0b">${r.fatMass||"-"}</td>
                     <td style="color:#10b981">${r.muscleMass||"-"}</td>
@@ -1581,7 +1581,7 @@ let bodyFatChart=null, bodyMuscleChart=null;
 function drawBodyFatChart(recs) {
   const ctx = document.getElementById("body-fc"); if (!ctx) return;
   if (bodyFatChart) bodyFatChart.destroy();
-  const r = recs.filter(x=>x.fatMass);
+  const r = recs.filter(x=>x.fatMass).slice().sort((a,b)=>a.date.localeCompare(b.date));
   bodyFatChart = makeLineChart(ctx, "มวลไขมัน (kg)",
     r.map(x=>parseFloat(x.fatMass)), r.map(x=>x.date), "#f59e0b");
 }
@@ -1589,7 +1589,7 @@ function drawBodyFatChart(recs) {
 function drawBodyMuscleChart(recs) {
   const ctx = document.getElementById("body-mc"); if (!ctx) return;
   if (bodyMuscleChart) bodyMuscleChart.destroy();
-  const r = recs.filter(x=>x.muscleMass);
+  const r = recs.filter(x=>x.muscleMass).slice().sort((a,b)=>a.date.localeCompare(b.date));
   bodyMuscleChart = makeLineChart(ctx, "มวลกล้ามเนื้อ (kg)",
     r.map(x=>parseFloat(x.muscleMass)), r.map(x=>x.date), "#10b981");
 }
