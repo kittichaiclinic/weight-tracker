@@ -916,7 +916,7 @@ async function renderEntry() {
                 const chg = r.change;
                 const cs = (!chg&&chg!==0) ? "-" : `<span class="${chg<0?"cn":"cp"}">${chg>0?"+":""}${(+chg).toFixed(1)}</span>`;
                 const bg = r.budget ? parseFloat(r.budget).toLocaleString()+"฿" : "-";
-                const eb = `<span onclick='editFactModal(${r.row},"${r.date}",${r.weight||0},"${r.dose||""}","${r.doctor||""}",${r.budget||0},"${(r.note||"").replace(/"/g,"")}")' style="cursor:pointer;font-size:15px">✏️</span>`;
+                const eb = `<span onclick='editFactModal(${r.row},"${r.date}",${r.weight||0},"${r.dose||""}","${r.doctor||""}",${r.budget||0},"${(r.note||"").replace(/"/g,"")}")' style="cursor:pointer;font-size:15px;margin-right:6px">✏️</span><span onclick='deleteWeightRow(${r.row},"${r.date}")' style="cursor:pointer;font-size:15px">🗑</span>`;
                 return `<tr>
                   <td>${r.week}</td>
                   <td style="font-size:11px">${r.date}</td>
@@ -951,7 +951,8 @@ async function renderEntry() {
                 <td style="font-size:11px;white-space:nowrap">${r.date}</td>
                 ${measKeys.map(k=>`<td>${r[k]||"-"}</td>`).join("")}
                 <td><span onclick='editMeasModal(${r.row},"${r.date}",${r.chest||0},${r.waist||0},${r.hip||0},${r.armR||0},${r.armL||0},${r.thighR||0},${r.thighL||0})'
-                    style="cursor:pointer;font-size:15px">✏️</span></td>
+                    style="cursor:pointer;font-size:15px;margin-right:6px">✏️</span><span onclick='deleteMeasRow(${r.row},"${r.date}")'
+                    style="cursor:pointer;font-size:15px">🗑</span></td>
               </tr>`).join("")}</tbody>
             </table>
           </div>`;
@@ -1005,6 +1006,8 @@ async function submitEntry() {
   };
   // ลบ field ว่างออก
   Object.keys(payload).forEach(k => { if(payload[k]==="") delete payload[k]; });
+  const btn = event.currentTarget;
+  const restore = btnLoading(btn, "กำลังบันทึก...");
   try {
     const r = await api(payload);
     if (r.success) {
@@ -1012,8 +1015,8 @@ async function submitEntry() {
       set("en-w","");
       invalidateCache(currentName);
       renderEntry();
-    } else toast("❌ "+r.message,"err");
-  } catch(e) { toast("❌ บันทึกไม่ได้: "+e.message,"err"); }
+    } else { toast("❌ "+r.message,"err"); if(restore) restore(); }
+  } catch(e) { toast("❌ บันทึกไม่ได้: "+e.message,"err"); if(restore) restore(); }
 }
 
 
@@ -1113,6 +1116,7 @@ async function renderFact() {
         : `<span class="${chg<0?'cn':'cp'}">${chg>0?"+":""}${(+chg).toFixed(1)}</span>`;
       const eb = !patientMode
         ? `<span onclick='editFactModal(${r.row},"${r.date}",${r.weight||0},"${r.dose||""}","${r.doctor||""}",${r.budget||0},"${(r.note||"").replace(/"/g,"")}")'
+            style="cursor:pointer;font-size:15px;margin-right:6px">✏️</span><span onclick='deleteWeightRow(${r.row},"${r.date}")'
             style="cursor:pointer;font-size:15px"></span>` : "";
       const bg = r.budget ? parseFloat(r.budget).toLocaleString()+"฿" : "-";
       return `<tr>
@@ -1258,13 +1262,15 @@ function editFactModal(row,date,weight,dose,doctor,budget,note) {
 }
 
 async function submitEdit(row) {
+  const btn = event.currentTarget;
+  const restore = btnLoading(btn, "กำลังบันทึก...");
   try {
     const r = await api({action:"editVisit",name:currentName,row,
       date:V("ed-dt"),weight:V("ed-w"),dose:V("ed-ds"),
       doctor:V("ed-dr"),budget:V("ed-bg"),note:V("ed-nt")});
     if(r.success){toast(" แก้ไขสำเร็จ","ok");closeModal();invalidateCache(currentName);renderFact();}
-    else toast(" "+r.message,"err");
-  } catch(e){toast(" ส่งไม่ได้","err");}
+    else { toast(" "+r.message,"err"); if(restore) restore(); }
+  } catch(e){toast(" ส่งไม่ได้","err"); if(restore) restore();}
 }
 
 function editMeasModal(row,date,chest,waist,hip,armR,armL,thighR,thighL) {
@@ -1291,6 +1297,8 @@ function editMeasModal(row,date,chest,waist,hip,armR,armL,thighR,thighL) {
 }
 
 async function submitEditMeas(row) {
+  const btn = event.currentTarget;
+  const restore = btnLoading(btn, "กำลังบันทึก...");
   try {
     const r = await api({action:"editVisit",name:currentName,row,
       date:V("em-dt"),
@@ -1298,8 +1306,64 @@ async function submitEditMeas(row) {
       armR:V("em-ar"),armL:V("em-al"),
       thighR:V("em-tr"),thighL:V("em-tl")});
     if(r.success){toast("✅ แก้ไขสำเร็จ","ok");closeModal();invalidateCache(currentName);renderEntry();}
-    else toast("❌ "+r.message,"err");
-  } catch(e){toast("❌ ส่งไม่ได้","err");}
+    else { toast("❌ "+r.message,"err"); if(restore) restore(); }
+  } catch(e){toast("❌ ส่งไม่ได้","err"); if(restore) restore();}
+}
+
+function deleteWeightRow(row, date) {
+  showModal(`
+    <div class="modal-title">🗑 ลบข้อมูลน้ำหนัก<span class="modal-x" onclick="closeModal()">✕</span></div>
+    <div style="text-align:center;padding:10px 0 18px">
+      <div style="font-size:36px;margin-bottom:10px">⚠️</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:6px">ลบข้อมูลวันที่ ${date}?</div>
+      <div style="font-size:13px;color:var(--tx2);margin-bottom:18px">ลบเฉพาะน้ำหนัก/โดส/แพทย์/งบ/หมายเหตุ<br>ถ้าไม่มีข้อมูลอื่นเหลือ แถวนี้จะถูกลบทั้งหมด</div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="btn-out" onclick="closeModal()">ยกเลิก</button>
+        <button class="btn" style="background:#dc2626" onclick="confirmDeleteWeightRow(${row})">🗑 ยืนยันลบ</button>
+      </div>
+    </div>`);
+}
+
+async function confirmDeleteWeightRow(row) {
+  const btn = event.currentTarget;
+  const restore = btnLoading(btn, "กำลังลบ...");
+  try {
+    const r = await api({action:"deleteVisit", name:currentName, row, scope:"weight"});
+    if (r.success) {
+      toast("✅ ลบข้อมูลสำเร็จ","ok");
+      closeModal();
+      invalidateCache(currentName);
+      if (patientMode) renderFact(); else renderEntry();
+    } else { toast("❌ "+r.message,"err"); if(restore) restore(); }
+  } catch(e) { toast("❌ ลบไม่ได้","err"); if(restore) restore(); }
+}
+
+function deleteMeasRow(row, date) {
+  showModal(`
+    <div class="modal-title">🗑 ลบข้อมูลสัดส่วน<span class="modal-x" onclick="closeModal()">✕</span></div>
+    <div style="text-align:center;padding:10px 0 18px">
+      <div style="font-size:36px;margin-bottom:10px">⚠️</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:6px">ลบสัดส่วนวันที่ ${date}?</div>
+      <div style="font-size:13px;color:var(--tx2);margin-bottom:18px">ลบเฉพาะหน้าอก/เอว/สะโพก/แขน/ขา<br>ถ้าไม่มีข้อมูลอื่นเหลือ แถวนี้จะถูกลบทั้งหมด</div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="btn-out" onclick="closeModal()">ยกเลิก</button>
+        <button class="btn" style="background:#dc2626" onclick="confirmDeleteMeasRow(${row})">🗑 ยืนยันลบ</button>
+      </div>
+    </div>`);
+}
+
+async function confirmDeleteMeasRow(row) {
+  const btn = event.currentTarget;
+  const restore = btnLoading(btn, "กำลังลบ...");
+  try {
+    const r = await api({action:"deleteVisit", name:currentName, row, scope:"meas"});
+    if (r.success) {
+      toast("✅ ลบข้อมูลสำเร็จ","ok");
+      closeModal();
+      invalidateCache(currentName);
+      renderEntry();
+    } else { toast("❌ "+r.message,"err"); if(restore) restore(); }
+  } catch(e) { toast("❌ ลบไม่ได้","err"); if(restore) restore(); }
 }
 
 // ===== SYMPTOM =====
@@ -1610,6 +1674,8 @@ async function submitBodyMass() {
   const musc = V("bm-muscle");
   if (!date) { toast("กรอกวันที่ก่อน","err"); return; }
   if (!fat && !musc) { toast("กรอกมวลไขมันหรือกล้ามเนื้ออย่างน้อย 1 ช่อง","err"); return; }
+  const btn = event.currentTarget;
+  const restore = btnLoading(btn, "กำลังบันทึก...");
   try {
     const payload = { action:"logVisit", name:currentName, date };
     if (fat)  payload.fatMass = fat;
@@ -1620,8 +1686,8 @@ async function submitBodyMass() {
       set("bm-fat",""); set("bm-muscle","");
       invalidateCache(currentName);
       renderBody();
-    } else toast("❌ "+r.message,"err");
-  } catch(e) { toast("❌ บันทึกไม่ได้: "+e.message,"err"); }
+    } else { toast("❌ "+r.message,"err"); if(restore) restore(); }
+  } catch(e) { toast("❌ บันทึกไม่ได้: "+e.message,"err"); if(restore) restore(); }
 }
 
 function prevFile(e) {
@@ -1800,6 +1866,23 @@ function closeModal(){document.getElementById("modal").style.display="none";}
 document.addEventListener("click",e=>{
   if(e.target===document.getElementById("modal"))closeModal();
 });
+
+// แสดงสถานะกำลังโหลดบนปุ่ม (ใช้ตอนกดบันทึก/ลบ ที่ต้องรอ API)
+function btnLoading(btn, text) {
+  if (!btn) return null;
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.style.opacity = ".6";
+  btn.style.cursor = "wait";
+  btn.innerHTML = `<span class="spin" style="width:13px;height:13px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px"></span>${text||"กำลังบันทึก..."}`;
+  return () => {
+    if (!btn) return;
+    btn.disabled = false;
+    btn.style.opacity = "";
+    btn.style.cursor = "";
+    btn.innerHTML = orig;
+  };
+}
 
 // ===== TOAST =====
 function toast(msg,type=""){
