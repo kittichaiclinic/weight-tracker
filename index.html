@@ -936,10 +936,12 @@ async function renderEntry() {
           if (!measRecs.length) return '<div class="ld">ยังไม่มีข้อมูลสัดส่วน</div>';
           return `<div style="overflow-x:auto">
             <table class="tbl">
-              <thead><tr><th>วันที่</th>${measLabels.map(l=>`<th style="font-size:11px">${l}</th>`).join("")}</tr></thead>
+              <thead><tr><th>วันที่</th>${measLabels.map(l=>`<th style="font-size:11px">${l}</th>`).join("")}<th></th></tr></thead>
               <tbody>${measRecs.slice().reverse().map(r=>`<tr>
                 <td style="font-size:11px;white-space:nowrap">${r.date}</td>
                 ${measKeys.map(k=>`<td>${r[k]||"-"}</td>`).join("")}
+                <td><span onclick='editMeasModal(${r.row},"${r.date}",${r.chest||0},${r.waist||0},${r.hip||0},${r.armR||0},${r.armL||0},${r.thighR||0},${r.thighL||0})'
+                    style="cursor:pointer;font-size:15px">✏️</span></td>
               </tr>`).join("")}</tbody>
             </table>
           </div>`;
@@ -1253,6 +1255,41 @@ async function submitEdit(row) {
     if(r.success){toast(" แก้ไขสำเร็จ","ok");closeModal();invalidateCache(currentName);renderFact();}
     else toast(" "+r.message,"err");
   } catch(e){toast(" ส่งไม่ได้","err");}
+}
+
+function editMeasModal(row,date,chest,waist,hip,armR,armL,thighR,thighL) {
+  const iso = dateToIso(date);
+  showModal(`
+    <div class="modal-title">แก้ไขสัดส่วน<span class="modal-x" onclick="closeModal()">✕</span></div>
+    <div class="fg"><label>วันที่</label><input type="date" id="em-dt" value="${iso}"></div>
+    <div class="r2">
+      <div class="fg"><label>หน้าอก</label><input type="number" id="em-ch" value="${chest||""}" step="0.5"></div>
+      <div class="fg"><label>เอว</label><input type="number" id="em-wa" value="${waist||""}" step="0.5"></div>
+    </div>
+    <div class="r2">
+      <div class="fg"><label>สะโพก</label><input type="number" id="em-hi" value="${hip||""}" step="0.5"></div>
+    </div>
+    <div class="r2">
+      <div class="fg"><label>ต้นแขนขวา</label><input type="number" id="em-ar" value="${armR||""}" step="0.5"></div>
+      <div class="fg"><label>ต้นแขนซ้าย</label><input type="number" id="em-al" value="${armL||""}" step="0.5"></div>
+    </div>
+    <div class="r2">
+      <div class="fg"><label>ต้นขาขวา</label><input type="number" id="em-tr" value="${thighR||""}" step="0.5"></div>
+      <div class="fg"><label>ต้นขาซ้าย</label><input type="number" id="em-tl" value="${thighL||""}" step="0.5"></div>
+    </div>
+    <button class="btn btn-pk" onclick="submitEditMeas(${row})">💾 บันทึก</button>`);
+}
+
+async function submitEditMeas(row) {
+  try {
+    const r = await api({action:"editVisit",name:currentName,row,
+      date:V("em-dt"),
+      chest:V("em-ch"),waist:V("em-wa"),hip:V("em-hi"),
+      armR:V("em-ar"),armL:V("em-al"),
+      thighR:V("em-tr"),thighL:V("em-tl")});
+    if(r.success){toast("✅ แก้ไขสำเร็จ","ok");closeModal();invalidateCache(currentName);renderEntry();}
+    else toast("❌ "+r.message,"err");
+  } catch(e){toast("❌ ส่งไม่ได้","err");}
 }
 
 // ===== SYMPTOM =====
