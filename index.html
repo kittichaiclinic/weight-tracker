@@ -713,6 +713,16 @@ function selectPt(name) {
   document.querySelector(".main").style.paddingBottom = "82px";
   buildNav(true);
 
+  // แสดงสถานะกำลังโหลดทันที ระหว่างรอ preload ข้อมูล
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  const firstTab = patientMode ? "fact" : "entry";
+  const firstPage = document.getElementById("pg-"+firstTab);
+  if (firstPage) {
+    firstPage.classList.add("active");
+    const targetDiv = firstPage.querySelector("[id$='-v']");
+    if (targetDiv) targetDiv.innerHTML = loading();
+  }
+
   // preload ข้อมูลทั้งหมดพร้อมกัน
   Promise.all([
     getPatientCached(name, true),
