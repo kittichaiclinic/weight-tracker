@@ -343,6 +343,7 @@ textarea{resize:vertical;min-height:56px}
 <div id="pg-meas" class="page"><div id="meas-v"></div></div>
 <!-- BODY COMP -->
 <div id="pg-body" class="page"><div id="body-v"></div></div>
+<div id="pg-newbody" class="page"><div id="newbody-v"></div></div>
 <!-- MED -->
 <div id="pg-med" class="page"><div id="med-v"></div></div>
 <!-- PLAN -->
@@ -476,6 +477,7 @@ function buildNav(patient) {
         <button onclick="gp('entry',this)"><span class="ni">📝</span>ลงข้อมูล</button>
         <button onclick="gp('sym',this)"><span class="ni">📞</span>ติดตาม</button>
         <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
+        <button onclick="gp('newbody',this)"><span class="ni">⚖️</span>New Body Composition</button>
         <button onclick="gp('med',this)"><span class="ni">💊</span>ยา</button>
         <button onclick="gp('appt',this)"><span class="ni">📅</span>เลือกเวลา</button>
         <button onclick="backHome()"><span class="ni">🏠</span>หน้าแรก</button>`;
@@ -505,6 +507,7 @@ function gp(name, btn) {
   else if (name==="sym") renderSym();
   else if (name==="meas") renderMeas();
   else if (name==="body") renderBody();
+  else if (name==="newbody") renderNewBody();
   else if (name==="med") renderMed();
   else if (name==="plan") renderPlan();
   else if (name==="entry") renderEntry();
@@ -1761,6 +1764,150 @@ async function submitBodyMass() {
       renderBody();
     } else { toast("❌ "+r.message,"err"); if(restore) restore(); }
   } catch(e) { toast("❌ บันทึกไม่ได้: "+e.message,"err"); if(restore) restore(); }
+}
+
+// ===== NEW BODY COMPOSITION (เตรียมเชื่อมเครื่องชั่งอัตโนมัติ) =====
+async function renderNewBody() {
+  const v = document.getElementById("newbody-v");
+  if (!currentName) { v.innerHTML = noPatient(); return; }
+  v.innerHTML = loading();
+  try {
+    const d = await apiGet({action:"getScaleData", name:currentName});
+    const recs = d.success ? d.records : [];
+
+    const form = !patientMode ? `
+      <div class="card">
+        <div class="ctitle">⚖️ บันทึกข้อมูลจากเครื่องชั่ง</div>
+        <div style="font-size:12px;color:var(--tx2);margin-bottom:10px;background:var(--pk2);padding:8px 10px;border-radius:8px">
+          🔧 หน้านี้เตรียมไว้สำหรับเชื่อมต่อกับเครื่องชั่งอัตโนมัติ (BLE bridge) — ระหว่างนี้กรอกด้วยมือได้เลย
+        </div>
+        <div class="r2">
+          <div class="fg"><label>วันที่</label><input type="date" id="nb-dt" value="${today()}"></div>
+          <div class="fg"><label>เวลา</label><input type="time" id="nb-tm" value="${new Date().toTimeString().slice(0,5)}"></div>
+        </div>
+        <div class="r2">
+          <div class="fg"><label>น้ำหนัก (kg)</label><input type="number" id="nb-w" step="0.1"></div>
+          <div class="fg"><label>ไขมัน (%)</label><input type="number" id="nb-fat" step="0.1"></div>
+        </div>
+        <div class="r2">
+          <div class="fg"><label>มวลกล้ามเนื้อ (kg)</label><input type="number" id="nb-musc" step="0.1"></div>
+          <div class="fg"><label>น้ำในร่างกาย (%)</label><input type="number" id="nb-water" step="0.1"></div>
+        </div>
+        <div class="r2">
+          <div class="fg"><label>มวลกระดูก (%)</label><input type="number" id="nb-bone" step="0.1"></div>
+          <div class="fg"><label>BMR (kcal)</label><input type="number" id="nb-bmr" step="1"></div>
+        </div>
+        <div class="fg"><label>อายุร่างกาย (ปี)</label><input type="number" id="nb-age" step="1"></div>
+        <button class="btn btn-pk" onclick="submitNewBody()">💾 บันทึก</button>
+      </div>` : "";
+
+    const metrics = [
+      { key:"weight",           label:"น้ำหนัก",         unit:"kg", color:"#c45a7e" },
+      { key:"fatPercent",       label:"ไขมัน",           unit:"%",  color:"#f59e0b" },
+      { key:"muscleMass",       label:"มวลกล้ามเนื้อ",   unit:"kg", color:"#10b981" },
+      { key:"bodyWaterPercent", label:"น้ำในร่างกาย",     unit:"%",  color:"#3a9ad9" },
+      { key:"boneMassPercent",  label:"มวลกระดูก",       unit:"%",  color:"#8b6ad9" },
+      { key:"bmr",              label:"BMR",             unit:"kcal", color:"#e0663a" },
+    ];
+
+    const chartCards = metrics.map(m => {
+      const has = recs.some(r => r[m.key]);
+      if (!has) return "";
+      return `<div class="card">
+        <div class="ctitle" style="color:${m.color}">📈 กราฟ${m.label}</div>
+        <div class="ch-wrap"><canvas id="nb-chart-${m.key}"></canvas></div>
+      </div>`;
+    }).join("");
+
+    const tableCard = `
+      <div class="card">
+        <div class="ctitle">📋 ประวัติข้อมูลเครื่องชั่ง</div>
+        <div style="overflow-x:auto">
+          <table class="tbl">
+            <thead><tr>
+              <th>วันที่</th><th>น้ำหนัก</th><th>ไขมัน%</th><th>กล้ามเนื้อ</th>
+              <th>น้ำ%</th><th>กระดูก%</th><th>BMR</th><th>แหล่งข้อมูล</th>${!patientMode?"<th></th>":""}
+            </tr></thead>
+            <tbody>${
+              recs.length
+                ? recs.slice().reverse().map(r=>`<tr>
+                    <td style="font-size:11px;white-space:nowrap">${r.date}${r.time?" "+r.time:""}</td>
+                    <td>${r.weight||"-"}</td>
+                    <td style="color:#f59e0b">${r.fatPercent||"-"}</td>
+                    <td style="color:#10b981">${r.muscleMass||"-"}</td>
+                    <td style="color:#3a9ad9">${r.bodyWaterPercent||"-"}</td>
+                    <td style="color:#8b6ad9">${r.boneMassPercent||"-"}</td>
+                    <td style="color:#e0663a">${r.bmr||"-"}</td>
+                    <td style="font-size:11px">${r.source==="scale"?"⚖️ เครื่องชั่ง":"✍️ กรอกเอง"}</td>
+                    ${!patientMode?`<td><span onclick='deleteNewBodyRow("${r.id}","${r.date}")'
+                        style="cursor:pointer;font-size:15px">🗑</span></td>`:""}
+                  </tr>`).join("")
+                : `<tr><td colspan="${!patientMode?9:8}" style="color:var(--tx2);padding:14px">ยังไม่มีข้อมูล — รอเชื่อมต่อเครื่องชั่งหรือกรอกด้วยมือ</td></tr>`
+            }</tbody>
+          </table>
+        </div>
+      </div>`;
+
+    v.innerHTML = form + chartCards + tableCard;
+
+    setTimeout(() => {
+      metrics.forEach(m => {
+        const filtered = recs.filter(r => r[m.key]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+        if (!filtered.length) return;
+        const ctx = document.getElementById("nb-chart-"+m.key);
+        if (!ctx) return;
+        makeLineChart(ctx, `${m.label} (${m.unit})`,
+          filtered.map(r=>parseFloat(r[m.key])), filtered.map(r=>r.date), m.color);
+      });
+    }, 80);
+  } catch(e) { v.innerHTML = err(e.message); }
+}
+
+async function submitNewBody() {
+  const date = V("nb-dt");
+  if (!date) { toast("กรอกวันที่ก่อน","err"); return; }
+  const payload = {
+    action: "logScaleData", name: currentName, date, time: V("nb-tm"),
+    weight: V("nb-w"), fatPercent: V("nb-fat"), muscleMass: V("nb-musc"),
+    bodyWaterPercent: V("nb-water"), boneMassPercent: V("nb-bone"),
+    bmr: V("nb-bmr"), bodyAge: V("nb-age"), source: "manual"
+  };
+  const hasAny = ["weight","fatPercent","muscleMass","bodyWaterPercent","boneMassPercent","bmr","bodyAge"]
+    .some(k => payload[k]);
+  if (!hasAny) { toast("กรอกข้อมูลอย่างน้อย 1 ช่อง","err"); return; }
+  const btn = event.currentTarget;
+  const restore = btnLoading(btn, "กำลังบันทึก...");
+  try {
+    const r = await api(payload);
+    if (r.success) {
+      toast("✅ บันทึกสำเร็จ","ok");
+      ["nb-w","nb-fat","nb-musc","nb-water","nb-bone","nb-bmr","nb-age"].forEach(id=>set(id,""));
+      renderNewBody();
+    } else { toast("❌ "+r.message,"err"); if(restore) restore(); }
+  } catch(e) { toast("❌ บันทึกไม่ได้: "+e.message,"err"); if(restore) restore(); }
+}
+
+function deleteNewBodyRow(id, date) {
+  showModal(`
+    <div class="modal-title">🗑 ลบข้อมูลเครื่องชั่ง<span class="modal-x" onclick="closeModal()">✕</span></div>
+    <div style="text-align:center;padding:10px 0 18px">
+      <div style="font-size:36px;margin-bottom:10px">⚠️</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:6px">ลบข้อมูลวันที่ ${date}?</div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="btn-out" onclick="closeModal()">ยกเลิก</button>
+        <button class="btn" style="background:#dc2626" onclick="confirmDeleteNewBodyRow('${id}')">🗑 ยืนยันลบ</button>
+      </div>
+    </div>`);
+}
+
+async function confirmDeleteNewBodyRow(id) {
+  const btn = event.currentTarget;
+  const restore = btnLoading(btn, "กำลังลบ...");
+  try {
+    const r = await api({action:"deleteScaleData", id});
+    if (r.success) { toast("✅ ลบสำเร็จ","ok"); closeModal(); renderNewBody(); }
+    else { toast("❌ "+r.message,"err"); if(restore) restore(); }
+  } catch(e) { toast("❌ ลบไม่ได้","err"); if(restore) restore(); }
 }
 
 function prevFile(e) {
