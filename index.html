@@ -293,6 +293,11 @@ textarea{resize:vertical;min-height:56px}
   <!-- เพิ่มใหม่ -->
   <div id="sec-add" style="display:none">
     <div class="card">
+      <div class="ctitle">📋 ดึงรายชื่อวันนี้จาก Medicloud</div>
+      <button class="btn-out" style="width:100%" onclick="fetchTodayMedicloud()">🔄 ดึงรายชื่อผู้ป่วยที่มาวันนี้</button>
+      <div id="mc-list" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
       <div class="ctitle">➕ เพิ่มผู้ป่วยใหม่</div>
       <div class="fg"><label>👤 ชื่อผู้ป่วย</label><input type="text" id="ad-name" placeholder="เช่น คุณเมย์"></div>
       <div class="info-box">กรอกชื่อแล้วสร้างได้เลย สามารถเพิ่มข้อมูล Plan ได้ทีหลัง</div>
@@ -1888,9 +1893,42 @@ async function submitAdd() {
   if (!name) { toast("กรอกชื่อผู้ป่วยก่อน","err"); return; }
   try {
     const r = await api({action:"addPatient", name});
-    if (r.success) { toast("✅ "+r.message,"ok"); set("ad-name",""); await loadPatients(); hTab("pt"); }
+    if (r.success) { toast("✅ "+r.message,"ok"); set("ad-name",""); document.getElementById("mc-list").innerHTML=""; await loadPatients(); hTab("pt"); }
     else toast("❌ "+r.message,"err");
   } catch(e) { toast("❌ เพิ่มไม่ได้","err"); }
+}
+
+async function fetchTodayMedicloud() {
+  const btn = event.currentTarget;
+  const restore = btnLoading(btn, "กำลังดึงรายชื่อ...");
+  const list = document.getElementById("mc-list");
+  try {
+    const r = await apiGet({action:"getTodayMedicloudPatients"});
+    if (restore) restore();
+    if (!r.success) { toast("❌ "+r.message,"err"); list.innerHTML = `<div class="ld">❌ ${r.message}</div>`; return; }
+    const names = r.names || [];
+    if (!names.length) { list.innerHTML = '<div class="ld">ไม่มีผู้ป่วยเข้ามาวันนี้</div>'; return; }
+    const existingNames = new Set(patients.map(p=>p.name));
+    list.innerHTML = names.map(n => {
+      const already = existingNames.has(n);
+      return `<div onclick="${already?'':`pickMcName('${n.replace(/'/g,"\\'")}')`}"
+        style="padding:10px 12px;border:1.5px solid var(--bd);border-radius:9px;margin-bottom:6px;
+          cursor:${already?"default":"pointer"};display:flex;align-items:center;justify-content:space-between;
+          background:${already?"#f5f5f5":"#fff"};color:${already?"var(--tx3)":"var(--tx)"}">
+        <span>${n}</span>
+        ${already?'<span style="font-size:11px">มีในระบบแล้ว</span>':'<span style="font-size:13px;color:var(--pk3)">เลือก ›</span>'}
+      </div>`;
+    }).join("");
+  } catch(e) {
+    if (restore) restore();
+    toast("❌ ดึงรายชื่อไม่ได้","err");
+    list.innerHTML = `<div class="ld">❌ ${e.message}</div>`;
+  }
+}
+
+function pickMcName(name) {
+  set("ad-name", name);
+  toast("เลือก "+name+" แล้ว กด ✅ สร้างผู้ป่วยใหม่","ok");
 }
 
 
