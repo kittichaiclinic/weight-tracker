@@ -1045,8 +1045,25 @@ async function renderPlan() {
           <div class="fg"><label>กำหนดวัน</label><input type="date" id="pl-gd"></div>
         </div>
         <button class="btn btn-pk" onclick="submitPlan()">💾 บันทึก Plan</button>
+      </div>
+      <div class="card">
+        <div class="ctitle">👤 ข้อมูลส่วนตัว</div>
+        <div style="font-size:12px;color:var(--tx2);margin-bottom:10px">ใช้สำหรับคำนวณ body composition จากเครื่องชั่ง</div>
+        <div class="r2">
+          <div class="fg"><label>เพศ</label>
+            <select id="pl-sex">
+              <option value="">-- เลือก --</option>
+              <option value="male">ชาย</option>
+              <option value="female">หญิง</option>
+            </select>
+          </div>
+          <div class="fg"><label>อายุ (ปี)</label><input type="number" id="pl-age" step="1"></div>
+        </div>
+        <div class="fg"><label>ส่วนสูง (cm)</label><input type="number" id="pl-height" step="0.1"></div>
+        <button class="btn btn-out" onclick="submitPatientInfo()">💾 บันทึกข้อมูลส่วนตัว</button>
       </div>` : "";
 
+    const sexLabel = p.sex === "male" ? "ชาย" : p.sex === "female" ? "หญิง" : "-";
     const info = p.startWeight ? `
       <div class="card">
         <div class="ctitle">สรุป Plan ปัจจุบัน</div>
@@ -1055,11 +1072,17 @@ async function renderPlan() {
         <div class="srow"><span>เป้าหมาย</span><span>${p.goalWeight||"-"} kg</span></div>
         <div class="srow"><span>ต้องลด</span><span>${(p.startWeight&&p.goalWeight)?Math.max(0,p.startWeight-p.goalWeight).toFixed(1):"-"} kg</span></div>
         <div class="srow"><span>กำหนดวัน</span><span>${p.goalDate||"-"}</span></div>
+        <div class="srow"><span>เพศ</span><span>${sexLabel}</span></div>
+        <div class="srow"><span>อายุ</span><span>${p.age||"-"} ปี</span></div>
+        <div class="srow"><span>ส่วนสูง</span><span>${p.height||"-"} cm</span></div>
       </div>` : "";
 
     v.innerHTML = form + info;
     const gwEl = document.getElementById("pl-gw"); if(gwEl) gwEl.value = p.goalWeight||"";
     const gdEl = document.getElementById("pl-gd"); if(gdEl) gdEl.value = p.goalDate||today();
+    const sexEl = document.getElementById("pl-sex"); if(sexEl) sexEl.value = p.sex||"";
+    const ageEl = document.getElementById("pl-age"); if(ageEl) ageEl.value = p.age||"";
+    const hEl = document.getElementById("pl-height"); if(hEl) hEl.value = p.height||"";
   } catch(e) { v.innerHTML = err(e.message); }
 }
 
@@ -1068,6 +1091,16 @@ async function submitPlan() {
   if (!gw||!gd) { toast("กรอกเป้าหมายให้ครบ","err"); return; }
   try {
     const r = await api({action:"savePlan", name:currentName, goalWeight:gw, goalDate:gd});
+    if (r.success) { toast("✅ "+r.message,"ok"); invalidateCache(currentName); renderPlan(); }
+    else toast("❌ "+r.message,"err");
+  } catch(e) { toast("❌ บันทึกไม่ได้","err"); }
+}
+
+async function submitPatientInfo() {
+  const sex = V("pl-sex"), age = V("pl-age"), height = V("pl-height");
+  if (!sex && !age && !height) { toast("กรอกข้อมูลอย่างน้อย 1 ช่อง","err"); return; }
+  try {
+    const r = await api({action:"savePatientInfo", name:currentName, sex, age, height});
     if (r.success) { toast("✅ "+r.message,"ok"); invalidateCache(currentName); renderPlan(); }
     else toast("❌ "+r.message,"err");
   } catch(e) { toast("❌ บันทึกไม่ได้","err"); }
