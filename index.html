@@ -1082,6 +1082,30 @@ async function renderFact() {
     const d = await getPatientCached(currentName);
     if (!d.success) { v.innerHTML=err(d.message); return; }
 
+    const pct = Math.min(Math.max(d.progress||0,0),100);
+    const summaryCard = `
+      <div class="banner">
+        <div class="bname">${currentName}</div>
+        <div class="bsub">เริ่ม ${d.startDate} · กำหนด ${d.goalDate}</div>
+      </div>
+      <div class="sgrid">
+        <div class="sc"><div class="slb">น้ำหนักปัจจุบัน</div>
+          <div class="sv sn">${d.currentWeight||"-"}<span class="su">kg</span></div></div>
+        <div class="sc"><div class="slb">ลดไปแล้ว</div>
+          <div class="sv ${(d.totalLost||0)>=0?'sg':'sb'}">${(d.totalLost||0)>=0?"-":"+"}${Math.abs(d.totalLost||0).toFixed(1)}<span class="su">kg</span></div></div>
+        <div class="sc"><div class="slb">เป้าหมาย</div>
+          <div class="sv sn">${d.goalWeight||"-"}<span class="su">kg</span></div></div>
+        <div class="sc"><div class="slb">เหลืออีก</div>
+          <div class="sv sb">${Math.max(d.remaining||0,0).toFixed(1)}<span class="su">kg</span></div></div>
+      </div>
+      <div class="card">
+        <div class="plb"><span>ความคืบหน้า</span><span><b>${pct}%</b></span></div>
+        <div class="pbg"><div class="pfl" style="width:${pct}%"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--tx2);margin-top:5px">
+          <span>${d.startWeight} kg</span><span>เป้า ${d.goalWeight} kg</span>
+        </div>
+      </div>`;
+
     const logForm = !patientMode ? `
       <div class="card">
         <div class="ctitle">บันทึกน้ำหนักใหม่</div>
@@ -1179,7 +1203,7 @@ async function renderFact() {
         </div>
       </div>` : "";
 
-    v.innerHTML = logForm + budgetCard + chartCards + `
+    v.innerHTML = summaryCard + logForm + budgetCard + chartCards + `
       <div class="card">
         <div class="ctitle">ประวัติน้ำหนัก</div>
         <div style="overflow-x:auto">
