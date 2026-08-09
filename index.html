@@ -420,6 +420,7 @@ let gasUrl = localStorage.getItem(UK) || DEFAULT_URL;
 let _cache = {};           // cache ข้อมูลผู้ป่วย { name: data }
 let _medCache = {};        // cache รายการยา { name: items }
 let _bodyCache = {};       // cache รูป body composition { name: images }
+let _scaleCache = {};      // cache ข้อมูล New Body Composition { name: records }
 let _bookingSchedule = {   // ตารางเวลาจากระบบจองคิว
   daysOpen:    {"0":true,"1":true,"2":true,"3":true,"4":true,"5":false,"6":true},
   openDates:   {},
@@ -772,11 +773,13 @@ function selectPt(name) {
   Promise.all([
     getPatientCached(name, true),
     apiGet({action:"getMedication", name}),
-    apiGet({action:"getBodyCompImages", name})
-  ]).then(([patientData, medData, bodyData]) => {
+    apiGet({action:"getBodyCompImages", name}),
+    apiGet({action:"getScaleData", name})
+  ]).then(([patientData, medData, bodyData, scaleData]) => {
     if (patientData.success) _cache[name] = patientData;
     if (medData.success)     _medCache[name] = medData.items || [];
     if (bodyData.success)    _bodyCache[name] = bodyData.images || [];
+    if (scaleData.success)   _scaleCache[name] = scaleData.records || [];
     // ถ้ามี plan แล้ว (goalWeight มีค่า) เปิด entry, ถ้าไม่มีเปิด plan
     if (!patientMode) {
       const hasPlan = patientData.success && patientData.goalWeight;
@@ -1293,6 +1296,7 @@ async function renderFact() {
 }
 
 let fChart = null, mChart2 = null;
+let _nbCharts = {}; // เก็บ instance กราฟของ New Body Composition แยกตาม metric key เพื่อ destroy ก่อน redraw
 
 function makeLineChart(ctx, label, data, labels, color, goalLine) {
   const datasets = [{
@@ -1866,7 +1870,9 @@ async function renderNewBody() {
   if (!currentName) { v.innerHTML = noPatient(); return; }
   v.innerHTML = loading();
   try {
-    const d = await apiGet({action:"getScaleData", name:currentName});
+    const cached = _scaleCache && _scaleCache[currentName];
+    const d = cached ? {success:true, records:cached} : await apiGet({action:"getScaleData", name:currentName});
+    if (d.success && !cached) _scaleCache[currentName] = d.records || [];
     const recs = d.success ? d.records : [];
 
     const form = !patientMode ? `
@@ -1944,10 +1950,12 @@ async function renderNewBody() {
     setTimeout(() => {
       metrics.forEach(m => {
         const filtered = recs.filter(r => r[m.key]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+        // ทำลาย chart เดิมของ metric นี้ก่อนเสมอ ป้องกัน instance ค้าง/โหลดซ้อนตอนสลับหน้าไปมาเร็วๆ
+        if (_nbCharts[m.key]) { _nbCharts[m.key].destroy(); _nbCharts[m.key] = null; }
         if (!filtered.length) return;
         const ctx = document.getElementById("nb-chart-"+m.key);
         if (!ctx) return;
-        makeLineChart(ctx, `${m.label} (${m.unit})`,
+        _nbCharts[m.key] = makeLineChart(ctx, `${m.label} (${m.unit})`,
           filtered.map(r=>parseFloat(r[m.key])), filtered.map(r=>r.date), m.color);
       });
     }, 80);
@@ -1973,6 +1981,7 @@ async function submitNewBody() {
     if (r.success) {
       toast("✅ บันทึกสำเร็จ","ok");
       ["nb-w","nb-fat","nb-musc","nb-water","nb-bone","nb-bmr","nb-age"].forEach(id=>set(id,""));
+      delete _scaleCache[currentName];
       renderNewBody();
     } else { toast("❌ "+r.message,"err"); if(restore) restore(); }
   } catch(e) { toast("❌ บันทึกไม่ได้: "+e.message,"err"); if(restore) restore(); }
@@ -1996,7 +2005,7 @@ async function confirmDeleteNewBodyRow(id) {
   const restore = btnLoading(btn, "กำลังลบ...");
   try {
     const r = await api({action:"deleteScaleData", id});
-    if (r.success) { toast("✅ ลบสำเร็จ","ok"); closeModal(); renderNewBody(); }
+    if (r.success) { toast("✅ ลบสำเร็จ","ok"); closeModal(); delete _scaleCache[currentName]; renderNewBody(); }
     else { toast("❌ "+r.message,"err"); if(restore) restore(); }
   } catch(e) { toast("❌ ลบไม่ได้","err"); if(restore) restore(); }
 }
