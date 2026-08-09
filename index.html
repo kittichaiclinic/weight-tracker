@@ -851,10 +851,10 @@ function drawWeightChart(d) {
       labels: d.records.map(r=>r.date),
       datasets:[
         { label:"น้ำหนัก(kg)", data:d.records.map(r=>r.weight||null),
-          borderColor:"#587187",backgroundColor:"rgba(88,113,135,.08)",
-          borderWidth:2.5,pointBackgroundColor:"#587187",pointRadius:4,tension:.3,spanGaps:true },
+          borderColor:"#377fbe",backgroundColor:"rgba(55,127,190,.1)",
+          borderWidth:2.5,pointBackgroundColor:"#377fbe",pointRadius:4,tension:.3,spanGaps:true },
         { label:"เป้าหมาย", data:d.records.map(()=>d.goalWeight),
-          borderColor:"#5a7891",borderWidth:1.5,borderDash:[5,5],pointRadius:0 }
+          borderColor:"#549ad4",borderWidth:1.5,borderDash:[5,5],pointRadius:0 }
       ]
     },
     options:{responsive:true,maintainAspectRatio:false,
@@ -1016,7 +1016,7 @@ function drawEntryChart(d) {
   if (enChart) enChart.destroy();
   const recs = d.records.filter(r=>r.weight!==null);
   enChart = makeLineChart(ctx, "น้ำหนัก (kg)",
-    recs.map(r=>r.weight), recs.map(r=>r.date), "#587187", d.goalWeight);
+    recs.map(r=>r.weight), recs.map(r=>r.date), "#377fbe", d.goalWeight);
 }
 
 function drawEntryFatChart(d) {
@@ -1024,7 +1024,7 @@ function drawEntryFatChart(d) {
   if (enFatChart) enFatChart.destroy();
   const recs = d.records.filter(r=>r.fatMass);
   enFatChart = makeLineChart(ctx, "มวลไขมัน (kg)",
-    recs.map(r=>parseFloat(r.fatMass)), recs.map(r=>r.date), "#8a7360");
+    recs.map(r=>parseFloat(r.fatMass)), recs.map(r=>r.date), "#d47d35");
 }
 
 function drawEntryMuscleChart(d) {
@@ -1032,7 +1032,7 @@ function drawEntryMuscleChart(d) {
   if (enMuscleChart) enMuscleChart.destroy();
   const recs = d.records.filter(r=>r.muscleMass);
   enMuscleChart = makeLineChart(ctx, "มวลกล้ามเนื้อ (kg)",
-    recs.map(r=>parseFloat(r.muscleMass)), recs.map(r=>r.date), "#6f796e");
+    recs.map(r=>parseFloat(r.muscleMass)), recs.map(r=>r.date), "#3fa136");
 }
 
 async function submitEntry() {
@@ -1299,7 +1299,7 @@ function makeLineChart(ctx, label, data, labels, color, goalLine) {
   }];
   if (goalLine) datasets.push({
     label:"เป้าหมาย", data:labels.map(()=>goalLine),
-    borderColor:"#5a7891", borderWidth:1.5, borderDash:[5,5], pointRadius:0
+    borderColor:"#549ad4", borderWidth:1.5, borderDash:[5,5], pointRadius:0
   });
   return new Chart(ctx, {
     type:"line", data:{labels, datasets},
@@ -1317,7 +1317,7 @@ function drawFactChart(d) {
   if (wChart) wChart.destroy();
   const recs = d.records.filter(r=>r.weight!==null);
   wChart = makeLineChart(ctx, "น้ำหนัก (kg)",
-    recs.map(r=>r.weight), recs.map(r=>r.date), "#587187", d.goalWeight);
+    recs.map(r=>r.weight), recs.map(r=>r.date), "#377fbe", d.goalWeight);
 }
 
 function drawFatChart(d) {
@@ -1325,7 +1325,7 @@ function drawFatChart(d) {
   if (fChart) fChart.destroy();
   const recs = d.records.filter(r=>r.fatMass).slice().sort((a,b)=>a.date.localeCompare(b.date));
   fChart = makeLineChart(ctx, "มวลไขมัน (kg)",
-    recs.map(r=>parseFloat(r.fatMass)), recs.map(r=>r.date), "#8a7360");
+    recs.map(r=>parseFloat(r.fatMass)), recs.map(r=>r.date), "#d47d35");
 }
 
 function drawMuscleChart(d) {
@@ -1333,7 +1333,7 @@ function drawMuscleChart(d) {
   if (mChart2) mChart2.destroy();
   const recs = d.records.filter(r=>r.muscleMass).slice().sort((a,b)=>a.date.localeCompare(b.date));
   mChart2 = makeLineChart(ctx, "มวลกล้ามเนื้อ (kg)",
-    recs.map(r=>parseFloat(r.muscleMass)), recs.map(r=>r.date), "#6f796e");
+    recs.map(r=>parseFloat(r.muscleMass)), recs.map(r=>r.date), "#3fa136");
 }
 
 async function submitFact() {
@@ -1825,7 +1825,7 @@ function drawBodyFatChart(recs) {
   if (bodyFatChart) bodyFatChart.destroy();
   const r = recs.filter(x=>x.fatMass).slice().sort((a,b)=>a.date.localeCompare(b.date));
   bodyFatChart = makeLineChart(ctx, "มวลไขมัน (kg)",
-    r.map(x=>parseFloat(x.fatMass)), r.map(x=>x.date), "#8a7360");
+    r.map(x=>parseFloat(x.fatMass)), r.map(x=>x.date), "#d47d35");
 }
 
 function drawBodyMuscleChart(recs) {
@@ -1833,7 +1833,7 @@ function drawBodyMuscleChart(recs) {
   if (bodyMuscleChart) bodyMuscleChart.destroy();
   const r = recs.filter(x=>x.muscleMass).slice().sort((a,b)=>a.date.localeCompare(b.date));
   bodyMuscleChart = makeLineChart(ctx, "มวลกล้ามเนื้อ (kg)",
-    r.map(x=>parseFloat(x.muscleMass)), r.map(x=>x.date), "#6f796e");
+    r.map(x=>parseFloat(x.muscleMass)), r.map(x=>x.date), "#3fa136");
 }
 
 async function submitBodyMass() {
@@ -1891,12 +1891,12 @@ async function renderNewBody() {
       </div>` : "";
 
     const metrics = [
-      { key:"weight",           label:"น้ำหนัก",         unit:"kg", color:"#587187" },
-      { key:"fatPercent",       label:"ไขมัน",           unit:"%",  color:"#8a7360" },
-      { key:"muscleMass",       label:"มวลกล้ามเนื้อ",   unit:"kg", color:"#6f796e" },
-      { key:"bodyWaterPercent", label:"น้ำในร่างกาย",     unit:"%",  color:"#5a7891" },
-      { key:"boneMassPercent",  label:"มวลกระดูก",       unit:"%",  color:"#475b6d" },
-      { key:"bmr",              label:"BMR",             unit:"kcal", color:"#b56a5a" },
+      { key:"weight",           label:"น้ำหนัก",         unit:"kg", color:"#377fbe" },
+      { key:"fatPercent",       label:"ไขมัน",           unit:"%",  color:"#d47d35" },
+      { key:"muscleMass",       label:"มวลกล้ามเนื้อ",   unit:"kg", color:"#3fa136" },
+      { key:"bodyWaterPercent", label:"น้ำในร่างกาย",     unit:"%",  color:"#549ad4" },
+      { key:"boneMassPercent",  label:"มวลกระดูก",       unit:"%",  color:"#7f39c6" },
+      { key:"bmr",              label:"BMR",             unit:"kcal", color:"#c62f41" },
     ];
 
     const chartCards = metrics.map(m => {
