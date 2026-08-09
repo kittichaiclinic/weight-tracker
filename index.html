@@ -1236,8 +1236,8 @@ async function renderFact() {
     const massRecs = d.records.filter(r=>r.fatMass||r.muscleMass);
     const massRows = massRecs.slice().sort((a,b)=>a.date.localeCompare(b.date)).reverse().map(r=>`<tr>
         <td style="font-size:11px">${r.date}</td>
-        <td style="color:#8a7360">${r.fatMass||"-"}</td>
-        <td style="color:#6f796e">${r.muscleMass||"-"}</td>
+        <td style="color:#d47d35">${r.fatMass||"-"}</td>
+        <td style="color:#3fa136">${r.muscleMass||"-"}</td>
         ${!patientMode?`<td><span onclick='editMassModal(${r.row},"${r.date}",${r.fatMass||0},${r.muscleMass||0})'
             style="cursor:pointer;font-size:15px;margin-right:6px">✏️</span><span onclick='deleteMassRow(${r.row},"${r.date}")'
             style="cursor:pointer;font-size:15px">🗑</span></td>`:""}
@@ -1252,11 +1252,11 @@ async function renderFact() {
         <div class="ch-wrap"><canvas id="fact-wc"></canvas></div>
       </div>
       ${hasFat ? `<div class="card">
-        <div class="ctitle" style="color:#8a7360">📈 กราฟมวลไขมัน</div>
+        <div class="ctitle" style="color:#d47d35">📈 กราฟมวลไขมัน</div>
         <div class="ch-wrap"><canvas id="fact-fc"></canvas></div>
       </div>` : ""}
       ${hasMuscle ? `<div class="card">
-        <div class="ctitle" style="color:#6f796e">📈 กราฟมวลกล้ามเนื้อ</div>
+        <div class="ctitle" style="color:#3fa136">📈 กราฟมวลกล้ามเนื้อ</div>
         <div class="ch-wrap"><canvas id="fact-mc"></canvas></div>
       </div>` : ""}`;
 
@@ -1751,11 +1751,11 @@ async function renderBody() {
     const hasMuscle = massRecs.some(r=>r.muscleMass);
     const massCharts = (hasFat||hasMuscle) ? `
       ${hasFat ? `<div class="card">
-        <div class="ctitle" style="color:#8a7360">📈 กราฟมวลไขมัน</div>
+        <div class="ctitle" style="color:#d47d35">📈 กราฟมวลไขมัน</div>
         <div class="ch-wrap"><canvas id="body-fc"></canvas></div>
       </div>` : ""}
       ${hasMuscle ? `<div class="card">
-        <div class="ctitle" style="color:#6f796e">📈 กราฟมวลกล้ามเนื้อ</div>
+        <div class="ctitle" style="color:#3fa136">📈 กราฟมวลกล้ามเนื้อ</div>
         <div class="ch-wrap"><canvas id="body-mc"></canvas></div>
       </div>` : ""}` : "";
 
@@ -1769,8 +1769,8 @@ async function renderBody() {
               massRecs.length
                 ? massRecs.slice().sort((a,b)=>a.date.localeCompare(b.date)).reverse().map(r=>`<tr>
                     <td style="font-size:11px">${r.date}</td>
-                    <td style="color:#8a7360">${r.fatMass||"-"}</td>
-                    <td style="color:#6f796e">${r.muscleMass||"-"}</td>
+                    <td style="color:#d47d35">${r.fatMass||"-"}</td>
+                    <td style="color:#3fa136">${r.muscleMass||"-"}</td>
                     ${!patientMode?`<td><span onclick='editMassModal(${r.row},"${r.date}",${r.fatMass||0},${r.muscleMass||0})'
                         style="cursor:pointer;font-size:15px;margin-right:6px">✏️</span><span onclick='deleteMassRow(${r.row},"${r.date}")'
                         style="cursor:pointer;font-size:15px">🗑</span></td>`:""}
@@ -1910,7 +1910,7 @@ async function renderNewBody() {
 
     const tableCard = `
       <div class="card">
-        <div class="ctitle">📋 ประวัติข้อมูลเครื่องชั่ง</div>
+        <div class="ctitle">📋 ประวัติมวลร่างกาย</div>
         <div style="overflow-x:auto">
           <table class="tbl">
             <thead><tr>
@@ -1921,12 +1921,12 @@ async function renderNewBody() {
               recs.length
                 ? recs.slice().reverse().map(r=>`<tr>
                     <td style="font-size:11px;white-space:nowrap">${r.date}${r.time?" "+r.time:""}</td>
-                    <td>${r.weight||"-"}</td>
-                    <td style="color:#8a7360">${r.fatPercent||"-"}</td>
-                    <td style="color:#6f796e">${r.muscleMass||"-"}</td>
-                    <td style="color:#5a7891">${r.bodyWaterPercent||"-"}</td>
-                    <td style="color:#475b6d">${r.boneMassPercent||"-"}</td>
-                    <td style="color:#b56a5a">${r.bmr||"-"}</td>
+                    <td style="color:#377fbe;font-weight:700">${r.weight||"-"}</td>
+                    <td style="color:#d47d35">${r.fatPercent||"-"}</td>
+                    <td style="color:#3fa136">${r.muscleMass||"-"}</td>
+                    <td style="color:#549ad4">${r.bodyWaterPercent||"-"}</td>
+                    <td style="color:#7f39c6">${r.boneMassPercent||"-"}</td>
+                    <td style="color:#c62f41">${r.bmr||"-"}</td>
                     <td style="font-size:11px">${r.source==="scale"?"⚖️ เครื่องชั่ง":"✍️ กรอกเอง"}</td>
                     ${!patientMode?`<td><span onclick='deleteNewBodyRow("${r.id}","${r.date}")'
                         style="cursor:pointer;font-size:15px">🗑</span></td>`:""}
