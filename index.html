@@ -691,6 +691,8 @@ function renderPtCards(list) {
         <div style="display:flex;gap:6px">
           <button id="${bid}" class="btn-sm" style="background:var(--bl2);color:var(--pu);border:1px solid var(--bl-btn)"
             onclick="copyLink('${link}','${bid}')">📋 คัดลอก</button>
+          <button class="btn-sm" style="background:var(--gr2);color:var(--gr-tx);border:1px solid var(--gr)"
+            onclick="editPtNameModal('${p.name.replace(/'/g,"\\'")}')">✏️ แก้ไข</button>
           <button class="btn-sm" style="background:#f6edeb;color:var(--rd);border:1px solid #e9d2ce"
             onclick="confirmDeletePt('${p.name.replace(/'/g,"\\'")}')">🗑 ลบ</button>
         </div>
@@ -711,6 +713,53 @@ async function confirmDeletePt(name) {
         <button class="btn" style="background:var(--rd)" onclick="deletePt('${name.replace(/'/g,"\\'")}')">🗑 ยืนยันลบ</button>
       </div>
     </div>`);
+}
+
+function editPtNameModal(name) {
+  showModal(`
+    <div class="modal-title">✏️ แก้ไขชื่อผู้ป่วย<span class="modal-x" onclick="closeModal()">✕</span></div>
+    <div class="fg"><label>ชื่อเดิม</label><input type="text" value="${name}" disabled style="opacity:.6"></div>
+    <div class="fg"><label>ชื่อใหม่</label><input type="text" id="rn-new-name" value="${name}"></div>
+    <div style="font-size:12px;color:var(--tx2);margin-bottom:14px">
+      ระบบจะเปลี่ยนชื่อในข้อมูลทั้งหมด (น้ำหนัก, ยา, นัดหมาย, Body Composition) ให้อัตโนมัติ
+    </div>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button class="btn-out" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-pk" onclick="submitRenamePt('${name.replace(/'/g,"\\'")}')">💾 บันทึก</button>
+    </div>`);
+}
+
+async function submitRenamePt(oldName) {
+  const newName = V("rn-new-name").trim();
+  if (!newName) { toast("กรอกชื่อใหม่ก่อน","err"); return; }
+  if (newName === oldName) { toast("ชื่อเหมือนเดิม ไม่มีอะไรเปลี่ยน","err"); return; }
+  const btn = event.currentTarget;
+  const restore = btnLoading(btn, "กำลังบันทึก...");
+  try {
+    const r = await api({action:"renamePatient", oldName, newName});
+    if (r.success) {
+      toast("✅ "+r.message,"ok");
+      closeModal();
+
+      // ย้าย cache จากชื่อเดิมไปชื่อใหม่ แทนที่จะทิ้งแล้วโหลดใหม่ทั้งหมด
+      [_cache, _medCache, _bodyCache, _scaleCache].forEach(cache => {
+        if (cache[oldName] !== undefined) { cache[newName] = cache[oldName]; delete cache[oldName]; }
+      });
+
+      // ถ้ากำลังดูผู้ป่วยคนนี้อยู่ ให้อัปเดตชื่อบนหน้าจอด้วย
+      if (currentName === oldName) {
+        currentName = newName;
+        const titleEl = document.getElementById("tb-title");
+        if (titleEl && !patientMode) {
+          titleEl.innerHTML = `<span onclick="backHome()" style="cursor:pointer;margin-right:6px;font-size:19px;opacity:.85">‹</span>${newName}`;
+        }
+      }
+
+      _patientsLoaded = false;
+      await loadPatients(true);
+      renderPtList();
+    } else { toast("❌ "+r.message,"err"); if(restore) restore(); }
+  } catch(e) { toast("❌ บันทึกไม่ได้: "+e.message,"err"); if(restore) restore(); }
 }
 
 async function deletePt(name) {
