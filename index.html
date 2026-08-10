@@ -421,6 +421,8 @@ let _cache = {};           // cache ข้อมูลผู้ป่วย { na
 let _medCache = {};        // cache รายการยา { name: items }
 let _bodyCache = {};       // cache รูป body composition { name: images }
 let _scaleCache = {};      // cache ข้อมูล New Body Composition { name: records }
+let _mcInfo = {};          // name -> { sex, age, height } จากรอบดึงรายชื่อ Medicloud ล่าสุด
+let _pickedMcInfo = null;  // { sex, age, height } ของชื่อที่กด "เลือก" ล่าสุด รอไปใช้ตอนสร้างผู้ป่วยสำเร็จ
 let _bookingSchedule = {   // ตารางเวลาจากระบบจองคิว
   daysOpen:    {"0":true,"1":true,"2":true,"3":true,"4":true,"5":false,"6":true},
   openDates:   {},
@@ -2195,7 +2197,18 @@ async function submitAdd() {
   if (!name) { toast("กรอกชื่อผู้ป่วยก่อน","err"); return; }
   try {
     const r = await api({action:"addPatient", name});
-    if (r.success) { toast("✅ "+r.message,"ok"); set("ad-name",""); document.getElementById("mc-list").innerHTML=""; await loadPatients(true); hTab("pt"); }
+    if (r.success) {
+      toast("✅ "+r.message,"ok");
+      // ถ้าเลือกมาจาก Medicloud และดึงเพศ/อายุ/ส่วนสูงมาได้ ให้บันทึกต่อทันที
+      if (_pickedMcInfo && (_pickedMcInfo.sex || _pickedMcInfo.age || _pickedMcInfo.height)) {
+        try {
+          await api({action:"savePatientInfo", name,
+            sex:_pickedMcInfo.sex, age:_pickedMcInfo.age, height:_pickedMcInfo.height});
+        } catch(e) {}
+      }
+      _pickedMcInfo = null;
+      set("ad-name",""); document.getElementById("mc-list").innerHTML=""; await loadPatients(true); hTab("pt");
+    }
     else toast("❌ "+r.message,"err");
   } catch(e) { toast("❌ เพิ่มไม่ได้","err"); }
 }
@@ -2209,6 +2222,7 @@ async function fetchTodayMedicloud() {
     if (restore) restore();
     if (!r.success) { toast("❌ "+r.message,"err"); list.innerHTML = `<div class="ld">❌ ${r.message}</div>`; return; }
     const names = r.names || [];
+    _mcInfo = r.info || {};
     if (!names.length) { list.innerHTML = '<div class="ld">ไม่มีผู้ป่วยเข้ามาวันนี้</div>'; return; }
     const existingNames = new Set(patients.map(p=>p.name));
     list.innerHTML = names.map(n => {
@@ -2230,7 +2244,19 @@ async function fetchTodayMedicloud() {
 
 function pickMcName(name) {
   set("ad-name", name);
-  toast("เลือก "+name+" แล้ว กด ✅ สร้างผู้ป่วยใหม่","ok");
+  const info = _mcInfo[name];
+
+  if (info && (info.sex || info.age || info.height)) {
+    _pickedMcInfo = info;
+    const parts = [];
+    if (info.sex) parts.push(info.sex === "male" ? "ชาย" : "หญิง");
+    if (info.age) parts.push(info.age + " ปี");
+    if (info.height) parts.push(info.height + " cm");
+    toast("✅ เลือก "+name+" — ดึงจาก Medicloud: " + parts.join(", "), "ok");
+  } else {
+    _pickedMcInfo = null;
+    toast("เลือก "+name+" แล้ว (ไม่พบข้อมูลเพศ/อายุ/ส่วนสูงใน Medicloud) กด ✅ สร้างผู้ป่วยใหม่","ok");
+  }
 }
 
 
