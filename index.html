@@ -818,17 +818,23 @@ function selectPt(name) {
     if (targetDiv) targetDiv.innerHTML = loading();
   }
 
-  // preload ข้อมูลทั้งหมดพร้อมกัน
-  Promise.all([
+  // preload ข้อมูลทั้งหมดพร้อมกัน — ใช้ allSettled เพื่อไม่ให้ endpoint เดียวที่พังทำให้ preload ทั้งหมดล้มเหลว
+  Promise.allSettled([
     getPatientCached(name, true),
     apiGet({action:"getMedication", name}),
     apiGet({action:"getBodyCompImages", name}),
     apiGet({action:"getScaleData", name})
-  ]).then(([patientData, medData, bodyData, scaleData]) => {
+  ]).then(([patientRes, medRes, bodyRes, scaleRes]) => {
+    const patientData = patientRes.status === "fulfilled" ? patientRes.value : {success:false};
+    const medData     = medRes.status     === "fulfilled" ? medRes.value     : {success:false};
+    const bodyData     = bodyRes.status    === "fulfilled" ? bodyRes.value    : {success:false};
+    const scaleData    = scaleRes.status   === "fulfilled" ? scaleRes.value   : {success:false};
+
     if (patientData.success) _cache[name] = patientData;
     if (medData.success)     _medCache[name] = medData.items || [];
     if (bodyData.success)    _bodyCache[name] = bodyData.images || [];
     if (scaleData.success)   _scaleCache[name] = scaleData.records || [];
+
     // ถ้ามี plan แล้ว (goalWeight มีค่า) เปิด entry, ถ้าไม่มีเปิด plan
     if (!patientMode) {
       const hasPlan = patientData.success && patientData.goalWeight;
