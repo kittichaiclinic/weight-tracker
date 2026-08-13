@@ -461,19 +461,10 @@ window.onload = async () => {
     document.querySelector(".main").style.paddingBottom = "82px";
     if (gasUrl) {
       gp("fact", document.querySelector('.nav button[onclick*="fact"]'));
-      // preload แท็บอื่นๆ พร้อมกันเบื้องหลัง ไม่ต้องรอ — ให้สลับแท็บทีหลังเร็วขึ้นเหมือนฝั่ง staff
-      Promise.allSettled([
-        apiGet({action:"getMedication", name:currentName}),
-        apiGet({action:"getBodyCompImages", name:currentName}),
-        apiGet({action:"getScaleData", name:currentName})
-      ]).then(([medRes, bodyRes, scaleRes]) => {
-        const medData   = medRes.status   === "fulfilled" ? medRes.value   : {success:false};
-        const bodyData  = bodyRes.status  === "fulfilled" ? bodyRes.value  : {success:false};
-        const scaleData = scaleRes.status === "fulfilled" ? scaleRes.value : {success:false};
-        if (medData.success)   _medCache[currentName] = medData.items || [];
-        if (bodyData.success)  _bodyCache[currentName] = bodyData.images || [];
+      // preload ข้อมูลเครื่องชั่งเบื้องหลัง — ยา/รูป Body Composition ให้โหลดตอนกดแท็บนั้นแทน (เร็วขึ้น)
+      apiGet({action:"getScaleData", name:currentName}).then(scaleData => {
         if (scaleData.success) _scaleCache[currentName] = scaleData.records || [];
-      });
+      }).catch(()=>{});
     }
     else { hTab("cfg"); toast(" กรุณาตั้งค่า URL ก่อน","err"); }
   } else {
@@ -586,7 +577,7 @@ function invalidateCache(name) {
 
 async function api(data) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
+  const timer = setTimeout(() => controller.abort(), 30000);
   try {
     const r = await fetch(gasUrl, {
       method: "POST",
@@ -604,7 +595,7 @@ async function api(data) {
 async function apiGet(params) {
   const qs = Object.entries(params).map(([k,v])=>encodeURIComponent(k)+"="+encodeURIComponent(v)).join("&");
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
+  const timer = setTimeout(() => controller.abort(), 30000);
   try {
     const r = await fetch(gasUrl + "?" + qs, {signal: controller.signal});
     clearTimeout(timer);
@@ -835,21 +826,15 @@ function selectPt(name) {
     if (targetDiv) targetDiv.innerHTML = loading();
   }
 
-  // preload ข้อมูลทั้งหมดพร้อมกัน — ใช้ allSettled เพื่อไม่ให้ endpoint เดียวที่พังทำให้ preload ทั้งหมดล้มเหลว
+  // preload เฉพาะข้อมูลคนไข้หลัก + ข้อมูลเครื่องชั่ง — ยา/รูป Body Composition ให้โหลดตอนกดแท็บนั้นแทน (เร็วขึ้น)
   Promise.allSettled([
     getPatientCached(name, true),
-    apiGet({action:"getMedication", name}),
-    apiGet({action:"getBodyCompImages", name}),
     apiGet({action:"getScaleData", name})
-  ]).then(([patientRes, medRes, bodyRes, scaleRes]) => {
+  ]).then(([patientRes, scaleRes]) => {
     const patientData = patientRes.status === "fulfilled" ? patientRes.value : {success:false};
-    const medData     = medRes.status     === "fulfilled" ? medRes.value     : {success:false};
-    const bodyData     = bodyRes.status    === "fulfilled" ? bodyRes.value    : {success:false};
     const scaleData    = scaleRes.status   === "fulfilled" ? scaleRes.value   : {success:false};
 
     if (patientData.success) _cache[name] = patientData;
-    if (medData.success)     _medCache[name] = medData.items || [];
-    if (bodyData.success)    _bodyCache[name] = bodyData.images || [];
     if (scaleData.success)   _scaleCache[name] = scaleData.records || [];
 
     // ถ้ามี plan แล้ว (goalWeight มีค่า) เปิด entry, ถ้าไม่มีเปิด plan
@@ -1449,7 +1434,7 @@ async function submitEdit(row) {
     const r = await api({action:"editVisit",name:currentName,row,
       date:V("ed-dt"),weight:V("ed-w"),dose:V("ed-ds"),
       doctor:V("ed-dr"),budget:V("ed-bg"),note:V("ed-nt")});
-    if(r.success){toast(" แก้ไขสำเร็จ","ok");closeModal();invalidateCache(currentName);renderFact();}
+    if(r.success){toast(" แก้ไขสำเร็จ","ok");closeModal();invalidateCache(currentName);if(patientMode) renderFact(); else renderEntry();}
     else { toast(" "+r.message,"err"); if(restore) restore(); }
   } catch(e){toast(" ส่งไม่ได้","err"); if(restore) restore();}
 }
