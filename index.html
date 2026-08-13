@@ -459,7 +459,22 @@ window.onload = async () => {
     document.getElementById("htabs").style.display = "none";
     buildNav(true);
     document.querySelector(".main").style.paddingBottom = "82px";
-    if (gasUrl) gp("fact", document.querySelector('.nav button[onclick*="fact"]'));
+    if (gasUrl) {
+      gp("fact", document.querySelector('.nav button[onclick*="fact"]'));
+      // preload แท็บอื่นๆ พร้อมกันเบื้องหลัง ไม่ต้องรอ — ให้สลับแท็บทีหลังเร็วขึ้นเหมือนฝั่ง staff
+      Promise.allSettled([
+        apiGet({action:"getMedication", name:currentName}),
+        apiGet({action:"getBodyCompImages", name:currentName}),
+        apiGet({action:"getScaleData", name:currentName})
+      ]).then(([medRes, bodyRes, scaleRes]) => {
+        const medData   = medRes.status   === "fulfilled" ? medRes.value   : {success:false};
+        const bodyData  = bodyRes.status  === "fulfilled" ? bodyRes.value  : {success:false};
+        const scaleData = scaleRes.status === "fulfilled" ? scaleRes.value : {success:false};
+        if (medData.success)   _medCache[currentName] = medData.items || [];
+        if (bodyData.success)  _bodyCache[currentName] = bodyData.images || [];
+        if (scaleData.success) _scaleCache[currentName] = scaleData.records || [];
+      });
+    }
     else { hTab("cfg"); toast(" กรุณาตั้งค่า URL ก่อน","err"); }
   } else {
     buildNav(false);
