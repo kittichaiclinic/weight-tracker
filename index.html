@@ -32,7 +32,7 @@
   /* สีอันตราย/ลบ: แดงอมน้ำตาลอุ่นๆ ให้เข้ากับโทนรวม ตัวหนังสือขาว */
   --rd:#b56a5a;
 
-  --bd:#e6d9c8;--bg:#f3e3d0;--cd:#faf2ea;--rad:16px;
+  --bd:#e6d9c8;--bg:#d8e1e9;--cd:#fdfefe;--rad:16px;
   --sh:0 3px 20px rgba(129,166,198,.14);
   --serif:'Noto Sans Thai',sans-serif;--sans:'Noto Sans Thai',sans-serif;
 }
@@ -67,13 +67,13 @@ body{font-family:var(--sans);background:var(--bg);color:var(--tx);min-height:100
 
 /* CARD */
 .card{background:var(--cd);border-radius:var(--rad);box-shadow:var(--sh);
-  border:1px solid var(--bd);padding:17px 16px;margin-bottom:13px}
+  padding:17px 16px;margin-bottom:13px}
 .ctitle{font-size:12.5px;font-weight:700;color:var(--rose-dp);
   margin-bottom:14px;display:flex;align-items:center;gap:7px;
   letter-spacing:.02em;text-transform:uppercase;opacity:.92}
 
 /* HOME TABS */
-.htabs{display:flex;background:var(--cd);border-radius:13px;border:1px solid var(--bd);
+.htabs{display:flex;background:var(--cd);border-radius:13px;
   overflow:hidden;margin-bottom:14px;box-shadow:var(--sh)}
 .htab{flex:1;padding:12px 4px;border:none;font-size:12.5px;font-weight:600;
   font-family:var(--sans);cursor:pointer;border-right:1px solid var(--bd);
@@ -117,7 +117,7 @@ textarea{resize:vertical;min-height:56px}
 
 /* STATS */
 .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px}
-.sc{background:var(--cd);border-radius:13px;padding:14px 12px;border:1px solid var(--bd);
+.sc{background:var(--cd);border-radius:13px;padding:14px 12px;
   text-align:center;box-shadow:var(--sh)}
 .slb{font-size:10.5px;color:var(--tx2);margin-bottom:4px;letter-spacing:.02em}
 .sv{font-family:var(--serif);font-size:25px;font-weight:500}
@@ -150,7 +150,7 @@ textarea{resize:vertical;min-height:56px}
 .sb2{overflow:hidden;transition:max-height .35s ease}
 
 /* PATIENT CARD */
-.pt-card{background:var(--cd);border:1px solid var(--bd);border-radius:14px;
+.pt-card{background:var(--cd);border-radius:14px;
   padding:14px 15px;margin-bottom:11px;box-shadow:var(--sh)}
 .pt-top{display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:0}
 .pt-av{width:42px;height:42px;border-radius:50%;background:var(--rose-btn);color:var(--ink);
@@ -183,7 +183,7 @@ textarea{resize:vertical;min-height:56px}
 .mtab.on{background:var(--pu2);border-color:var(--pu);color:var(--pu);font-weight:700}
 
 /* SYMPTOM CARD */
-.sym-card{background:var(--cd);border:1px solid var(--bd);border-radius:12px;
+.sym-card{background:var(--cd);border-radius:12px;box-shadow:var(--sh);
   padding:13px;margin-bottom:10px}
 .sym-dt{font-size:12px;font-weight:700;color:var(--rose-dp);margin-bottom:8px;
   display:flex;align-items:center;gap:7px}
@@ -197,7 +197,7 @@ textarea{resize:vertical;min-height:56px}
 
 /* BODY COMP */
 .img-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
-.img-card{border-radius:12px;overflow:hidden;border:1px solid var(--bd);cursor:pointer;
+.img-card{border-radius:12px;overflow:hidden;cursor:pointer;
   box-shadow:var(--sh)}
 .img-card img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;background:var(--rose-lt)}
 .img-date{font-size:11px;color:var(--tx2);padding:6px 7px;text-align:center}
@@ -231,7 +231,7 @@ textarea{resize:vertical;min-height:56px}
 
 /* BANNER */
 .banner{background:linear-gradient(150deg,var(--rose-lt),#d7e6ef);
-  border:1px solid #c3d9e8;border-radius:14px;padding:15px;
+  border-radius:14px;padding:15px;box-shadow:var(--sh);
   margin-bottom:14px;text-align:center}
 .banner .bname{font-family:var(--serif);font-size:22px;font-weight:500;
   color:var(--rose-dp);margin-bottom:2px;letter-spacing:.01em}
@@ -279,7 +279,7 @@ textarea{resize:vertical;min-height:56px}
 .cal-nav button{background:none;border:1.5px solid var(--bd);border-radius:9px;
   padding:5px 13px;cursor:pointer;font-size:16px;color:var(--tx2)}
 .cal-month{font-family:var(--serif);font-size:15px;font-weight:500;color:var(--rose-dp)}
-.appt-card{background:var(--cd);border:1px solid var(--bd);border-radius:12px;
+.appt-card{background:var(--cd);border-radius:12px;box-shadow:var(--sh);
   padding:12px 14px;margin-bottom:9px;display:flex;align-items:center;gap:10px}
 .appt-card-time{font-family:var(--serif);font-size:14px;font-weight:500;
   color:var(--rose-dp);min-width:80px}
@@ -299,7 +299,7 @@ textarea{resize:vertical;min-height:56px}
 .srow{display:flex;align-items:center;justify-content:space-between;
   padding:10px 0;border-bottom:1px solid var(--bd);font-size:13.5px}
 .srow:last-child{border-bottom:none}
-.info-box{background:var(--am2);border:1px solid #dbd4cc;border-radius:11px;
+.info-box{background:var(--am2);border-radius:11px;box-shadow:var(--sh);
   padding:11px 12px;margin-bottom:12px;font-size:12px;color:#5f4f36;line-height:1.5}
 </style>
 </head>
@@ -461,10 +461,19 @@ window.onload = async () => {
     document.querySelector(".main").style.paddingBottom = "82px";
     if (gasUrl) {
       gp("fact", document.querySelector('.nav button[onclick*="fact"]'));
-      // preload ข้อมูลเครื่องชั่งเบื้องหลัง — ยา/รูป Body Composition ให้โหลดตอนกดแท็บนั้นแทน (เร็วขึ้น)
-      apiGet({action:"getScaleData", name:currentName}).then(scaleData => {
+      // preload แท็บอื่นๆ พร้อมกันเบื้องหลัง ไม่ต้องรอ — ให้สลับแท็บทีหลังเร็วขึ้นเหมือนฝั่ง staff
+      Promise.allSettled([
+        apiGet({action:"getMedication", name:currentName}),
+        apiGet({action:"getBodyCompImages", name:currentName}),
+        apiGet({action:"getScaleData", name:currentName})
+      ]).then(([medRes, bodyRes, scaleRes]) => {
+        const medData   = medRes.status   === "fulfilled" ? medRes.value   : {success:false};
+        const bodyData  = bodyRes.status  === "fulfilled" ? bodyRes.value  : {success:false};
+        const scaleData = scaleRes.status === "fulfilled" ? scaleRes.value : {success:false};
+        if (medData.success)   _medCache[currentName] = medData.items || [];
+        if (bodyData.success)  _bodyCache[currentName] = bodyData.images || [];
         if (scaleData.success) _scaleCache[currentName] = scaleData.records || [];
-      }).catch(()=>{});
+      });
     }
     else { hTab("cfg"); toast(" กรุณาตั้งค่า URL ก่อน","err"); }
   } else {
@@ -826,15 +835,21 @@ function selectPt(name) {
     if (targetDiv) targetDiv.innerHTML = loading();
   }
 
-  // preload เฉพาะข้อมูลคนไข้หลัก + ข้อมูลเครื่องชั่ง — ยา/รูป Body Composition ให้โหลดตอนกดแท็บนั้นแทน (เร็วขึ้น)
+  // preload ข้อมูลทั้งหมดพร้อมกัน — ใช้ allSettled เพื่อไม่ให้ endpoint เดียวที่พังทำให้ preload ทั้งหมดล้มเหลว
   Promise.allSettled([
     getPatientCached(name, true),
+    apiGet({action:"getMedication", name}),
+    apiGet({action:"getBodyCompImages", name}),
     apiGet({action:"getScaleData", name})
-  ]).then(([patientRes, scaleRes]) => {
+  ]).then(([patientRes, medRes, bodyRes, scaleRes]) => {
     const patientData = patientRes.status === "fulfilled" ? patientRes.value : {success:false};
+    const medData     = medRes.status     === "fulfilled" ? medRes.value     : {success:false};
+    const bodyData     = bodyRes.status    === "fulfilled" ? bodyRes.value    : {success:false};
     const scaleData    = scaleRes.status   === "fulfilled" ? scaleRes.value   : {success:false};
 
     if (patientData.success) _cache[name] = patientData;
+    if (medData.success)     _medCache[name] = medData.items || [];
+    if (bodyData.success)    _bodyCache[name] = bodyData.images || [];
     if (scaleData.success)   _scaleCache[name] = scaleData.records || [];
 
     // ถ้ามี plan แล้ว (goalWeight มีค่า) เปิด entry, ถ้าไม่มีเปิด plan
