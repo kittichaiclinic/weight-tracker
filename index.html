@@ -317,6 +317,7 @@ textarea{resize:vertical;min-height:56px}
   <div class="htabs" id="htabs">
     <button class="htab on" id="ht-pt" onclick="hTab('pt')">👥 ผู้ป่วย</button>
     <button class="htab" id="ht-add" onclick="hTab('add')">➕ เพิ่มใหม่</button>
+    <button class="htab" id="ht-stat" onclick="hTab('stat')">🏆 สถิติ</button>
     <button class="htab" id="ht-apts" onclick="hTab('apts')">📅 คิวนัด</button>
     <button class="htab" id="ht-cfg" onclick="hTab('cfg')">⚙️ ตั้งค่า</button>
   </div>
@@ -342,6 +343,7 @@ textarea{resize:vertical;min-height:56px}
   </div>
 
   <!-- ตั้งค่า -->
+  <div id="sec-stat" style="display:none"><div id="stat-v"></div></div>
   <div id="sec-apts" style="display:none"><div id="apts-home-v"></div></div>
   <div id="sec-cfg" style="display:none">
     <div class="card">
@@ -380,6 +382,7 @@ textarea{resize:vertical;min-height:56px}
 <!-- BODY COMP -->
 <div id="pg-body" class="page"><div id="body-v"></div></div>
 <div id="pg-newbody" class="page"><div id="newbody-v"></div></div>
+<div id="pg-stat" class="page"><div id="pstat-v"></div></div>
 <!-- MED -->
 <div id="pg-med" class="page"><div id="med-v"></div></div>
 <!-- PLAN -->
@@ -544,6 +547,7 @@ function buildNav(patient) {
         <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
         <button onclick="gp('newbody',this)"><span class="ni">⚖️</span>New Body Composition</button>
         <button onclick="gp('med',this)"><span class="ni">💊</span>ยา</button>
+        <button onclick="gp('stat',this)"><span class="ni">🏆</span>สถิติ</button>
         <button onclick="gp('appt',this)"><span class="ni">📅</span>เลือกเวลา</button>`;
     }
   } else {
@@ -563,6 +567,7 @@ function gp(name, btn) {
   else if (name==="meas") renderMeas();
   else if (name==="body") renderBody();
   else if (name==="newbody") renderNewBody();
+  else if (name==="stat") renderPatientStat();
   else if (name==="med") renderMed();
   else if (name==="plan") renderPlan();
   else if (name==="entry") renderEntry();
@@ -646,13 +651,14 @@ async function loadPatients(force=false) {
 
 
 function hTab(t) {
-  ["pt","add","apts","cfg"].forEach(k=>{
+  ["pt","add","stat","apts","cfg"].forEach(k=>{
     const s = document.getElementById("sec-"+k);
     const b = document.getElementById("ht-"+k);
     if(s) s.style.display = k===t?"block":"none";
     if(b) b.classList.toggle("on", k===t);
   });
   if (t==="pt" && patients.length > 0) renderPtList();
+  if (t==="stat") renderLeaderboard();
   if (t==="apts") renderApptHome();
   if (t==="cfg") {
     const u = document.getElementById("cfg-url");
@@ -2641,6 +2647,101 @@ async function confirmCancelAppt(id) {
 }
 
 // ===== หน้า Staff — ปฏิทินคิว =====
+// ===== LEADERBOARD (สถิติ) =====
+let _lbPeriod = "month";
+const LB_PERIOD_LABEL = { week:"สัปดาห์นี้", month:"เดือนนี้", "3months":"3 เดือนนี้", year:"ปีนี้" };
+
+async function renderLeaderboard() {
+  const v = document.getElementById("stat-v");
+  v.innerHTML = loading();
+  try {
+    const d = await apiGet({action:"getLeaderboard", period:_lbPeriod});
+    if (!d.success) { v.innerHTML = err(d.message); return; }
+
+    const periodChips = Object.keys(LB_PERIOD_LABEL).map(k =>
+      `<button class="mtab ${k===_lbPeriod?'on':''}" onclick="switchLbPeriod('${k}')">${LB_PERIOD_LABEL[k]}</button>`
+    ).join("");
+
+    const list = d.leaderboard || [];
+    const rows = list.length ? list.map((r, idx) => {
+      const rank = idx + 1;
+      const medal = rank===1 ? "🥇" : rank===2 ? "🥈" : rank===3 ? "🥉" : `#${rank}`;
+      return `
+        <div class="pt-card" style="display:flex;align-items:center;gap:12px;padding:12px 15px">
+          <div style="font-size:${rank<=3?'22px':'15px'};font-weight:700;min-width:34px;text-align:center;color:${rank<=3?'inherit':'var(--tx2)'}">${medal}</div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:14px">${r.name}</div>
+            <div style="font-size:11.5px;color:var(--tx2)">${r.fromDate} → ${r.toDate}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="num" style="font-size:19px;font-weight:600;color:${r.lost>0?'var(--gr-tx)':'var(--tx2)'}">${r.lost>0?'-':''}${Math.abs(r.lost)}<span style="font-size:11px;font-weight:400;color:var(--tx2)"> kg</span></div>
+          </div>
+        </div>`;
+    }).join("") : `<div class="ld">ยังไม่มีข้อมูลเพียงพอในช่วง${LB_PERIOD_LABEL[_lbPeriod]}</div>`;
+
+    v.innerHTML = `
+      <div class="card">
+        <div class="ctitle">🏆 จัดอันดับลดน้ำหนัก</div>
+        <div class="mtabs">${periodChips}</div>
+      </div>
+      ${rows}
+    `;
+  } catch(e) { v.innerHTML = err(e.message); }
+}
+
+function switchLbPeriod(period) {
+  _lbPeriod = period;
+  renderLeaderboard();
+}
+
+let _pstatPeriod = "month";
+
+async function renderPatientStat() {
+  const v = document.getElementById("pstat-v");
+  if (!currentName) { v.innerHTML = noPatient(); return; }
+  v.innerHTML = loading();
+  try {
+    const d = await apiGet({action:"getLeaderboard", period:_pstatPeriod, onlyName:currentName});
+    if (!d.success) { v.innerHTML = err(d.message); return; }
+
+    const periodChips = Object.keys(LB_PERIOD_LABEL).map(k =>
+      `<button class="mtab ${k===_pstatPeriod?'on':''}" onclick="switchPstatPeriod('${k}')">${LB_PERIOD_LABEL[k]}</button>`
+    ).join("");
+
+    let body;
+    if (!d.found) {
+      body = `<div class="ld">ยังไม่มีข้อมูลเพียงพอในช่วง${LB_PERIOD_LABEL[_pstatPeriod]}<br>(ต้องมีการลงน้ำหนักอย่างน้อย 2 ครั้ง)</div>`;
+    } else {
+      const medal = d.rank===1 ? "🥇" : d.rank===2 ? "🥈" : d.rank===3 ? "🥉" : `#${d.rank}`;
+      body = `
+        <div class="card" style="text-align:center">
+          <div style="font-size:40px;margin-bottom:6px">${medal}</div>
+          <div style="font-size:13px;color:var(--tx2);margin-bottom:2px">อันดับของคุณใน${LB_PERIOD_LABEL[_pstatPeriod]}</div>
+          <div class="num" style="font-size:22px;font-weight:600;margin-bottom:14px">${d.rank} <span style="font-size:13px;font-weight:400;color:var(--tx2)">จากทั้งหมด ${d.total} คน</span></div>
+          <div class="sgrid" style="margin-bottom:0">
+            <div class="sc"><div class="slb">ลดไปแล้ว</div>
+              <div class="num sg" style="font-size:20px">${d.lost>0?'-':''}${Math.abs(d.lost)}<span class="su"> kg</span></div></div>
+            <div class="sc"><div class="slb">ช่วงที่วัด</div>
+              <div style="font-size:12px;margin-top:4px">${d.fromDate}<br>→ ${d.toDate}</div></div>
+          </div>
+        </div>`;
+    }
+
+    v.innerHTML = `
+      <div class="card">
+        <div class="ctitle">🏆 สถิติของฉัน</div>
+        <div class="mtabs">${periodChips}</div>
+      </div>
+      ${body}
+    `;
+  } catch(e) { v.innerHTML = err(e.message); }
+}
+
+function switchPstatPeriod(period) {
+  _pstatPeriod = period;
+  renderPatientStat();
+}
+
 async function renderApptHome() {
   const v = document.getElementById("apts-home-v");
   if (v) { v.innerHTML = loading(); await _renderApptStaffInto(v); }
