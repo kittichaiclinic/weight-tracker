@@ -1868,6 +1868,19 @@ async function renderBody() {
         <button class="btn btn-pk" onclick="submitBodyMass()">💾 บันทึก</button>
       </div>` : "";
 
+    // เช็คว่าอัปโหลดรูป Body Composition หลังจากชั่งครั้งล่าสุดแล้วหรือยัง — คำนวณจากข้อมูลที่ดึงมาแล้ว
+    // (images + records) ไม่ต้องยิง request เพิ่ม
+    const wDates = (pd.success ? pd.records : []).filter(r => r.weight).map(r => r.date);
+    const latestWeighDate = wDates.length ? wDates.slice().sort().pop() : "";
+    const imgDates = (d.images || []).map(img => img.date).filter(Boolean);
+    const latestImgDate = imgDates.length ? imgDates.slice().sort().pop() : "";
+    const bodyCompUploaded = !!(latestWeighDate && latestImgDate && latestImgDate >= latestWeighDate);
+
+    const uploadStatusHtml = latestWeighDate ? `
+      <div style="font-size:12px;color:${bodyCompUploaded?'var(--gr-tx)':'var(--tx3)'};margin-bottom:12px">
+        ${bodyCompUploaded ? '✅ อัปโหลด Body Composition ล่าสุดแล้ว' : 'ยังไม่ได้อัปโหลด Body Composition หลังชั่งครั้งล่าสุด'}
+      </div>` : "";
+
     const hasFat    = massRecs.some(r=>r.fatMass);
     const hasMuscle = massRecs.some(r=>r.muscleMass);
     const massCharts = (hasFat||hasMuscle) ? `
@@ -1905,6 +1918,7 @@ async function renderBody() {
     const uploadForm=!patientMode?`
       <div class="card">
         <div class="ctitle">อัปโหลดรูป Body Composition</div>
+        <div id="bc-upload-status">${uploadStatusHtml}</div>
         <div class="fg"><label>วันที่</label><input type="date" id="bc-dt" value="${today()}"></div>
         <div class="up-area" id="bc-area"
           onclick="document.getElementById('bc-file').click()"
@@ -2741,9 +2755,10 @@ async function renderRecentWeighIns() {
     const list = d.recent || [];
     const rows = list.length ? list.map(r => {
       const safeName = r.name.replace(/'/g,"\\'");
+      const statusId = "recent-status_" + r.name.replace(/\s/g,"_");
       const statusHtml = r.bodyCompUploaded
-        ? `<div style="font-size:11px;color:var(--gr-tx);margin-top:4px">✅ อัปโหลด Body Composition ล่าสุดแล้ว</div>`
-        : `<div style="font-size:11px;color:var(--tx3);margin-top:4px">ยังไม่ได้อัปโหลด Body Composition</div>`;
+        ? `<div id="${statusId}" style="font-size:11px;color:var(--gr-tx);margin-top:4px">✅ อัปโหลด Body Composition ล่าสุดแล้ว</div>`
+        : `<div id="${statusId}" style="font-size:11px;color:var(--tx3);margin-top:4px">ยังไม่ได้อัปโหลด Body Composition</div>`;
       return `
         <div class="pt-card" style="padding:12px 15px;margin-bottom:9px">
           <div style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="selectPt('${safeName}')">
@@ -2789,7 +2804,7 @@ function quickUploadBodyModal(name, weighDate) {
     </div>
     <img id="qbc-prev" class="up-prev">
     <input type="file" id="qbc-file" accept="image/*" style="display:none" onchange="qbcPrevFile(event)">
-    <button class="btn btn-bl" onclick="qbcSubmit('${name.replace(/'/g,"\\'")}')">📤 อัปโหลด</button>
+    <button class="btn btn-bl" onclick="qbcSubmit('${name.replace(/'/g,"\\'")}','${weighDate}')">📤 อัปโหลด</button>
   `);
 }
 
@@ -2807,7 +2822,7 @@ function qbcDropFile(e) {
   const p = document.getElementById("qbc-prev");
   p.src = URL.createObjectURL(f); p.style.display = "block";
 }
-async function qbcSubmit(name) {
+async function qbcSubmit(name, weighDate) {
   const date = V("qbc-dt"), file = document.getElementById("qbc-file").files[0];
   if (!date) { toast(" กรอกวันที่", "err"); return; }
   if (!file) { toast(" เลือกรูปก่อน", "err"); return; }
@@ -2823,7 +2838,13 @@ async function qbcSubmit(name) {
         toast(" อัปโหลดสำเร็จ", "ok");
         delete _bodyCache[name];
         closeModal();
-        renderRecentWeighIns(); // รีเฟรชรายการให้เห็นเครื่องหมายอัปโหลดแล้วทันที
+        // อัปเดตข้อความสถานะตรงๆ ในหน้าจอ แทนการโหลดรายชื่อทั้งหมดใหม่ (ช้าโดยไม่จำเป็น)
+        // แสดง ✅ เฉพาะตอนที่วันที่อัปโหลด >= วันชั่งล่าสุดจริงๆ ให้ตรงกับ logic ฝั่ง backend
+        const statusEl = document.getElementById("recent-status_" + name.replace(/\s/g,"_"));
+        if (statusEl && date >= weighDate) {
+          statusEl.textContent = "✅ อัปโหลด Body Composition ล่าสุดแล้ว";
+          statusEl.style.color = "var(--gr-tx)";
+        }
       } else toast(" "+r.message, "err");
     } catch(e) { toast(" อัปโหลดไม่ได้", "err"); }
   };
