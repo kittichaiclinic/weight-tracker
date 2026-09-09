@@ -693,14 +693,37 @@ function renderPtList() {
 function renderPtCards(list) {
   const el = document.getElementById("pt-cards");
   if (!el) return;
-  const base = location.href.split("?")[0];
   if (!list.length) {
     el.innerHTML = '<div class="ld">ไม่พบผู้ป่วยที่ค้นหา</div>'; return;
   }
-  el.innerHTML = list.map(p => {
-    const link = `${base}?patient=${encodeURIComponent(p.name)}`;
-    const bid = "cb_"+p.name.replace(/\s/g,"_");
-    return `<div class="pt-card">
+
+  // เรียงตามตัวอักษร (ใช้ locale ไทยให้เรียงถูกต้องตามพยัญชนะ) แล้วจัดกลุ่มตามตัวอักษรแรกของชื่อ
+  const sorted = list.slice().sort((a, b) => a.name.localeCompare(b.name, 'th'));
+  const groups = {};
+  const groupOrder = [];
+  sorted.forEach(p => {
+    const letter = (p.name.trim().charAt(0) || '#').toUpperCase();
+    if (!groups[letter]) { groups[letter] = []; groupOrder.push(letter); }
+    groups[letter].push(p);
+  });
+
+  el.innerHTML = groupOrder.map(letter => {
+    const groupId = 'ptgrp_' + letter.charCodeAt(0);
+    const cardsHtml = groups[letter].map(renderOnePtCard).join("");
+    return `
+      <div class="sh" onclick="toggleSec('${groupId}')">
+        <h3>${letter} <span style="font-weight:400;color:var(--tx2);font-size:12px">(${groups[letter].length})</span></h3>
+        <span class="st open" id="tog-${groupId}">▼</span>
+      </div>
+      <div class="sb2" id="${groupId}" style="max-height:2000px">${cardsHtml}</div>`;
+  }).join("");
+}
+
+function renderOnePtCard(p) {
+  const base = location.href.split("?")[0];
+  const link = `${base}?patient=${encodeURIComponent(p.name)}`;
+  const bid = "cb_"+p.name.replace(/\s/g,"_");
+  return `<div class="pt-card">
       <div class="pt-top" onclick="selectPt('${p.name.replace(/'/g,"\\'")}')">
         <div class="pt-av">${p.name.charAt(0)}</div>
         <div style="flex:1;min-width:0">
@@ -721,7 +744,6 @@ function renderPtCards(list) {
         </div>
       </div>
     </div>`;
-  }).join("");
 }
 
 async function confirmDeletePt(name) {
