@@ -323,6 +323,7 @@ textarea{resize:vertical;min-height:56px}
     <button class="htab on" id="ht-pt" onclick="hTab('pt')">👥 ผู้ป่วย</button>
     <button class="htab" id="ht-add" onclick="hTab('add')">➕ เพิ่มใหม่</button>
     <button class="htab" id="ht-stat" onclick="hTab('stat')">🏆 สถิติ</button>
+    <button class="htab" id="ht-recent" onclick="hTab('recent')">🕐 ล่าสุด</button>
     <button class="htab" id="ht-apts" onclick="hTab('apts')">📅 คิวนัด</button>
     <button class="htab" id="ht-cfg" onclick="hTab('cfg')">⚙️ ตั้งค่า</button>
   </div>
@@ -349,6 +350,7 @@ textarea{resize:vertical;min-height:56px}
 
   <!-- ตั้งค่า -->
   <div id="sec-stat" style="display:none"><div id="stat-v"></div></div>
+  <div id="sec-recent" style="display:none"><div id="recent-v"></div></div>
   <div id="sec-apts" style="display:none"><div id="apts-home-v"></div></div>
   <div id="sec-cfg" style="display:none">
     <div class="card">
@@ -656,7 +658,7 @@ async function loadPatients(force=false) {
 
 
 function hTab(t) {
-  ["pt","add","stat","apts","cfg"].forEach(k=>{
+  ["pt","add","stat","recent","apts","cfg"].forEach(k=>{
     const s = document.getElementById("sec-"+k);
     const b = document.getElementById("ht-"+k);
     if(s) s.style.display = k===t?"block":"none";
@@ -664,6 +666,7 @@ function hTab(t) {
   });
   if (t==="pt" && patients.length > 0) renderPtList();
   if (t==="stat") renderLeaderboard();
+  if (t==="recent") renderRecentWeighIns();
   if (t==="apts") renderApptHome();
   if (t==="cfg") {
     const u = document.getElementById("cfg-url");
@@ -2726,6 +2729,37 @@ async function renderLeaderboard() {
 function switchLbPeriod(period) {
   _lbPeriod = period;
   renderLeaderboard();
+}
+
+async function renderRecentWeighIns() {
+  const v = document.getElementById("recent-v");
+  v.innerHTML = loading();
+  try {
+    const d = await apiGet({action:"getRecentWeighIns"});
+    if (!d.success) { v.innerHTML = err(d.message); return; }
+
+    const list = d.recent || [];
+    const rows = list.length ? list.map(r => `
+        <div class="pt-card" style="display:flex;align-items:center;gap:12px;padding:12px 15px;margin-bottom:9px;cursor:pointer"
+          onclick="selectPt('${r.name.replace(/'/g,"\\'")}')">
+          <div class="pt-av">${r.name.charAt(0)}</div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:14px">${r.name}</div>
+            <div style="font-size:11.5px;color:var(--tx2)">ชั่งล่าสุด ${r.date}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="num" style="font-size:19px;font-weight:600">${r.weight}<span style="font-size:11px;font-weight:400;color:var(--tx2)"> kg</span></div>
+          </div>
+        </div>`).join("") : `<div class="ld">ยังไม่มีข้อมูลการชั่งน้ำหนัก</div>`;
+
+    v.innerHTML = `
+      <div class="card">
+        <div class="ctitle">🕐 ชั่งน้ำหนักล่าสุด</div>
+        <div style="font-size:12px;color:var(--tx2)">แสดง ${list.length} รายชื่อล่าสุด</div>
+      </div>
+      ${rows}
+    `;
+  } catch(e) { v.innerHTML = err(e.message); }
 }
 
 let _pstatPeriod = "month";
