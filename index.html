@@ -2739,18 +2739,30 @@ async function renderRecentWeighIns() {
     if (!d.success) { v.innerHTML = err(d.message); return; }
 
     const list = d.recent || [];
-    const rows = list.length ? list.map(r => `
-        <div class="pt-card" style="display:flex;align-items:center;gap:12px;padding:12px 15px;margin-bottom:9px;cursor:pointer"
-          onclick="selectPt('${r.name.replace(/'/g,"\\'")}')">
-          <div class="pt-av">${r.name.charAt(0)}</div>
-          <div style="flex:1">
-            <div style="font-weight:600;font-size:14px">${r.name}</div>
-            <div style="font-size:11.5px;color:var(--tx2)">ชั่งล่าสุด ${r.date}</div>
+    const rows = list.length ? list.map(r => {
+      const safeName = r.name.replace(/'/g,"\\'");
+      const statusHtml = r.bodyCompUploaded
+        ? `<div style="font-size:11px;color:var(--gr-tx);margin-top:4px">✅ อัปโหลด Body Composition ล่าสุดแล้ว</div>`
+        : `<div style="font-size:11px;color:var(--tx3);margin-top:4px">ยังไม่ได้อัปโหลด Body Composition</div>`;
+      return `
+        <div class="pt-card" style="padding:12px 15px;margin-bottom:9px">
+          <div style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="selectPt('${safeName}')">
+            <div class="pt-av">${r.name.charAt(0)}</div>
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:14px">${r.name}</div>
+              <div style="font-size:11.5px;color:var(--tx2)">ชั่งล่าสุด ${r.date}</div>
+            </div>
+            <div style="text-align:right">
+              <div class="num" style="font-size:19px;font-weight:600">${r.weight}<span style="font-size:11px;font-weight:400;color:var(--tx2)"> kg</span></div>
+            </div>
           </div>
-          <div style="text-align:right">
-            <div class="num" style="font-size:19px;font-weight:600">${r.weight}<span style="font-size:11px;font-weight:400;color:var(--tx2)"> kg</span></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--bd)">
+            ${statusHtml}
+            <button class="btn-sm" style="background:var(--bl2);color:var(--pu);border:1px solid var(--bl-btn);flex-shrink:0"
+              onclick="quickUploadBodyModal('${safeName}','${r.date}')">📷 อัปโหลด</button>
           </div>
-        </div>`).join("") : `<div class="ld">ยังไม่มีข้อมูลการชั่งน้ำหนัก</div>`;
+        </div>`;
+    }).join("") : `<div class="ld">ยังไม่มีข้อมูลการชั่งน้ำหนัก</div>`;
 
     v.innerHTML = `
       <div class="card">
@@ -2760,6 +2772,62 @@ async function renderRecentWeighIns() {
       ${rows}
     `;
   } catch(e) { v.innerHTML = err(e.message); }
+}
+
+// ── ปุ่มลัดอัปโหลด Body Composition จากหน้า "ล่าสุด" — ใช้ modal + action เดียวกับหน้า Body Composition เอง ──
+function quickUploadBodyModal(name, weighDate) {
+  showModal(`
+    <div class="modal-title">📷 อัปโหลด Body Composition<span class="modal-x" onclick="closeModal()">✕</span></div>
+    <div style="font-size:13px;color:var(--tx2);margin-bottom:12px">${name}</div>
+    <div class="fg"><label>วันที่</label><input type="date" id="qbc-dt" value="${weighDate}"></div>
+    <div class="up-area" id="qbc-area"
+      onclick="document.getElementById('qbc-file').click()"
+      ondrop="qbcDropFile(event)" ondragover="event.preventDefault();this.classList.add('drag')"
+      ondragleave="this.classList.remove('drag')">
+      <div style="font-size:30px;margin-bottom:6px">📷</div>
+      <p style="font-size:13px;color:var(--tx2)">แตะเพื่อเลือกรูป หรือลากมาวาง</p>
+    </div>
+    <img id="qbc-prev" class="up-prev">
+    <input type="file" id="qbc-file" accept="image/*" style="display:none" onchange="qbcPrevFile(event)">
+    <button class="btn btn-bl" onclick="qbcSubmit('${name.replace(/'/g,"\\'")}')">📤 อัปโหลด</button>
+  `);
+}
+
+function qbcPrevFile(e) {
+  const f = e.target.files[0]; if (!f) return;
+  const p = document.getElementById("qbc-prev");
+  p.src = URL.createObjectURL(f); p.style.display = "block";
+}
+function qbcDropFile(e) {
+  e.preventDefault();
+  document.getElementById("qbc-area").classList.remove("drag");
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  const inp = document.getElementById("qbc-file");
+  const dt = new DataTransfer(); dt.items.add(f); inp.files = dt.files;
+  const p = document.getElementById("qbc-prev");
+  p.src = URL.createObjectURL(f); p.style.display = "block";
+}
+async function qbcSubmit(name) {
+  const date = V("qbc-dt"), file = document.getElementById("qbc-file").files[0];
+  if (!date) { toast(" กรอกวันที่", "err"); return; }
+  if (!file) { toast(" เลือกรูปก่อน", "err"); return; }
+  if (file.size > 8*1024*1024) { toast(" รูปใหญ่เกิน 8MB", "err"); return; }
+  toast(" กำลังอัปโหลด...");
+  const reader = new FileReader();
+  reader.onload = async e => {
+    const b64 = e.target.result.split(",")[1];
+    try {
+      const r = await api({action:"uploadBodyComp", name, date,
+        imageBase64:b64, mimeType:file.type, fileName:file.name});
+      if (r.success) {
+        toast(" อัปโหลดสำเร็จ", "ok");
+        delete _bodyCache[name];
+        closeModal();
+        renderRecentWeighIns(); // รีเฟรชรายการให้เห็นเครื่องหมายอัปโหลดแล้วทันที
+      } else toast(" "+r.message, "err");
+    } catch(e) { toast(" อัปโหลดไม่ได้", "err"); }
+  };
+  reader.readAsDataURL(file);
 }
 
 let _pstatPeriod = "month";
