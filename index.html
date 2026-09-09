@@ -695,15 +695,23 @@ function renderPtList() {
   renderPtCards(patients);
 }
 
-function renderPtCards(list) {
+function renderPtCards(list, flat) {
   const el = document.getElementById("pt-cards");
   if (!el) return;
   if (!list.length) {
     el.innerHTML = '<div class="ld">ไม่พบผู้ป่วยที่ค้นหา</div>'; return;
   }
 
-  // เรียงตามตัวอักษร (ใช้ locale ไทยให้เรียงถูกต้องตามพยัญชนะ) แล้วจัดกลุ่มตามตัวอักษรแรกของชื่อ
+  // เรียงตามตัวอักษร (ใช้ locale ไทยให้เรียงถูกต้องตามพยัญชนะ)
   const sorted = list.slice().sort((a, b) => a.name.localeCompare(b.name, 'th'));
+
+  // โหมดค้นหา (flat) — โชว์ card ตรงๆ ไม่จัดกลุ่ม/ไม่พับ ให้เห็นผลลัพธ์ทันที
+  if (flat) {
+    el.innerHTML = `<div class="pt-group-body">${sorted.map(renderOnePtCard).join("")}</div>`;
+    return;
+  }
+
+  // โหมดปกติ — จัดกลุ่มตามตัวอักษรแรกของชื่อ พับไว้ก่อน
   const groups = {};
   const groupOrder = [];
   sorted.forEach(p => {
@@ -831,8 +839,7 @@ function filterPtList(q) {
   const filtered = trimmed
     ? patients.filter(p => p.name.toLowerCase().includes(trimmed.toLowerCase()))
     : patients;
-  renderPtCards(filtered);
-  showPtDrop(trimmed);
+  renderPtCards(filtered, !!trimmed);
 }
 
 
