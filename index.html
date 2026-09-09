@@ -151,7 +151,12 @@ textarea{resize:vertical;min-height:56px}
 
 /* PATIENT CARD */
 .pt-card{background:var(--cd);border-radius:14px;
-  padding:14px 15px;margin-bottom:11px;box-shadow:var(--sh)}
+  padding:14px 15px;margin-bottom:0;box-shadow:var(--sh)}
+.pt-group-body{display:grid;grid-template-columns:1fr;gap:11px;padding-top:11px}
+@media (min-width:700px){
+  .main{max-width:1100px}
+  .pt-group-body{grid-template-columns:repeat(auto-fill,minmax(320px,1fr));align-items:start}
+}
 .pt-top{display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:0}
 .pt-av{width:42px;height:42px;border-radius:50%;background:var(--rose-btn);color:var(--ink);
   font-family:var(--serif);font-size:16px;font-weight:500;display:flex;align-items:center;
@@ -713,9 +718,9 @@ function renderPtCards(list) {
     return `
       <div class="sh" onclick="toggleSec('${groupId}')">
         <h3>${letter} <span style="font-weight:400;color:var(--tx2);font-size:12px">(${groups[letter].length})</span></h3>
-        <span class="st open" id="tog-${groupId}">▼</span>
+        <span class="st" id="tog-${groupId}">▼</span>
       </div>
-      <div class="sb2" id="${groupId}" style="max-height:2000px">${cardsHtml}</div>`;
+      <div class="sb2 pt-group-body" id="${groupId}" style="max-height:0">${cardsHtml}</div>`;
   }).join("");
 }
 
@@ -2689,7 +2694,7 @@ async function renderLeaderboard() {
       const rank = idx + 1;
       const medal = rank===1 ? "🥇" : rank===2 ? "🥈" : rank===3 ? "🥉" : `#${rank}`;
       return `
-        <div class="pt-card" style="display:flex;align-items:center;gap:12px;padding:12px 15px">
+        <div class="pt-card" style="display:flex;align-items:center;gap:12px;padding:12px 15px;margin-bottom:9px">
           <div style="font-size:${rank<=3?'22px':'15px'};font-weight:700;min-width:34px;text-align:center;color:${rank<=3?'inherit':'var(--tx2)'}">${medal}</div>
           <div style="flex:1">
             <div style="font-weight:600;font-size:14px">${r.name}</div>
