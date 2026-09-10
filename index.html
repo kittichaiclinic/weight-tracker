@@ -472,16 +472,15 @@ window.onload = async () => {
     if (gasUrl) {
       gp("fact", document.querySelector('.nav button[onclick*="fact"]'));
       // preload แท็บอื่นๆ พร้อมกันเบื้องหลัง ไม่ต้องรอ — ให้สลับแท็บทีหลังเร็วขึ้นเหมือนฝั่ง staff
+      // getBodyCompImages ไม่ต้องเรียกแยกแล้ว เพราะ renderFact() (เรียกจาก gp("fact") ข้างบน)
+      // จะได้ images มาพร้อมกับข้อมูลคนไข้อยู่แล้ว แล้วเก็บลง _bodyCache ให้เองในตัว
       Promise.allSettled([
         apiGet({action:"getMedication", name:currentName}),
-        apiGet({action:"getBodyCompImages", name:currentName}),
         apiGet({action:"getScaleData", name:currentName})
-      ]).then(([medRes, bodyRes, scaleRes]) => {
+      ]).then(([medRes, scaleRes]) => {
         const medData   = medRes.status   === "fulfilled" ? medRes.value   : {success:false};
-        const bodyData  = bodyRes.status  === "fulfilled" ? bodyRes.value  : {success:false};
         const scaleData = scaleRes.status === "fulfilled" ? scaleRes.value : {success:false};
         if (medData.success)   _medCache[currentName] = medData.items || [];
-        if (bodyData.success)  _bodyCache[currentName] = bodyData.images || [];
         if (scaleData.success) _scaleCache[currentName] = scaleData.records || [];
       });
     }
@@ -879,20 +878,18 @@ function selectPt(name) {
   }
 
   // preload ข้อมูลทั้งหมดพร้อมกัน — ใช้ allSettled เพื่อไม่ให้ endpoint เดียวที่พังทำให้ preload ทั้งหมดล้มเหลว
+  // getBodyCompImages ไม่ต้องเรียกแยกแล้ว เพราะ getPatientData ส่ง images มาให้พร้อมกันในตัว
   Promise.allSettled([
     getPatientCached(name, true),
     apiGet({action:"getMedication", name}),
-    apiGet({action:"getBodyCompImages", name}),
     apiGet({action:"getScaleData", name})
-  ]).then(([patientRes, medRes, bodyRes, scaleRes]) => {
+  ]).then(([patientRes, medRes, scaleRes]) => {
     const patientData = patientRes.status === "fulfilled" ? patientRes.value : {success:false};
     const medData     = medRes.status     === "fulfilled" ? medRes.value     : {success:false};
-    const bodyData     = bodyRes.status    === "fulfilled" ? bodyRes.value    : {success:false};
     const scaleData    = scaleRes.status   === "fulfilled" ? scaleRes.value   : {success:false};
 
-    if (patientData.success) _cache[name] = patientData;
+    if (patientData.success) { _cache[name] = patientData; _bodyCache[name] = patientData.images || []; }
     if (medData.success)     _medCache[name] = medData.items || [];
-    if (bodyData.success)    _bodyCache[name] = bodyData.images || [];
     if (scaleData.success)   _scaleCache[name] = scaleData.records || [];
 
     // ถ้ามี plan แล้ว (goalWeight มีค่า) เปิด entry, ถ้าไม่มีเปิด plan
@@ -1269,6 +1266,7 @@ async function renderFact() {
   try {
     const d = await getPatientCached(currentName);
     if (!d.success) { v.innerHTML=err(d.message); return; }
+    if (d.images) _bodyCache[currentName] = d.images; // images มาพร้อมกันกับข้อมูลคนไข้ ไม่ต้องยิง request แยก
 
     const pct = Math.min(Math.max(d.progress||0,0),100);
     const summaryCard = `
