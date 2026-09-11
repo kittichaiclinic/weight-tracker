@@ -866,26 +866,15 @@ function selectPt(name) {
     if (targetDiv) targetDiv.innerHTML = loading();
   }
 
-  // preload ข้อมูลทั้งหมดพร้อมกัน — ใช้ allSettled เพื่อไม่ให้ endpoint เดียวที่พังทำให้ preload ทั้งหมดล้มเหลว
-  // getBodyCompImages ไม่ต้องเรียกแยกแล้ว เพราะ getPatientData ส่ง images มาให้พร้อมกันในตัว
+  // preload ข้อมูลทั้งหมดในคำขอเดียว — เดิมยิง 3 request แยกกัน (getPatientData/getMedication/getScaleData)
+  // ต้องจ่าย fixed overhead ของ Google Apps Script Web App (วัดจริงได้ 2-4.5 วินาทีต่อ request
+  // ไม่ว่าโค้ดจะเบา/หนักแค่ไหน) ถึง 3 รอบ รวมเป็น request เดียวจ่ายแค่ครั้งเดียว
   const _tSelect = performance.now();
-  const timedGetPatient = getPatientCached(name, true).then(r => {
-    console.log("[TIMING] getPatientData ใช้เวลา:", Math.round(performance.now() - _tSelect), "ms");
-    return r;
-  });
-  const timedMed = apiGet({action:"getMedication", name}).then(r => {
-    console.log("[TIMING] getMedication ใช้เวลา:", Math.round(performance.now() - _tSelect), "ms");
-    return r;
-  });
-  const timedScale = apiGet({action:"getScaleData", name}).then(r => {
-    console.log("[TIMING] getScaleData ใช้เวลา:", Math.round(performance.now() - _tSelect), "ms");
-    return r;
-  });
-  Promise.allSettled([timedGetPatient, timedMed, timedScale]).then(([patientRes, medRes, scaleRes]) => {
-    console.log("[TIMING] preload ทั้งหมดเสร็จรวม:", Math.round(performance.now() - _tSelect), "ms");
-    const patientData = patientRes.status === "fulfilled" ? patientRes.value : {success:false};
-    const medData     = medRes.status     === "fulfilled" ? medRes.value     : {success:false};
-    const scaleData    = scaleRes.status   === "fulfilled" ? scaleRes.value   : {success:false};
+  apiGet({action:"getPatientFullData", name}).then(r => {
+    console.log("[TIMING] getPatientFullData ใช้เวลา:", Math.round(performance.now() - _tSelect), "ms");
+    const patientData = (r.success && r.patient) ? r.patient : {success:false};
+    const medData      = (r.success && r.medication) ? r.medication : {success:false};
+    const scaleData     = (r.success && r.scale) ? r.scale : {success:false};
 
     if (patientData.success) { _cache[name] = patientData; _bodyCache[name] = patientData.images || []; }
     if (medData.success)     _medCache[name] = medData.items || [];
