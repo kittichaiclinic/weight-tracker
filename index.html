@@ -617,8 +617,10 @@ async function apiGet(params) {
 // ===== PATIENTS =====
 async function loadPatients(force=false) {
   if (!force && _patientsLoaded && patients.length) return true;
+  const t0 = performance.now();
   try {
     const r = await apiGet({action:"getPatients"});
+    console.log("[TIMING] getPatients ใช้เวลา:", Math.round(performance.now() - t0), "ms");
     if (r.success) {
       patients = r.patients;
       _patientsLoaded = true;
@@ -866,11 +868,21 @@ function selectPt(name) {
 
   // preload ข้อมูลทั้งหมดพร้อมกัน — ใช้ allSettled เพื่อไม่ให้ endpoint เดียวที่พังทำให้ preload ทั้งหมดล้มเหลว
   // getBodyCompImages ไม่ต้องเรียกแยกแล้ว เพราะ getPatientData ส่ง images มาให้พร้อมกันในตัว
-  Promise.allSettled([
-    getPatientCached(name, true),
-    apiGet({action:"getMedication", name}),
-    apiGet({action:"getScaleData", name})
-  ]).then(([patientRes, medRes, scaleRes]) => {
+  const _tSelect = performance.now();
+  const timedGetPatient = getPatientCached(name, true).then(r => {
+    console.log("[TIMING] getPatientData ใช้เวลา:", Math.round(performance.now() - _tSelect), "ms");
+    return r;
+  });
+  const timedMed = apiGet({action:"getMedication", name}).then(r => {
+    console.log("[TIMING] getMedication ใช้เวลา:", Math.round(performance.now() - _tSelect), "ms");
+    return r;
+  });
+  const timedScale = apiGet({action:"getScaleData", name}).then(r => {
+    console.log("[TIMING] getScaleData ใช้เวลา:", Math.round(performance.now() - _tSelect), "ms");
+    return r;
+  });
+  Promise.allSettled([timedGetPatient, timedMed, timedScale]).then(([patientRes, medRes, scaleRes]) => {
+    console.log("[TIMING] preload ทั้งหมดเสร็จรวม:", Math.round(performance.now() - _tSelect), "ms");
     const patientData = patientRes.status === "fulfilled" ? patientRes.value : {success:false};
     const medData     = medRes.status     === "fulfilled" ? medRes.value     : {success:false};
     const scaleData    = scaleRes.status   === "fulfilled" ? scaleRes.value   : {success:false};
