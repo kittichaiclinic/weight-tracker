@@ -431,6 +431,8 @@ let _cache = {};           // cache ข้อมูลผู้ป่วย { na
 let _medCache = {};        // cache รายการยา { name: items }
 let _bodyCache = {};       // cache รูป body composition { name: images }
 let _scaleCache = {};      // cache ข้อมูล New Body Composition { name: records }
+let _fullDataInFlight = {}; // { name: Promise } — เก็บ Promise ของ getPatientFullData ที่กำลังทำงานอยู่
+                             // กันไม่ให้ยิงซ้ำตอนแท็บอื่นถูกเปิดก่อน preload จะเสร็จ (race condition)
 let _mcInfo = {};          // name -> { sex, age, height } จากรอบดึงรายชื่อ Medicloud ล่าสุด
 let _pickedMcInfo = null;  // { sex, age, height } ของชื่อที่กด "เลือก" ล่าสุด รอไปใช้ตอนสร้างผู้ป่วยสำเร็จ
 let _bookingSchedule = {   // ตารางเวลาจากระบบจองคิว
@@ -461,7 +463,10 @@ window.onload = async () => {
       // preload แท็บอื่นๆ พร้อมกันเบื้องหลัง ไม่ต้องรอ — ให้สลับแท็บทีหลังเร็วขึ้นเหมือนฝั่ง staff
       // getBodyCompImages ไม่ต้องเรียกแยกแล้ว เพราะ renderFact() (เรียกจาก gp("fact") ข้างบน)
       // จะได้ images มาพร้อมกับข้อมูลคนไข้อยู่แล้ว แล้วเก็บลง _bodyCache ให้เองในตัว
-      Promise.allSettled([
+      // เก็บ Promise ไว้ใน _fullDataInFlight (คนละ key จาก getPatientFullData เพราะเป็นคนละ endpoint)
+      // กัน renderMed/renderNewBody ยิงซ้ำถ้าถูกเปิดก่อน preload นี้จะเสร็จ
+      const medScaleKey = currentName + "__medscale";
+      _fullDataInFlight[medScaleKey] = Promise.allSettled([
         apiGet({action:"getMedication", name:currentName}),
         apiGet({action:"getScaleData", name:currentName})
       ]).then(([medRes, scaleRes]) => {
@@ -469,7 +474,8 @@ window.onload = async () => {
         const scaleData = scaleRes.status === "fulfilled" ? scaleRes.value : {success:false};
         if (medData.success)   _medCache[currentName] = medData.items || [];
         if (scaleData.success) _scaleCache[currentName] = scaleData.records || [];
-      });
+        delete _fullDataInFlight[medScaleKey];
+      }).catch(()=>{ delete _fullDataInFlight[medScaleKey]; });
     }
     else { hTab("cfg"); toast(" กรุณาตั้งค่า URL ก่อน","err"); }
   } else {
@@ -571,15 +577,61 @@ function gp(name, btn) {
 
 // ===== API =====
 // ── CACHE HELPERS ─────────────────────────────────────────
+let _patientDataInFlight = {}; // { name: Promise } — กัน getPatientCached ยิงซ้ำถ้ามี request เดิมกำลังทำงานอยู่
 async function getPatientCached(name, force=false) {
   if (!force && _cache[name]) return _cache[name];
-  const d = await apiGet({action:"getPatientData", name});
-  if (d.success) _cache[name] = d;
-  return d;
+  if (!force && _patientDataInFlight[name]) return _patientDataInFlight[name]; // มีคำขอเดิมทำงานอยู่ รอตัวนั้นแทน
+
+  const p = apiGet({action:"getPatientData", name}).then(d => {
+    if (d.success) _cache[name] = d;
+    delete _patientDataInFlight[name];
+    return d;
+  }).catch(e => {
+    delete _patientDataInFlight[name];
+    throw e;
+  });
+
+  if (!force) _patientDataInFlight[name] = p; // force=true ไม่เก็บไว้ในคิว in-flight เพราะตั้งใจจะโหลดใหม่เสมอ
+  return p;
 }
 function invalidateCache(name) {
   if (name) delete _cache[name];
   else _cache = {};
+}
+
+// ดึงข้อมูลคนไข้+ยา+เครื่องชั่งพร้อมกันในคำขอเดียว (getPatientFullData) แล้วแจกใส่แคชทั้ง 4 ตัว
+// ถ้ามี request ของคนคนนี้กำลังทำงานอยู่แล้ว (จาก preload ที่ยังไม่เสร็จ) จะรอ Promise ตัวเดิมแทนที่จะยิงซ้ำ
+// — แก้ race condition ที่ผู้ใช้กดแท็บอื่นเร็วเกินกว่า preload จะเสร็จ
+function fetchPatientFullData(name, force=false) {
+  if (!force && _cache[name] && _medCache[name] !== undefined && _scaleCache[name] !== undefined) {
+    // มีครบทุกแคชแล้ว ไม่ต้องโหลดใหม่
+    return Promise.resolve({
+      success: true,
+      patient: _cache[name],
+      medication: {success:true, items:_medCache[name]},
+      scale: {success:true, records:_scaleCache[name]}
+    });
+  }
+  if (_fullDataInFlight[name]) return _fullDataInFlight[name]; // มีคำขอกำลังทำงานอยู่แล้ว รอตัวเดิม
+
+  const p = apiGet({action:"getPatientFullData", name}).then(r => {
+    const patientData = (r.success && r.patient) ? r.patient : {success:false};
+    const medData      = (r.success && r.medication) ? r.medication : {success:false};
+    const scaleData     = (r.success && r.scale) ? r.scale : {success:false};
+
+    if (patientData.success) { _cache[name] = patientData; _bodyCache[name] = patientData.images || []; }
+    if (medData.success)     _medCache[name] = medData.items || [];
+    if (scaleData.success)   _scaleCache[name] = scaleData.records || [];
+
+    delete _fullDataInFlight[name]; // เสร็จแล้ว เอาออกจากรายการที่กำลังทำงาน
+    return r;
+  }).catch(e => {
+    delete _fullDataInFlight[name]; // พังก็ต้องเอาออก ไม่งั้นจะค้างเป็น "กำลังทำงาน" ตลอดไป ไม่มีใครลองใหม่ได้
+    throw e;
+  });
+
+  _fullDataInFlight[name] = p;
+  return p;
 }
 
 async function api(data) {
@@ -866,19 +918,12 @@ function selectPt(name) {
     if (targetDiv) targetDiv.innerHTML = loading();
   }
 
-  // preload ข้อมูลทั้งหมดในคำขอเดียว — เดิมยิง 3 request แยกกัน (getPatientData/getMedication/getScaleData)
-  // ต้องจ่าย fixed overhead ของ Google Apps Script Web App (วัดจริงได้ 2-4.5 วินาทีต่อ request
-  // ไม่ว่าโค้ดจะเบา/หนักแค่ไหน) ถึง 3 รอบ รวมเป็น request เดียวจ่ายแค่ครั้งเดียว
+  // preload ข้อมูลทั้งหมดในคำขอเดียว ผ่าน fetchPatientFullData ที่แชร์กับ renderMed/renderNewBody/renderBody
+  // เพื่อกัน race condition — ถ้ากดแท็บอื่นก่อน preload เสร็จ จะรอ request เดิมแทนที่จะยิงซ้ำ
   const _tSelect = performance.now();
-  apiGet({action:"getPatientFullData", name}).then(r => {
+  fetchPatientFullData(name, true).then(r => {
     console.log("[TIMING] getPatientFullData ใช้เวลา:", Math.round(performance.now() - _tSelect), "ms");
     const patientData = (r.success && r.patient) ? r.patient : {success:false};
-    const medData      = (r.success && r.medication) ? r.medication : {success:false};
-    const scaleData     = (r.success && r.scale) ? r.scale : {success:false};
-
-    if (patientData.success) { _cache[name] = patientData; _bodyCache[name] = patientData.images || []; }
-    if (medData.success)     _medCache[name] = medData.items || [];
-    if (scaleData.success)   _scaleCache[name] = scaleData.records || [];
 
     // ถ้ามี plan แล้ว (goalWeight มีค่า) เปิด entry, ถ้าไม่มีเปิด plan
     if (!patientMode) {
@@ -1835,12 +1880,17 @@ async function renderBody() {
   if(!currentName){v.innerHTML=noPatient();return;}
   v.innerHTML=loading();
   try {
-    const cachedBody = _bodyCache && _bodyCache[currentName];
-    const d = cachedBody ? {success:true, images:cachedBody} : await apiGet({action:"getBodyCompImages",name:currentName});
-    if (d.success && !cachedBody) _bodyCache[currentName] = d.images||[];
+    // ถ้ายังไม่มีในแคช ให้รอ preload ที่กำลังทำงานอยู่แทนที่จะยิงซ้ำ
+    // ฝั่ง staff: ข้อมูล+รูปมากับ fetchPatientFullData
+    // ฝั่งคนไข้: ข้อมูล+รูปมากับ getPatientCached (ที่ renderFact เรียกไว้แล้ว) ใช้ตัวเดียวกันไม่ยิงซ้ำ
+    if (_bodyCache[currentName] === undefined || !_cache[currentName]) {
+      if (patientMode) await getPatientCached(currentName);
+      else await fetchPatientFullData(currentName);
+    }
+    const images = _bodyCache[currentName] || [];
 
     // ดึงข้อมูลมวลไขมัน/กล้ามเนื้อจาก visit records
-    const pd = await getPatientCached(currentName);
+    const pd = _cache[currentName] || {success:false};
     const massRecs = pd.success ? pd.records.filter(r=>r.fatMass||r.muscleMass) : [];
 
     const massForm = !patientMode ? `
@@ -1858,7 +1908,7 @@ async function renderBody() {
     // (images + records) ไม่ต้องยิง request เพิ่ม
     const wDates = (pd.success ? pd.records : []).filter(r => r.weight).map(r => r.date);
     const latestWeighDate = wDates.length ? wDates.slice().sort().pop() : "";
-    const imgDates = (d.images || []).map(img => img.date).filter(Boolean);
+    const imgDates = images.map(img => img.date).filter(Boolean);
     const latestImgDate = imgDates.length ? imgDates.slice().sort().pop() : "";
     const bodyCompUploaded = !!(latestWeighDate && latestImgDate && latestImgDate >= latestWeighDate);
 
@@ -1918,8 +1968,8 @@ async function renderBody() {
         <button class="btn btn-bl" onclick="submitBody()">📤 อัปโหลด</button>
       </div>` : "";
 
-    const imgs=d.images&&d.images.length
-      ?`<div class="img-grid">${d.images.slice().reverse().map(img=>`
+    const imgs=images.length
+      ?`<div class="img-grid">${images.slice().reverse().map(img=>`
           <div class="img-card">
             <img src="https://drive.google.com/thumbnail?id=${img.fileId}&sz=w400"
               loading="lazy" onclick="openLb('${img.fileId}')"
@@ -1985,10 +2035,14 @@ async function renderNewBody() {
   if (!currentName) { v.innerHTML = noPatient(); return; }
   v.innerHTML = loading();
   try {
-    const cached = _scaleCache && _scaleCache[currentName];
-    const d = cached ? {success:true, records:cached} : await apiGet({action:"getScaleData", name:currentName});
-    if (d.success && !cached) _scaleCache[currentName] = d.records || [];
-    const recs = d.success ? d.records : [];
+    // ถ้ายังไม่มีในแคช ให้รอ preload ที่กำลังทำงานอยู่แทนที่จะยิง getScaleData ซ้ำ
+    // ฝั่ง staff preload มากับ fetchPatientFullData, ฝั่งคนไข้ preload แยกเป็นคู่ medication+scale
+    if (_scaleCache[currentName] === undefined) {
+      const medScaleKey = currentName + "__medscale";
+      if (patientMode && _fullDataInFlight[medScaleKey]) await _fullDataInFlight[medScaleKey];
+      else await fetchPatientFullData(currentName);
+    }
+    const recs = _scaleCache[currentName] || [];
 
     const form = !patientMode ? `
       <div class="card">
@@ -2184,10 +2238,14 @@ async function renderMed() {
   if (!currentName) { v.innerHTML = noPatient(); return; }
   v.innerHTML = loading();
   try {
-    const cached = _medCache && _medCache[currentName];
-    const d = cached ? {success:true, items:cached} : await apiGet({action:"getMedication", name:currentName});
-    if (d.success && !cached) _medCache[currentName] = d.items||[];
-    const items = d.items || [];
+    // ถ้ายังไม่มีในแคช ให้รอ preload ที่กำลังทำงานอยู่แทนที่จะยิง getMedication ซ้ำ
+    // ฝั่ง staff preload มากับ fetchPatientFullData, ฝั่งคนไข้ preload แยกเป็นคู่ medication+scale
+    if (_medCache[currentName] === undefined) {
+      const medScaleKey = currentName + "__medscale";
+      if (patientMode && _fullDataInFlight[medScaleKey]) await _fullDataInFlight[medScaleKey];
+      else await fetchPatientFullData(currentName);
+    }
+    const items = _medCache[currentName] || [];
     window._medItems = items;
     medRowCount = 0;
 
