@@ -1207,6 +1207,8 @@ async function submitEntry() {
       toast("✅ "+r.message,"ok");
       set("en-w","");
       invalidateCache(currentName);
+      _lbCache = {}; // ข้อมูลน้ำหนักเปลี่ยน อันดับในหน้าสถิติอาจเปลี่ยนตาม ล้างแคชทิ้งให้โหลดใหม่
+      Object.keys(_pstatCache).forEach(k => { if (k.startsWith(currentName+"|")) delete _pstatCache[k]; });
       renderEntry();
     } else { toast("❌ "+r.message,"err"); if(restore) restore(); }
   } catch(e) { toast("❌ บันทึกไม่ได้: "+e.message,"err"); if(restore) restore(); }
@@ -1494,7 +1496,13 @@ async function submitFact() {
   try {
     const r = await api({action:"logVisit",name:currentName,date,weight,
       dose:V("fc-ds"),doctor:V("fc-dr"),budget:V("fc-bg"),note:V("fc-nt")});
-    if (r.success){toast(" "+r.message,"ok");set("fc-w","");set("fc-ds","2.5");set("fc-bg","1500");set("fc-nt","");invalidateCache(currentName);renderFact();}
+    if (r.success){
+      toast(" "+r.message,"ok");set("fc-w","");set("fc-ds","2.5");set("fc-bg","1500");set("fc-nt","");
+      invalidateCache(currentName);
+      _lbCache = {}; // ข้อมูลน้ำหนักเปลี่ยน อันดับในหน้าสถิติอาจเปลี่ยนตาม ล้างแคชทิ้งให้โหลดใหม่
+      Object.keys(_pstatCache).forEach(k => { if (k.startsWith(currentName+"|")) delete _pstatCache[k]; });
+      renderFact();
+    }
     else toast(" "+r.message,"err");
   } catch(e){toast(" ส่งข้อมูลไม่ได้","err");}
 }
@@ -1523,7 +1531,12 @@ async function submitEdit(row) {
     const r = await api({action:"editVisit",name:currentName,row,
       date:V("ed-dt"),weight:V("ed-w"),dose:V("ed-ds"),
       doctor:V("ed-dr"),budget:V("ed-bg"),note:V("ed-nt")});
-    if(r.success){toast(" แก้ไขสำเร็จ","ok");closeModal();invalidateCache(currentName);if(patientMode) renderFact(); else renderEntry();}
+    if(r.success){
+      toast(" แก้ไขสำเร็จ","ok");closeModal();invalidateCache(currentName);
+      _lbCache = {}; // ข้อมูลน้ำหนักอาจเปลี่ยน อันดับในหน้าสถิติอาจเปลี่ยนตาม ล้างแคชทิ้งให้โหลดใหม่
+      Object.keys(_pstatCache).forEach(k => { if (k.startsWith(currentName+"|")) delete _pstatCache[k]; });
+      if(patientMode) renderFact(); else renderEntry();
+    }
     else { toast(" "+r.message,"err"); if(restore) restore(); }
   } catch(e){toast(" ส่งไม่ได้","err"); if(restore) restore();}
 }
@@ -1588,6 +1601,8 @@ async function confirmDeleteWeightRow(row) {
       toast("✅ ลบข้อมูลสำเร็จ","ok");
       closeModal();
       invalidateCache(currentName);
+      _lbCache = {}; // ข้อมูลน้ำหนักเปลี่ยน อันดับในหน้าสถิติอาจเปลี่ยนตาม ล้างแคชทิ้งให้โหลดใหม่
+      Object.keys(_pstatCache).forEach(k => { if (k.startsWith(currentName+"|")) delete _pstatCache[k]; });
       if (patientMode) renderFact(); else renderEntry();
     } else { toast("❌ "+r.message,"err"); if(restore) restore(); }
   } catch(e) { toast("❌ ลบไม่ได้","err"); if(restore) restore(); }
@@ -2745,12 +2760,20 @@ async function confirmCancelAppt(id) {
 // ===== LEADERBOARD (สถิติ) =====
 let _lbPeriod = "month";
 const LB_PERIOD_LABEL = { week:"ชั่งล่าสุด", month:"เดือนนี้", "3months":"3 เดือนนี้", year:"ปีนี้" };
+let _lbCache = {}; // { period: leaderboardResult } — แคชแยกตามช่วงเวลา กดสลับกลับไปช่วงเดิมไม่ต้องโหลดใหม่
 
 async function renderLeaderboard() {
   const v = document.getElementById("stat-v");
   v.innerHTML = loading();
   try {
-    const d = await apiGet({action:"getLeaderboard", period:_lbPeriod});
+    // ถ้ายังไม่เคยโหลดเลย (แคชว่างเปล่าทั้งหมด) โหลดทั้ง 4 ช่วงเวลาพร้อมกันในคำขอเดียว
+    // ประหยัดกว่ายิงทีละช่วงตอนกดสลับ เพราะ Google Apps Script มี fixed overhead สูงต่อ 1 คำขอ
+    if (Object.keys(_lbCache).length === 0) {
+      const all = await apiGet({action:"getAllLeaderboards"});
+      if (!all.success) { v.innerHTML = err(all.message); return; }
+      Object.keys(all.periods).forEach(period => { _lbCache[period] = all.periods[period]; });
+    }
+    const d = _lbCache[_lbPeriod];
     if (!d.success) { v.innerHTML = err(d.message); return; }
 
     const periodChips = Object.keys(LB_PERIOD_LABEL).map(k =>
@@ -2896,13 +2919,24 @@ async function qbcSubmit(name, weighDate) {
 }
 
 let _pstatPeriod = "month";
+let _pstatCache = {}; // { "name|period": result } — แคชแยกตามคนไข้+ช่วงเวลา
 
 async function renderPatientStat() {
   const v = document.getElementById("pstat-v");
   if (!currentName) { v.innerHTML = noPatient(); return; }
   v.innerHTML = loading();
   try {
-    const d = await apiGet({action:"getLeaderboard", period:_pstatPeriod, onlyName:currentName});
+    // ถ้ายังไม่เคยโหลดของคนนี้เลย (ไม่มี key ไหนของคนนี้ในแคช) โหลดทั้ง 4 ช่วงเวลาพร้อมกันในคำขอเดียว
+    const hasAnyCached = Object.keys(_pstatCache).some(k => k.startsWith(currentName+"|"));
+    if (!hasAnyCached) {
+      const all = await apiGet({action:"getAllLeaderboards", onlyName:currentName});
+      if (!all.success) { v.innerHTML = err(all.message); return; }
+      Object.keys(all.periods).forEach(period => {
+        _pstatCache[currentName + "|" + period] = all.periods[period];
+      });
+    }
+    const cacheKey = currentName + "|" + _pstatPeriod;
+    const d = _pstatCache[cacheKey];
     if (!d.success) { v.innerHTML = err(d.message); return; }
 
     const periodChips = Object.keys(LB_PERIOD_LABEL).map(k =>
