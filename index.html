@@ -433,6 +433,9 @@ let _bodyCache = {};       // cache รูป body composition { name: images }
 let _scaleCache = {};      // cache ข้อมูล New Body Composition { name: records }
 let _fullDataInFlight = {}; // { name: Promise } — เก็บ Promise ของ getPatientFullData ที่กำลังทำงานอยู่
                              // กันไม่ให้ยิงซ้ำตอนแท็บอื่นถูกเปิดก่อน preload จะเสร็จ (race condition)
+let _apptCache = null;      // cache ข้อมูลนัดหมายทั้งหมด (getApptData คืนข้อมูลทุกเดือนอยู่แล้ว
+                             // ไม่ได้กรองตามเดือนที่ backend เลย — กดเปลี่ยนเดือนไม่จำเป็นต้องโหลดใหม่)
+let _apptInFlight = null;   // Promise ของ getApptData ที่กำลังทำงานอยู่ (กันยิงซ้ำจาก 3 จุดที่เรียกพร้อมกัน)
 let _mcInfo = {};          // name -> { sex, age, height } จากรอบดึงรายชื่อ Medicloud ล่าสุด
 let _pickedMcInfo = null;  // { sex, age, height } ของชื่อที่กด "เลือก" ล่าสุด รอไปใช้ตอนสร้างผู้ป่วยสำเร็จ
 let _bookingSchedule = {   // ตารางเวลาจากระบบจองคิว
@@ -594,6 +597,27 @@ async function getPatientCached(name, force=false) {
   if (!force) _patientDataInFlight[name] = p; // force=true ไม่เก็บไว้ในคิว in-flight เพราะตั้งใจจะโหลดใหม่เสมอ
   return p;
 }
+
+// ดึงข้อมูลนัดหมายทั้งหมด (ทุกเดือน) — getApptData ไม่ได้กรองตามเดือนที่ backend เลย
+// เพราะงั้นกดเปลี่ยนเดือนดูปฏิทินไม่ต้องโหลดใหม่ทุกครั้ง ใช้ข้อมูลชุดเดียวกัน filter ใน frontend เอา
+// มี cache + in-flight dedup กันยิงซ้ำจาก 3 จุดที่เรียก (renderAppt, renderApptHome, renderApptStaff)
+async function fetchApptData(force=false) {
+  if (!force && _apptCache) return _apptCache;
+  if (!force && _apptInFlight) return _apptInFlight;
+
+  _apptInFlight = apiGet({action:"getApptData"}).then(d => {
+    if (d.success !== false) _apptCache = d; // getApptData ไม่ส่ง success:false มาปกติ แต่กันไว้เผื่อ
+    _apptInFlight = null;
+    return d;
+  }).catch(e => {
+    _apptInFlight = null;
+    throw e;
+  });
+
+  return _apptInFlight;
+}
+function invalidateApptCache() { _apptCache = null; }
+
 function invalidateCache(name) {
   if (name) delete _cache[name];
   else _cache = {};
@@ -2554,7 +2578,7 @@ async function renderAppt() {
   // รอ booking schedule โหลดเสร็จก่อน
   if (window._scheduleReady) await window._scheduleReady;
   try {
-    const d = await apiGet({action:"getApptData"});
+    const d = await fetchApptData();
     const appts = d.appts || [];
     const overrides = d.overrides || {};
     const todayStr0 = today();
@@ -2730,7 +2754,7 @@ async function confirmBookAppt(date, time) {
   closeModal();
   try {
     const r = await api({action:"bookAppt", name:currentName, date, time});
-    if (r.success) { toast("✅ บันทึกเวลาเข้ารับบริการสำเร็จ","ok"); apptSelDate = null; renderAppt(); }
+    if (r.success) { toast("✅ บันทึกเวลาเข้ารับบริการสำเร็จ","ok"); apptSelDate = null; invalidateApptCache(); renderAppt(); }
     else toast("❌ "+r.message,"err");
   } catch(e) { toast("❌ นัดไม่ได้","err"); }
 }
@@ -2751,7 +2775,7 @@ async function confirmCancelAppt(id) {
   closeModal();
   try {
     const r = await api({action:"cancelAppt", id, name:currentName});
-    if (r.success) { toast("✅ ยกเลิกนัดแล้ว","ok"); apptSelDate = null; renderAppt(); }
+    if (r.success) { toast("✅ ยกเลิกนัดแล้ว","ok"); apptSelDate = null; invalidateApptCache(); renderAppt(); }
     else toast("❌ "+r.message,"err");
   } catch(e) { toast("❌ ยกเลิกไม่ได้","err"); }
 }
@@ -2992,7 +3016,7 @@ async function renderApptStaff() {
 async function _renderApptStaffInto(v) {
   let appts = [], overrides = {};
   try {
-    const d = await apiGet({action:"getApptData"});
+    const d = await fetchApptData();
     appts = d.appts || [];
     overrides = d.overrides || {};
   } catch(e) {}
@@ -3115,6 +3139,7 @@ async function setDayOverride(ds, status) {
     const r = await api({action:"setDayOverride", date:ds, status});
     if (r.success) {
       toast("✅ "+r.message,"ok");
+      invalidateApptCache();
       const v = getApptContainer();
       if (v) { v.innerHTML = loading(); _renderApptStaffInto(v); }
     } else toast("❌ "+r.message,"err");
@@ -3130,6 +3155,7 @@ async function saveDayTime(ds) {
     const r = await api({action:"setDayOverride", date:ds, status:"time", timeVal: start+"-"+end});
     if (r.success) {
       toast("✅ บันทึกเวลาพิเศษแล้ว","ok");
+      invalidateApptCache();
       const v = getApptContainer();
       if (v) { v.innerHTML = loading(); _renderApptStaffInto(v); }
     } else toast("❌ "+r.message,"err");
@@ -3141,6 +3167,7 @@ async function resetDayOverride(ds) {
     const r = await api({action:"setDayOverride", date:ds, status:"reset"});
     if (r.success) {
       toast("✅ รีเซ็ตแล้ว","ok");
+      invalidateApptCache();
       const v = getApptContainer();
       if (v) { v.innerHTML = loading(); _renderApptStaffInto(v); }
     } else toast("❌ "+r.message,"err");
@@ -3153,6 +3180,7 @@ async function staffCancelAppt(id) {
     const r = await api({action:"cancelAppt", id});
     if (r.success) {
       toast("✅ ลบนัดแล้ว","ok");
+      invalidateApptCache();
       const v = getApptContainer();
       if (v) { v.innerHTML = loading(); _renderApptStaffInto(v); }
     } else toast("❌ "+r.message,"err");
