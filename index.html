@@ -903,7 +903,7 @@ function copyLink(url, btnId) {
   });
 }
 
-function selectPt(name) {
+function selectPt(name, targetTab) {
   currentName = name;
   document.getElementById("tb-title").innerHTML =
     `<span onclick="backHome()" style="cursor:pointer;margin-right:6px;font-size:19px;opacity:.85">‹</span>${name}`;
@@ -914,7 +914,7 @@ function selectPt(name) {
 
   // แสดงสถานะกำลังโหลดทันที ระหว่างรอ preload ข้อมูล
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
-  const firstTab = patientMode ? "fact" : "entry";
+  const firstTab = patientMode ? "fact" : (targetTab || "entry");
   const firstPage = document.getElementById("pg-"+firstTab);
   if (firstPage) {
     firstPage.classList.add("active");
@@ -925,10 +925,17 @@ function selectPt(name) {
   // preload ข้อมูลทั้งหมดในคำขอเดียว ผ่าน fetchPatientFullData ที่แชร์กับ renderNewBody/renderBody
   // เพื่อกัน race condition — ถ้ากดแท็บอื่นก่อน preload เสร็จ จะรอ request เดิมแทนที่จะยิงซ้ำ
   fetchPatientFullData(name, true).then(r => {
-    // Plan รวมอยู่ในหน้าลงข้อมูลแล้ว (แสดงการ์ดตั้งเป้าหมายถ้ายังไม่มี หรือสรุปเป้าหมายถ้ามีแล้ว) เปิด entry เสมอ
-    if (!patientMode) gp("entry", document.querySelector('.nav button[onclick*="entry"]'));
+    // เปิดแท็บที่ระบุไว้ (ถ้ามี) เช่น กดชื่อจากหน้า "ล่าสุด" ให้ไป Body Composition เลย
+    // ไม่ระบุมา ก็เปิด entry ตามปกติ (Plan รวมอยู่ในหน้าลงข้อมูลแล้ว)
+    if (!patientMode) {
+      const t = targetTab || "entry";
+      gp(t, document.querySelector(`.nav button[onclick*="${t}"]`));
+    }
   }).catch(()=>{
-    if (!patientMode) gp("entry", document.querySelector('.nav button[onclick*="entry"]'));
+    if (!patientMode) {
+      const t = targetTab || "entry";
+      gp(t, document.querySelector(`.nav button[onclick*="${t}"]`));
+    }
   });
 
   if (patientMode) gp("fact", document.querySelector('.nav button[onclick*="fact"]'));
@@ -2250,16 +2257,20 @@ async function submitBody() {
   if(!date){toast(" กรอกวันที่","err");return;}
   if(!file){toast(" เลือกรูปก่อน","err");return;}
   if(file.size>8*1024*1024){toast(" รูปใหญ่เกิน 8MB","err");return;}
-  toast(" กำลังอัปโหลด...");
+  showSaveOverlay("กำลังอัปโหลด...");
   const reader=new FileReader();
   reader.onload=async e=>{
     const b64=e.target.result.split(",")[1];
     try {
       const r=await api({action:"uploadBodyComp",name:currentName,date,
         imageBase64:b64,mimeType:file.type,fileName:file.name});
-      if(r.success){toast(" อัปโหลดสำเร็จ","ok");delete _bodyCache[currentName];renderBody();}
-      else toast(" "+r.message,"err");
-    } catch(e){toast(" อัปโหลดไม่ได้","err");}
+      if(r.success){
+        delete _bodyCache[currentName];
+        renderBody();
+        showSaveDoneOverlay("✅ อัปโหลดแล้ว");
+      }
+      else { hideSaveOverlay(); toast(" "+r.message,"err"); }
+    } catch(e){ hideSaveOverlay(); toast(" อัปโหลดไม่ได้","err"); }
   };
   reader.readAsDataURL(file);
 }
@@ -2744,6 +2755,13 @@ async function confirmCancelAppt(id) {
 // ===== LEADERBOARD (สถิติ) =====
 let _lbPeriod = "month";
 const LB_PERIOD_LABEL = { week:"ชั่งล่าสุด", month:"เดือนนี้", "3months":"3 เดือนนี้", year:"ปีนี้" };
+// ข้อความยาวสำหรับปุ่มเลือกช่วงเวลาโดยเฉพาะ (LB_PERIOD_LABEL คำสั้นไว้ใช้ต่อประโยคอื่น เช่น "อันดับของคุณใน...")
+const LB_PERIOD_BUTTON_LABEL = {
+  week: "ชั่งล่าสุด",
+  month: "อันดับการลดใน 1 เดือนนี้",
+  "3months": "อันดับการลดใน 3 เดือนนี้",
+  year: "อันดับของน้ำหนักที่ลดได้ทั้งหมด"
+};
 let _lbCache = {}; // { period: leaderboardResult } — แคชแยกตามช่วงเวลา กดสลับกลับไปช่วงเดิมไม่ต้องโหลดใหม่
 
 async function renderLeaderboard() {
@@ -2761,7 +2779,7 @@ async function renderLeaderboard() {
     if (!d.success) { v.innerHTML = err(d.message); return; }
 
     const periodChips = Object.keys(LB_PERIOD_LABEL).map(k =>
-      `<button class="mtab ${k===_lbPeriod?'on':''}" onclick="switchLbPeriod('${k}')">${LB_PERIOD_LABEL[k]}</button>`
+      `<button class="mtab ${k===_lbPeriod?'on':''}" onclick="switchLbPeriod('${k}')">${LB_PERIOD_BUTTON_LABEL[k]}</button>`
     ).join("");
 
     const list = d.leaderboard || [];
@@ -2812,7 +2830,7 @@ async function renderRecentWeighIns() {
         : `<div id="${statusId}" style="font-size:11px;color:var(--tx3);margin-top:4px">ยังไม่ได้อัปโหลด Body Composition</div>`;
       return `
         <div class="pt-card" style="padding:12px 15px;margin-bottom:9px">
-          <div style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="selectPt('${safeName}')">
+          <div style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="selectPt('${safeName}','body')">
             <div class="pt-av">${r.name.charAt(0)}</div>
             <div style="flex:1">
               <div style="font-weight:600;font-size:14px">${r.name}</div>
@@ -2878,7 +2896,7 @@ async function qbcSubmit(name, weighDate) {
   if (!date) { toast(" กรอกวันที่", "err"); return; }
   if (!file) { toast(" เลือกรูปก่อน", "err"); return; }
   if (file.size > 8*1024*1024) { toast(" รูปใหญ่เกิน 8MB", "err"); return; }
-  toast(" กำลังอัปโหลด...");
+  showSaveOverlay("กำลังอัปโหลด...");
   const reader = new FileReader();
   reader.onload = async e => {
     const b64 = e.target.result.split(",")[1];
@@ -2886,7 +2904,6 @@ async function qbcSubmit(name, weighDate) {
       const r = await api({action:"uploadBodyComp", name, date,
         imageBase64:b64, mimeType:file.type, fileName:file.name});
       if (r.success) {
-        toast(" อัปโหลดสำเร็จ", "ok");
         delete _bodyCache[name];
         closeModal();
         // อัปเดตข้อความสถานะตรงๆ ในหน้าจอ แทนการโหลดรายชื่อทั้งหมดใหม่ (ช้าโดยไม่จำเป็น)
@@ -2896,8 +2913,9 @@ async function qbcSubmit(name, weighDate) {
           statusEl.textContent = "✅ อัปโหลด Body Composition ล่าสุดแล้ว";
           statusEl.style.color = "var(--gr-tx)";
         }
-      } else toast(" "+r.message, "err");
-    } catch(e) { toast(" อัปโหลดไม่ได้", "err"); }
+        showSaveDoneOverlay("✅ อัปโหลดแล้ว");
+      } else { hideSaveOverlay(); toast(" "+r.message, "err"); }
+    } catch(e) { hideSaveOverlay(); toast(" อัปโหลดไม่ได้", "err"); }
   };
   reader.readAsDataURL(file);
 }
@@ -2924,7 +2942,7 @@ async function renderPatientStat() {
     if (!d.success) { v.innerHTML = err(d.message); return; }
 
     const periodChips = Object.keys(LB_PERIOD_LABEL).map(k =>
-      `<button class="mtab ${k===_pstatPeriod?'on':''}" onclick="switchPstatPeriod('${k}')">${LB_PERIOD_LABEL[k]}</button>`
+      `<button class="mtab ${k===_pstatPeriod?'on':''}" onclick="switchPstatPeriod('${k}')">${LB_PERIOD_BUTTON_LABEL[k]}</button>`
     ).join("");
 
     let body;
