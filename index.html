@@ -1055,6 +1055,15 @@ async function renderEntry() {
         </div>
         <div class="srow"><span>เป้าหมาย</span><span>${d.goalWeight||"-"} kg</span></div>
         <div class="srow"><span>ต้องลด</span><span>${(d.startWeight&&d.goalWeight)?Math.max(0,d.startWeight-d.goalWeight).toFixed(1):"-"} kg</span></div>
+      </div>` : "";
+
+    // สรุปข้อมูลส่วนตัว (เพศ/อายุ/ส่วนสูง) — แยกการ์ดออกจาก Plan มีปุ่มแก้ไขของตัวเอง
+    const personalInfoSummary = (!patientMode && hasPersonalInfo) ? `
+      <div class="card">
+        <div class="ctitle" style="display:flex;align-items:center;justify-content:space-between">
+          <span>👤 ข้อมูลส่วนตัว</span>
+          <span onclick="togglePersonalInfoEdit()" style="cursor:pointer;font-size:13px;color:var(--rose-dp);font-weight:400">✏️ แก้ไข</span>
+        </div>
         <div class="srow"><span>เพศ</span><span>${sexLabel}</span></div>
         <div class="srow"><span>อายุ</span><span>${d.age||"-"} ปี</span></div>
         <div class="srow"><span>ส่วนสูง</span><span>${d.height||"-"} cm</span></div>
@@ -1084,7 +1093,7 @@ async function renderEntry() {
         <button class="btn btn-out" onclick="submitPatientInfo()">💾 บันทึกข้อมูลส่วนตัว</button>
       </div>` : "";
 
-    v.innerHTML = planSummary + planForm + `
+    v.innerHTML = planSummary + personalInfoSummary + planForm + `
       <div class="card">
         <div class="ctitle">📝 ลงข้อมูล</div>
         <div class="fg"><label>วันที่</label><input type="date" id="en-dt" value="${today()}"></div>
@@ -1249,8 +1258,11 @@ async function submitEntry() {
 
 function togglePlanEdit() {
   const planCard = document.getElementById("plan-form-card");
-  const infoCard = document.getElementById("patientinfo-form-card");
   if (planCard) planCard.style.display = planCard.style.display === "none" ? "block" : "none";
+}
+
+function togglePersonalInfoEdit() {
+  const infoCard = document.getElementById("patientinfo-form-card");
   if (infoCard) infoCard.style.display = infoCard.style.display === "none" ? "block" : "none";
 }
 
