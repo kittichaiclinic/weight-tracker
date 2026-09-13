@@ -1156,7 +1156,7 @@ async function renderEntry() {
                 const chg = r.change;
                 const cs = (!chg&&chg!==0) ? "-" : `<span class="${chg<0?"cn":"cp"}">${chg>0?"+":""}${(+chg).toFixed(1)}</span>`;
                 const bg = r.budget ? parseFloat(r.budget).toLocaleString()+"฿" : "-";
-                const eb = `<span onclick='editFactModal(${r.row},"${r.date}",${r.weight||0},"${r.dose||""}","${r.doctor||""}",${r.budget||0},"${(r.note||"").replace(/"/g,"")}")' style="cursor:pointer;font-size:15px;margin-right:6px">✏️</span><span onclick='deleteWeightRow(${r.row},"${r.date}")' style="cursor:pointer;font-size:15px">🗑</span>`;
+                const eb = `<span onclick='editFactModal(${r.row},"${r.date}",${r.weight||0},"${r.dose||""}","${r.doctor||""}",${r.budget||0},"${String(r.note||"").replace(/"/g,"")}")' style="cursor:pointer;font-size:15px;margin-right:6px">✏️</span><span onclick='deleteWeightRow(${r.row},"${r.date}")' style="cursor:pointer;font-size:15px">🗑</span>`;
                 return `<tr>
                   <td>${r.week}</td>
                   <td style="font-size:11px">${r.date}</td>
@@ -1377,7 +1377,7 @@ async function renderFact() {
       const cs = (!chg&&chg!==0) ? "-"
         : `<span class="${chg<0?'cn':'cp'}">${chg>0?"+":""}${(+chg).toFixed(1)}</span>`;
       const eb = !patientMode
-        ? `<span onclick='editFactModal(${r.row},"${r.date}",${r.weight||0},"${r.dose||""}","${r.doctor||""}",${r.budget||0},"${(r.note||"").replace(/"/g,"")}")'
+        ? `<span onclick='editFactModal(${r.row},"${r.date}",${r.weight||0},"${r.dose||""}","${r.doctor||""}",${r.budget||0},"${String(r.note||"").replace(/"/g,"")}")'
             style="cursor:pointer;font-size:15px;margin-right:6px">✏️</span><span onclick='deleteWeightRow(${r.row},"${r.date}")'
             style="cursor:pointer;font-size:15px"></span>` : "";
       const bg = r.budget ? parseFloat(r.budget).toLocaleString()+"฿" : "-";
