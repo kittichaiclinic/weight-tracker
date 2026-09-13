@@ -1914,18 +1914,24 @@ async function submitMeas() {
 }
 
 // ===== BODY COMP =====
+let _renderBodyInFlight = {}; // { name: true } — กัน renderBody ทำงานซ้อนกันเองถ้ากดปุ่มซ้ำเร็วเกินไป (double-click)
 async function renderBody() {
-  const v=document.getElementById("body-v");
-  if(!currentName){v.innerHTML=noPatient();return;}
-  v.innerHTML=loading();
+  const v = document.getElementById("body-v");
+  if (!currentName) { v.innerHTML = noPatient(); return; }
+  if (_renderBodyInFlight[currentName]) return; // มีรอบที่กำลังโหลดอยู่แล้ว ไม่ต้องเริ่มซ้ำ
+  _renderBodyInFlight[currentName] = true;
+
   try {
-    // ถ้ายังไม่มีในแคช ให้รอ preload ที่กำลังทำงานอยู่แทนที่จะยิงซ้ำ
-    // ฝั่ง staff: ข้อมูล+รูปมากับ fetchPatientFullData
-    // ฝั่งคนไข้: ข้อมูล+รูปมากับ getPatientCached (ที่ renderFact เรียกไว้แล้ว) ใช้ตัวเดียวกันไม่ยิงซ้ำ
+    // เช็คแคชก่อน ถ้าไม่มีค่อยแสดงวงแหวนโหลด (ลดการกระพริบ)
     if (_bodyCache[currentName] === undefined || !_cache[currentName]) {
-      if (patientMode) await getPatientCached(currentName);
-      else await fetchPatientFullData(currentName);
+      v.innerHTML = loading();
+
+      // บังคับดึงข้อมูลใหม่เฉพาะตอนที่ _bodyCache ยังไม่เคยมีเลย (ไม่ใช่ทุกครั้งที่ _cache หายไปเฉยๆ)
+      const forceFetch = _bodyCache[currentName] === undefined;
+      const d = await getPatientCached(currentName, forceFetch);
+      if (d.success) _bodyCache[currentName] = d.images || [];
     }
+
     const images = _bodyCache[currentName] || [];
 
     // ดึงข้อมูลมวลไขมัน/กล้ามเนื้อจาก visit records
@@ -2026,6 +2032,7 @@ async function renderBody() {
       if (hasMuscle) drawBodyMuscleChart(massRecs);
     }, 80);
   } catch(e){v.innerHTML=err(e.message);}
+  finally { delete _renderBodyInFlight[currentName]; }
 }
 
 let bodyFatChart=null, bodyMuscleChart=null;
@@ -2069,18 +2076,28 @@ async function submitBodyMass() {
 }
 
 // ===== NEW BODY COMPOSITION (เตรียมเชื่อมเครื่องชั่งอัตโนมัติ) =====
+let _renderNewBodyInFlight = {}; // { name: true } — กัน renderNewBody ทำงานซ้อนกันเองถ้ากดปุ่มซ้ำเร็วเกินไป
 async function renderNewBody() {
   const v = document.getElementById("newbody-v");
   if (!currentName) { v.innerHTML = noPatient(); return; }
-  v.innerHTML = loading();
+  if (_renderNewBodyInFlight[currentName]) return; // มีรอบที่กำลังโหลดอยู่แล้ว ไม่ต้องเริ่มซ้ำ
+  _renderNewBodyInFlight[currentName] = true;
   try {
-    // ถ้ายังไม่มีในแคช ให้รอ preload ที่กำลังทำงานอยู่แทนที่จะยิง getScaleData ซ้ำ
-    // ฝั่ง staff preload มากับ fetchPatientFullData, ฝั่งคนไข้ preload แยกเป็นคู่ medication+scale
+    // เช็คแคชก่อนแสดงวงแหวนโหลด (ลดการกระพริบ)
     if (_scaleCache[currentName] === undefined) {
+      v.innerHTML = loading();
+
       const medScaleKey = currentName + "__medscale";
-      if (patientMode && _fullDataInFlight[medScaleKey]) await _fullDataInFlight[medScaleKey];
-      else await fetchPatientFullData(currentName);
+      if (patientMode && _fullDataInFlight[medScaleKey]) {
+        // ฝั่งคนไข้ — ถ้ากำลังโหลดข้อมูลล่วงหน้าอยู่ ให้รอ
+        await _fullDataInFlight[medScaleKey];
+      } else {
+        // ดึงเฉพาะข้อมูลเครื่องชั่ง (getScaleData) แทนที่จะดึง Full Data ของทั้งคนไข้
+        const r = await apiGet({action: "getScaleData", name: currentName});
+        _scaleCache[currentName] = r.success ? (r.records || []) : [];
+      }
     }
+
     const recs = _scaleCache[currentName] || [];
 
     const form = !patientMode ? `
@@ -2168,6 +2185,7 @@ async function renderNewBody() {
       });
     }, 80);
   } catch(e) { v.innerHTML = err(e.message); }
+  finally { delete _renderNewBodyInFlight[currentName]; }
 }
 
 async function submitNewBody() {
