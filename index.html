@@ -1068,7 +1068,7 @@ function buildSymForm(prefix) {
 async function renderEntry() {
   const v = document.getElementById("entry-v");
   if (!currentName) { v.innerHTML = noPatient(); return; }
-  v.innerHTML = loading();
+  if (!_cache[currentName]) v.innerHTML = loading(); // โชว์วงแหวนโหลดเฉพาะตอนยังไม่มีแคช กันกระพริบตอนสลับแท็บ
   try {
     const d = await getPatientCached(currentName);
     if (!d.success) { v.innerHTML = err(d.message); return; }
@@ -1243,7 +1243,7 @@ async function submitEntry() {
 async function renderPlan() {
   const v = document.getElementById("plan-v");
   if (!currentName) { v.innerHTML = noPatient(); return; }
-  v.innerHTML = loading();
+  if (!_cache[currentName]) v.innerHTML = loading();
   try {
     const d = await getPatientCached(currentName);
     const p = d.success ? d : {};
@@ -1321,7 +1321,7 @@ async function submitPatientInfo() {
 async function renderFact() {
   const v = document.getElementById("fact-v");
   if (!currentName) { v.innerHTML=noPatient(); return; }
-  v.innerHTML = loading();
+  if (!_cache[currentName]) v.innerHTML = loading();
   try {
     const d = await getPatientCached(currentName);
     if (!d.success) { v.innerHTML=err(d.message); return; }
@@ -1726,7 +1726,7 @@ async function confirmDeleteMassRow(row) {
 async function renderSym() {
   const v = document.getElementById("sym-v");
   if (!currentName){v.innerHTML=noPatient();return;}
-  v.innerHTML=loading();
+  if (!_cache[currentName]) v.innerHTML=loading();
   try {
     const d = await getPatientCached(currentName);
     const records = (d.records||[]).slice().reverse();
@@ -1846,7 +1846,7 @@ async function submitSym() {
 async function renderMeas() {
   const v = document.getElementById("meas-v");
   if (!currentName){v.innerHTML=noPatient();return;}
-  v.innerHTML=loading();
+  if (!_cache[currentName]) v.innerHTML=loading();
   try {
     const d = await getPatientCached(currentName);
     const logForm = !patientMode ? `
@@ -2293,7 +2293,7 @@ let medRowCount = 0;
 async function renderMed() {
   const v = document.getElementById("med-v");
   if (!currentName) { v.innerHTML = noPatient(); return; }
-  v.innerHTML = loading();
+  if (_medCache[currentName] === undefined) v.innerHTML = loading();
   try {
     // ถ้ายังไม่มีในแคช ให้รอ preload ที่กำลังทำงานอยู่แทนที่จะยิง getMedication ซ้ำ
     // ฝั่ง staff preload มากับ fetchPatientFullData, ฝั่งคนไข้ preload แยกเป็นคู่ medication+scale
@@ -2592,7 +2592,7 @@ function dateStr(d) {
 async function renderAppt() {
   const v = document.getElementById("appt-v");
   if (!currentName) { v.innerHTML = noPatient(); return; }
-  v.innerHTML = loading();
+  if (!_apptCache) v.innerHTML = loading();
   // รอ booking schedule โหลดเสร็จก่อน
   if (window._scheduleReady) await window._scheduleReady;
   try {
@@ -3143,7 +3143,7 @@ function apptCalMove(dir) {
   const mo = apptCalDate.getMonth() + dir;
   apptCalDate = new Date(yr, mo, 1);
   const v = getApptContainer();
-  if (v) { v.innerHTML = loading(); _renderApptStaffInto(v); }
+  if (v) { if (!_apptCache) v.innerHTML = loading(); _renderApptStaffInto(v); }
 }
 
 function staffSelDay(ds) {
