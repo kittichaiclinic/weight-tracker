@@ -1897,10 +1897,15 @@ async function renderBody() {
     if (_bodyCache[currentName] === undefined || !_cache[currentName]) {
       v.innerHTML = loading();
 
-      // บังคับดึงข้อมูลใหม่เฉพาะตอนที่ _bodyCache ยังไม่เคยมีเลย (ไม่ใช่ทุกครั้งที่ _cache หายไปเฉยๆ)
-      const forceFetch = _bodyCache[currentName] === undefined;
-      const d = await getPatientCached(currentName, forceFetch);
-      if (d.success) _bodyCache[currentName] = d.images || [];
+      // รอ preload ที่กำลังทำงานอยู่แทนที่จะยิงซ้ำ — ต้องรอตัวเดียวกับที่ selectPt() ใช้เป๊ะ
+      // (fetchPatientFullData ใช้ _fullDataInFlight, getPatientCached ใช้ _patientDataInFlight คนละตัวกัน
+      //  เดิมเรียก getPatientCached ตรงๆ ทำให้ไม่รู้ว่า preload จาก selectPt กำลังทำงานอยู่ ยิงซ้ำไปอีกรอบ)
+      if (patientMode) {
+        const d = await getPatientCached(currentName);
+        if (d.success && d.images) _bodyCache[currentName] = d.images; // เผื่อยังไม่เคยเปิดหน้า "น้ำหนัก" มาก่อน (renderFact ไม่ได้ทำให้แล้ว)
+      } else {
+        await fetchPatientFullData(currentName); // ฟังก์ชันนี้จะรอ _fullDataInFlight ถ้ามี preload ค้างอยู่
+      }
     }
 
     const images = _bodyCache[currentName] || [];
@@ -2058,12 +2063,18 @@ async function renderNewBody() {
     if (_scaleCache[currentName] === undefined) {
       v.innerHTML = loading();
 
+      // รอ preload ที่กำลังทำงานอยู่แทนที่จะยิงซ้ำ — ต้องรอตัวที่ถูกต้องตาม mode
+      // (เดิมเช็คแค่ patientMode&&_fullDataInFlight[scaleKey] ฝั่ง staff เลยไม่เคยเข้าเงื่อนไขนี้ได้เลย
+      //  ตกไป else ยิง getScaleData ใหม่ทุกครั้ง ทั้งที่ selectPt() preload ไว้แล้วผ่าน fetchPatientFullData)
       const scaleKey = currentName + "__scale";
       if (patientMode && _fullDataInFlight[scaleKey]) {
         // ฝั่งคนไข้ — ถ้ากำลังโหลดข้อมูลล่วงหน้าอยู่ ให้รอ
         await _fullDataInFlight[scaleKey];
+      } else if (!patientMode) {
+        // ฝั่ง staff — รอ fetchPatientFullData ตัวเดียวกับที่ selectPt() preload ไว้ (มี _scaleCache มาด้วย)
+        await fetchPatientFullData(currentName);
       } else {
-        // ดึงเฉพาะข้อมูลเครื่องชั่ง (getScaleData) แทนที่จะดึง Full Data ของทั้งคนไข้
+        // ฝั่งคนไข้ แต่ไม่มี preload ค้างอยู่ (เช่น เข้ามาตรงๆ ไม่ผ่าน preload) — ดึงเองตรงๆ
         const r = await apiGet({action: "getScaleData", name: currentName});
         _scaleCache[currentName] = r.success ? (r.records || []) : [];
       }
