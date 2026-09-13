@@ -599,11 +599,7 @@ function invalidateCache(name) {
 // ถ้ามี request ของคนคนนี้กำลังทำงานอยู่แล้ว (จาก preload ที่ยังไม่เสร็จ) จะรอ Promise ตัวเดิมแทนที่จะยิงซ้ำ
 // — แก้ race condition ที่ผู้ใช้กดแท็บอื่นเร็วเกินกว่า preload จะเสร็จ
 function fetchPatientFullData(name, force=false) {
-  console.log("[DEBUG fetchPatientFullData] เรียกด้วย name:", name, "force:", force,
-    "| _cache:", !!_cache[name], "| _scaleCache:", _scaleCache[name] !== undefined,
-    "| _bodyCache:", _bodyCache[name] !== undefined, "| _fullDataInFlight:", !!_fullDataInFlight[name]);
   if (!force && _cache[name] && _scaleCache[name] !== undefined && _bodyCache[name] !== undefined) {
-    console.log("[DEBUG fetchPatientFullData] ใช้แคชเดิม return ทันที");
     // มีครบทุกแคชแล้ว ไม่ต้องโหลดใหม่
     return Promise.resolve({
       success: true,
@@ -611,14 +607,9 @@ function fetchPatientFullData(name, force=false) {
       scale: {success:true, records:_scaleCache[name]}
     });
   }
-  if (_fullDataInFlight[name]) { console.log("[DEBUG fetchPatientFullData] มี in-flight อยู่แล้ว รอตัวเดิม"); return _fullDataInFlight[name]; } // มีคำขอกำลังทำงานอยู่แล้ว รอตัวเดิม
+  if (_fullDataInFlight[name]) return _fullDataInFlight[name]; // มีคำขอกำลังทำงานอยู่แล้ว รอตัวเดิม
 
-  console.log("[DEBUG fetchPatientFullData] ไม่มีอะไรเลย ยิง apiGet ใหม่จริงๆ");
   const p = apiGet({action:"getPatientFullData", name}).then(r => {
-    console.log("[DEBUG fetchPatientFullData] ผลลัพธ์ที่ได้กลับมา r.success:", r.success,
-      "| r.patient?.success:", r.patient && r.patient.success,
-      "| r.patient?.images:", r.patient && r.patient.images,
-      "| r.patient?.images?.length:", r.patient && r.patient.images && r.patient.images.length);
     const patientData = (r.success && r.patient) ? r.patient : {success:false};
     const scaleData     = (r.success && r.scale) ? r.scale : {success:false};
 
@@ -671,10 +662,8 @@ async function apiGet(params) {
 // ===== PATIENTS =====
 async function loadPatients(force=false) {
   if (!force && _patientsLoaded && patients.length) return true;
-  const t0 = performance.now();
   try {
     const r = await apiGet({action:"getPatients"});
-    console.log("[TIMING] getPatients ใช้เวลา:", Math.round(performance.now() - t0), "ms");
     if (r.success) {
       patients = r.patients;
       _patientsLoaded = true;
@@ -922,9 +911,7 @@ function selectPt(name) {
 
   // preload ข้อมูลทั้งหมดในคำขอเดียว ผ่าน fetchPatientFullData ที่แชร์กับ renderNewBody/renderBody
   // เพื่อกัน race condition — ถ้ากดแท็บอื่นก่อน preload เสร็จ จะรอ request เดิมแทนที่จะยิงซ้ำ
-  const _tSelect = performance.now();
   fetchPatientFullData(name, true).then(r => {
-    console.log("[TIMING] getPatientFullData ใช้เวลา:", Math.round(performance.now() - _tSelect), "ms");
     // Plan รวมอยู่ในหน้าลงข้อมูลแล้ว (แสดงการ์ดตั้งเป้าหมายถ้ายังไม่มี หรือสรุปเป้าหมายถ้ามีแล้ว) เปิด entry เสมอ
     if (!patientMode) gp("entry", document.querySelector('.nav button[onclick*="entry"]'));
   }).catch(()=>{
@@ -1903,19 +1890,12 @@ let _renderBodyInFlight = {}; // { name: true } — กัน renderBody ทำ�
 async function renderBody() {
   const v = document.getElementById("body-v");
   if (!currentName) { v.innerHTML = noPatient(); return; }
-  console.log("[DEBUG renderBody] เรียกแล้ว currentName:", currentName,
-    "| _renderBodyInFlight:", _renderBodyInFlight[currentName],
-    "| _bodyCache:", _bodyCache[currentName],
-    "| _cache:", _cache[currentName],
-    "| _fullDataInFlight:", _fullDataInFlight[currentName]);
-  if (_renderBodyInFlight[currentName]) { console.log("[DEBUG renderBody] ออกทันทีเพราะมี renderBodyInFlight ค้างอยู่"); return; }
+  if (_renderBodyInFlight[currentName]) return; // มีรอบที่กำลังโหลดอยู่แล้ว ไม่ต้องเริ่มซ้ำ
   _renderBodyInFlight[currentName] = true;
 
   try {
     // เช็คแคชก่อน ถ้าไม่มีค่อยแสดงวงแหวนโหลด (ลดการกระพริบ)
     if (_bodyCache[currentName] === undefined || !_cache[currentName]) {
-      console.log("[DEBUG renderBody] เข้าเงื่อนไขโหลด เพราะ:",
-        _bodyCache[currentName] === undefined ? "_bodyCache undefined" : "_cache falsy");
       v.innerHTML = loading();
 
       // รอ preload ที่กำลังทำงานอยู่แทนที่จะยิงซ้ำ — ต้องรอตัวเดียวกับที่ selectPt() ใช้เป๊ะ
@@ -1925,11 +1905,8 @@ async function renderBody() {
         const d = await getPatientCached(currentName);
         if (d.success && d.images) _bodyCache[currentName] = d.images; // เผื่อยังไม่เคยเปิดหน้า "น้ำหนัก" มาก่อน (renderFact ไม่ได้ทำให้แล้ว)
       } else {
-        console.log("[DEBUG renderBody] กำลังเรียก fetchPatientFullData ตอนนี้ _fullDataInFlight[currentName]:", _fullDataInFlight[currentName]);
         await fetchPatientFullData(currentName); // ฟังก์ชันนี้จะรอ _fullDataInFlight ถ้ามี preload ค้างอยู่
       }
-    } else {
-      console.log("[DEBUG renderBody] มีแคชครบแล้ว ไม่โหลดใหม่");
     }
 
     const images = _bodyCache[currentName] || [];
