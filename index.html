@@ -166,20 +166,6 @@ textarea{resize:vertical;min-height:56px}
 .pt-link-txt{flex:1;background:var(--bl2);border-radius:8px;padding:7px 10px;
   font-size:11px;color:var(--bl);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 
-/* MED */
-.med-row{display:flex;align-items:baseline;gap:10px;padding:9px 4px;
-  border-bottom:1px solid var(--bd);font-size:13px}
-.med-row:last-child{border-bottom:none}
-.med-no{color:var(--tx3);font-size:12px;min-width:22px}
-.med-name{flex:1;font-weight:500}
-.med-dose{color:var(--rose-dp);font-size:12px}
-.med-note{color:var(--am);font-size:12px}
-.med-edit-row{display:flex;gap:7px;margin-bottom:9px;align-items:center}
-.med-edit-row input{flex:1}
-.med-edit-row .del-btn{flex-shrink:0;width:33px;height:33px;border:none;background:var(--rd);
-  color:#fff;border-radius:9px;cursor:pointer;font-size:16px;display:flex;
-  align-items:center;justify-content:center}
-
 /* MEASURE TABS */
 .mtabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:13px}
 .mtab{padding:7px 13px;border-radius:99px;border:1.5px solid var(--bd);
@@ -390,8 +376,6 @@ textarea{resize:vertical;min-height:56px}
 <div id="pg-body" class="page"><div id="body-v"></div></div>
 <div id="pg-newbody" class="page"><div id="newbody-v"></div></div>
 <div id="pg-stat" class="page"><div id="pstat-v"></div></div>
-<!-- MED -->
-<div id="pg-med" class="page"><div id="med-v"></div></div>
 <!-- PLAN -->
 <div id="pg-plan" class="page"><div id="plan-v"></div></div>
 <!-- ENTRY -->
@@ -428,7 +412,6 @@ const TIME_SLOTS_WEEKDAY = ["17:00","17:30","18:00","18:30","19:00","19:30","20:
 const TIME_SLOTS_WEEKEND = ["09:00","09:30","10:00","10:30","11:00","11:30","13:00","13:30","14:00","14:30","15:00","15:30"];
 let gasUrl = localStorage.getItem(UK) || DEFAULT_URL;
 let _cache = {};           // cache ข้อมูลผู้ป่วย { name: data }
-let _medCache = {};        // cache รายการยา { name: items }
 let _bodyCache = {};       // cache รูป body composition { name: images }
 let _scaleCache = {};      // cache ข้อมูล New Body Composition { name: records }
 let _fullDataInFlight = {}; // { name: Promise } — เก็บ Promise ของ getPatientFullData ที่กำลังทำงานอยู่
@@ -463,22 +446,16 @@ window.onload = async () => {
     document.querySelector(".main").style.paddingBottom = "82px";
     if (gasUrl) {
       gp("fact", document.querySelector('.nav button[onclick*="fact"]'));
-      // preload แท็บอื่นๆ พร้อมกันเบื้องหลัง ไม่ต้องรอ — ให้สลับแท็บทีหลังเร็วขึ้นเหมือนฝั่ง staff
+      // preload ข้อมูลเครื่องชั่งเบื้องหลัง ไม่ต้องรอ — ให้สลับแท็บทีหลังเร็วขึ้นเหมือนฝั่ง staff
       // getBodyCompImages ไม่ต้องเรียกแยกแล้ว เพราะ renderFact() (เรียกจาก gp("fact") ข้างบน)
       // จะได้ images มาพร้อมกับข้อมูลคนไข้อยู่แล้ว แล้วเก็บลง _bodyCache ให้เองในตัว
       // เก็บ Promise ไว้ใน _fullDataInFlight (คนละ key จาก getPatientFullData เพราะเป็นคนละ endpoint)
-      // กัน renderMed/renderNewBody ยิงซ้ำถ้าถูกเปิดก่อน preload นี้จะเสร็จ
-      const medScaleKey = currentName + "__medscale";
-      _fullDataInFlight[medScaleKey] = Promise.allSettled([
-        apiGet({action:"getMedication", name:currentName}),
-        apiGet({action:"getScaleData", name:currentName})
-      ]).then(([medRes, scaleRes]) => {
-        const medData   = medRes.status   === "fulfilled" ? medRes.value   : {success:false};
-        const scaleData = scaleRes.status === "fulfilled" ? scaleRes.value : {success:false};
-        if (medData.success)   _medCache[currentName] = medData.items || [];
+      // กัน renderNewBody ยิงซ้ำถ้าถูกเปิดก่อน preload นี้จะเสร็จ
+      const scaleKey = currentName + "__scale";
+      _fullDataInFlight[scaleKey] = apiGet({action:"getScaleData", name:currentName}).then(scaleData => {
         if (scaleData.success) _scaleCache[currentName] = scaleData.records || [];
-        delete _fullDataInFlight[medScaleKey];
-      }).catch(()=>{ delete _fullDataInFlight[medScaleKey]; });
+        delete _fullDataInFlight[scaleKey];
+      }).catch(()=>{ delete _fullDataInFlight[scaleKey]; });
     }
     else { hTab("cfg"); toast(" กรุณาตั้งค่า URL ก่อน","err"); }
   } else {
@@ -537,7 +514,6 @@ function buildNav(patient) {
         <button onclick="gp('sym',this)"><span class="ni">📞</span>ติดตาม</button>
         <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
         <button onclick="gp('newbody',this)"><span class="ni">⚖️</span>New Body Composition</button>
-        <button onclick="gp('med',this)"><span class="ni">💊</span>ยา</button>
         <button onclick="gp('appt',this)"><span class="ni">📅</span>เลือกเวลา</button>
         <button onclick="backHome()"><span class="ni">🏠</span>หน้าแรก</button>`;
     } else {
@@ -548,7 +524,6 @@ function buildNav(patient) {
         <button onclick="gp('meas',this)"><span class="ni">📏</span>สัดส่วน</button>
         <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
         <button onclick="gp('newbody',this)"><span class="ni">⚖️</span>New Body Composition</button>
-        <button onclick="gp('med',this)"><span class="ni">💊</span>ยา</button>
         <button onclick="gp('stat',this)"><span class="ni">🏆</span>สถิติ</button>
         <button onclick="gp('appt',this)"><span class="ni">📅</span>เลือกเวลา</button>`;
     }
@@ -570,7 +545,6 @@ function gp(name, btn) {
   else if (name==="body") renderBody();
   else if (name==="newbody") renderNewBody();
   else if (name==="stat") renderPatientStat();
-  else if (name==="med") renderMed();
   else if (name==="plan") renderPlan();
   else if (name==="entry") renderEntry();
   else if (name==="appt") renderAppt();
@@ -627,12 +601,11 @@ function invalidateCache(name) {
 // ถ้ามี request ของคนคนนี้กำลังทำงานอยู่แล้ว (จาก preload ที่ยังไม่เสร็จ) จะรอ Promise ตัวเดิมแทนที่จะยิงซ้ำ
 // — แก้ race condition ที่ผู้ใช้กดแท็บอื่นเร็วเกินกว่า preload จะเสร็จ
 function fetchPatientFullData(name, force=false) {
-  if (!force && _cache[name] && _medCache[name] !== undefined && _scaleCache[name] !== undefined) {
+  if (!force && _cache[name] && _scaleCache[name] !== undefined) {
     // มีครบทุกแคชแล้ว ไม่ต้องโหลดใหม่
     return Promise.resolve({
       success: true,
       patient: _cache[name],
-      medication: {success:true, items:_medCache[name]},
       scale: {success:true, records:_scaleCache[name]}
     });
   }
@@ -640,11 +613,9 @@ function fetchPatientFullData(name, force=false) {
 
   const p = apiGet({action:"getPatientFullData", name}).then(r => {
     const patientData = (r.success && r.patient) ? r.patient : {success:false};
-    const medData      = (r.success && r.medication) ? r.medication : {success:false};
     const scaleData     = (r.success && r.scale) ? r.scale : {success:false};
 
     if (patientData.success) { _cache[name] = patientData; _bodyCache[name] = patientData.images || []; }
-    if (medData.success)     _medCache[name] = medData.items || [];
     if (scaleData.success)   _scaleCache[name] = scaleData.records || [];
 
     delete _fullDataInFlight[name]; // เสร็จแล้ว เอาออกจากรายการที่กำลังทำงาน
@@ -867,7 +838,7 @@ async function submitRenamePt(oldName) {
       closeModal();
 
       // ย้าย cache จากชื่อเดิมไปชื่อใหม่ แทนที่จะทิ้งแล้วโหลดใหม่ทั้งหมด
-      [_cache, _medCache, _bodyCache, _scaleCache].forEach(cache => {
+      [_cache, _bodyCache, _scaleCache].forEach(cache => {
         if (cache[oldName] !== undefined) { cache[newName] = cache[oldName]; delete cache[oldName]; }
       });
 
@@ -942,7 +913,7 @@ function selectPt(name) {
     if (targetDiv) targetDiv.innerHTML = loading();
   }
 
-  // preload ข้อมูลทั้งหมดในคำขอเดียว ผ่าน fetchPatientFullData ที่แชร์กับ renderMed/renderNewBody/renderBody
+  // preload ข้อมูลทั้งหมดในคำขอเดียว ผ่าน fetchPatientFullData ที่แชร์กับ renderNewBody/renderBody
   // เพื่อกัน race condition — ถ้ากดแท็บอื่นก่อน preload เสร็จ จะรอ request เดิมแทนที่จะยิงซ้ำ
   const _tSelect = performance.now();
   fetchPatientFullData(name, true).then(r => {
@@ -2087,10 +2058,10 @@ async function renderNewBody() {
     if (_scaleCache[currentName] === undefined) {
       v.innerHTML = loading();
 
-      const medScaleKey = currentName + "__medscale";
-      if (patientMode && _fullDataInFlight[medScaleKey]) {
+      const scaleKey = currentName + "__scale";
+      if (patientMode && _fullDataInFlight[scaleKey]) {
         // ฝั่งคนไข้ — ถ้ากำลังโหลดข้อมูลล่วงหน้าอยู่ ให้รอ
-        await _fullDataInFlight[medScaleKey];
+        await _fullDataInFlight[scaleKey];
       } else {
         // ดึงเฉพาะข้อมูลเครื่องชั่ง (getScaleData) แทนที่จะดึง Full Data ของทั้งคนไข้
         const r = await apiGet({action: "getScaleData", name: currentName});
@@ -2285,83 +2256,6 @@ function openLb(fileId) {
 function closeLb(){
   document.getElementById("lb").style.display="none";
   document.getElementById("lb-img").src="";
-}
-
-// ===== MEDICATION =====
-let medRowCount = 0;
-
-async function renderMed() {
-  const v = document.getElementById("med-v");
-  if (!currentName) { v.innerHTML = noPatient(); return; }
-  if (_medCache[currentName] === undefined) v.innerHTML = loading();
-  try {
-    // ถ้ายังไม่มีในแคช ให้รอ preload ที่กำลังทำงานอยู่แทนที่จะยิง getMedication ซ้ำ
-    // ฝั่ง staff preload มากับ fetchPatientFullData, ฝั่งคนไข้ preload แยกเป็นคู่ medication+scale
-    if (_medCache[currentName] === undefined) {
-      const medScaleKey = currentName + "__medscale";
-      if (patientMode && _fullDataInFlight[medScaleKey]) await _fullDataInFlight[medScaleKey];
-      else await fetchPatientFullData(currentName);
-    }
-    const items = _medCache[currentName] || [];
-    window._medItems = items;
-    medRowCount = 0;
-
-    if (patientMode) {
-      // patient — แสดงอย่างเดียว
-      const viewHtml = items.length
-        ? items.map(it=>`<div class="med-row">
-            <span class="med-no">${it.no||""}</span>
-            <span class="med-name">${it.name}</span>
-            <span class="med-dose">${it.dose||""}</span>
-            ${it.note?`<span class="med-note">${it.note}</span>`:""}
-          </div>`).join("")
-        : '<div class="ld">ยังไม่มีรายการยา</div>';
-      v.innerHTML = `<div class="card"><div class="ctitle">รายการยาปัจจุบัน</div>${viewHtml}</div>`;
-    } else {
-      // staff — แสดง inline edit พร้อมปุ่ม  และ 
-      const rowsHtml = items.map((it,i) => medRow(i, it.name, it.dose, it.note)).join("");
-      v.innerHTML = `
-        <div class="card">
-          <div class="ctitle">รายการยาปัจจุบัน</div>
-          <div id="med-rows">${rowsHtml}</div>
-          <button class="btn-out" style="width:100%;margin:10px 0 8px" onclick="addMedRow()"> เพิ่มรายการ</button>
-          <button class="btn btn-pk" onclick="submitMed()">💾 บันทึกรายการยา</button>
-        </div>`;
-    }
-  } catch(e) { v.innerHTML = err(e.message); }
-}
-
-function medRow(i, name="", dose="", note="") {
-  medRowCount = Math.max(medRowCount, i + 1);
-  return `<div class="med-edit-row" id="mr-${i}">
-    <input placeholder="ชื่อยา" value="${name}" id="mn-${i}">
-    <input placeholder="ขนาด/วิธี" value="${dose}" id="md-${i}" style="max-width:110px">
-    <input placeholder="หมายเหตุ" value="${note}" id="mnote-${i}" style="max-width:90px">
-    <button class="del-btn" onclick="document.getElementById('mr-${i}').remove()">✕</button>
-  </div>`;
-}
-
-function addMedRow() {
-  const c = document.getElementById("med-rows");
-  if (!c) return;
-  const div = document.createElement("div");
-  div.innerHTML = medRow(medRowCount++);
-  c.appendChild(div.firstElementChild);
-}
-
-async function submitMed() {
-  const rows = document.querySelectorAll("[id^='mr-']");
-  const items = [];
-  rows.forEach(r => {
-    const i = r.id.split("-")[1];
-    const n = V("mn-" + i);
-    if (n) items.push({name:n, dose:V("md-"+i), note:V("mnote-"+i)});
-  });
-  try {
-    const r = await api({action:"saveMedication", name:currentName, items});
-    if (r.success) { toast(" "+r.message, "ok"); delete _medCache[currentName]; renderMed(); }
-    else toast(" "+r.message, "err");
-  } catch(e) { toast(" บันทึกไม่ได้", "err"); }
 }
 
 // ===== ADD PATIENT =====
