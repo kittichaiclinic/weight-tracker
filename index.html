@@ -212,6 +212,11 @@ textarea{resize:vertical;min-height:56px}
 /* MODAL */
 .modal-ov{position:fixed;inset:0;background:rgba(58,51,44,.4);z-index:500;
   display:none;align-items:center;justify-content:center;padding:20px}
+.save-ov{position:fixed;inset:0;background:rgba(58,51,44,.35);backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);z-index:900;display:none;align-items:center;justify-content:center;
+  flex-direction:column;gap:16px;padding:20px;text-align:center}
+.save-ov-text{font-size:19px;font-weight:700;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.3)}
+.save-ov .spin{width:36px;height:36px;border-width:4px}
 .modal{background:var(--cd);border-radius:18px;padding:21px 17px 25px;
   width:100%;max-width:400px;max-height:90vh;overflow-y:auto;
   box-shadow:0 20px 60px rgba(58,51,44,.2)}
@@ -398,6 +403,12 @@ textarea{resize:vertical;min-height:56px}
   <div class="modal" id="modal-body"></div>
 </div>
 
+<!-- SAVE OVERLAY — เบลอทั้งจอ คลิกอะไรไม่ได้ ระหว่างบันทึก/สร้างข้อมูล -->
+<div class="save-ov" id="save-ov">
+  <div class="spin"></div>
+  <div class="save-ov-text" id="save-ov-text">กำลังบันทึก...</div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -419,6 +430,7 @@ let _apptCache = null;      // cache ข้อมูลนัดหมายท�
 let _apptInFlight = null;   // Promise ของ getApptData ที่กำลังทำงานอยู่ (กันยิงซ้ำจาก 3 จุดที่เรียกพร้อมกัน)
 let _entryHadCompleteSetup = false; // มี Plan+ข้อมูลส่วนตัวครบอยู่แล้วก่อนหน้านี้ไหม (เช็คตอนโหลดหน้าลงข้อมูล)
                                      // ใช้ตัดสินว่า submitEntry ต้องบังคับกรอกครบก่อนบันทึกหรือไม่ ถ้าเคยครบแล้วไม่ต้องกรอกซ้ำ
+let _lastHomeTab = "pt"; // แท็บหน้าแรก (pt/add/stat/recent/apts/cfg) ที่เพิ่งดูล่าสุด ใช้ตอนกด "กลับแท็บล่าสุด" จากหน้าคนไข้
 let _mcInfo = {};          // name -> { sex, age, height } จากรอบดึงรายชื่อ Medicloud ล่าสุด
 let _pickedMcInfo = null;  // { sex, age, height } ของชื่อที่กด "เลือก" ล่าสุด รอไปใช้ตอนสร้างผู้ป่วยสำเร็จ
 let _bookingSchedule = {   // ตารางเวลาจากระบบจองคิว
@@ -514,7 +526,7 @@ function buildNav(patient) {
         <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
         <button onclick="gp('newbody',this)"><span class="ni">⚖️</span>New Body Composition</button>
         <button onclick="gp('appt',this)"><span class="ni">📅</span>เลือกเวลา</button>
-        <button onclick="backHome()"><span class="ni">🏠</span>หน้าแรก</button>`;
+        <button onclick="backHome()"><span class="ni">↩️</span>กลับแท็บล่าสุด</button>`;
     } else {
       // Patient nav — ไม่มี Plan
       nav.innerHTML = `
@@ -689,6 +701,7 @@ async function loadPatients(force=false) {
 
 
 function hTab(t) {
+  _lastHomeTab = t; // จำแท็บล่าสุดไว้ ใช้ตอนกด "กลับแท็บล่าสุด" จากหน้าคนไข้
   ["pt","add","stat","recent","apts","cfg"].forEach(k=>{
     const s = document.getElementById("sec-"+k);
     const b = document.getElementById("ht-"+k);
@@ -930,7 +943,7 @@ function backHome() {
   document.querySelector(".main").style.paddingBottom = "20px";
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
   document.getElementById("pg-home").classList.add("active");
-  hTab("pt");
+  hTab(_lastHomeTab); // กลับไปแท็บล่าสุดที่เพิ่งดู แทนที่จะกลับไปหน้ารายชื่อเสมอ
 }
 
 // ===== PATIENT HOME (patient mode) =====
@@ -1253,11 +1266,10 @@ async function submitEntry() {
   };
   // ลบ field ว่างออก
   Object.keys(payload).forEach(k => { if(payload[k]==="") delete payload[k]; });
-  const btn = event.currentTarget;
-  const restore = btnLoading(btn, "กำลังบันทึก...");
+  showSaveOverlay("กำลังบันทึก...");
   try {
     const r = await api(payload);
-    if (!r.success) { toast("❌ "+r.message,"err"); if(restore) restore(); return; }
+    if (!r.success) { hideSaveOverlay(); toast("❌ "+r.message,"err"); return; }
 
     // บันทึก Plan + ข้อมูลส่วนตัวไปพร้อมกัน ถ้ามีการกรอก/แก้ไขในฟอร์มนั้นๆ (ไม่ทำถ้าเป็นโหมดคนไข้)
     if (!patientMode) {
@@ -1269,13 +1281,13 @@ async function submitEntry() {
       }
     }
 
-    toast("✅ "+r.message,"ok");
     set("en-w","");
     invalidateCache(currentName);
     _lbCache = {}; // ข้อมูลน้ำหนักเปลี่ยน อันดับในหน้าสถิติอาจเปลี่ยนตาม ล้างแคชทิ้งให้โหลดใหม่
     Object.keys(_pstatCache).forEach(k => { if (k.startsWith(currentName+"|")) delete _pstatCache[k]; });
     renderEntry();
-  } catch(e) { toast("❌ บันทึกไม่ได้: "+e.message,"err"); if(restore) restore(); }
+    showSaveDoneOverlay("✅ อัปเดตข้อมูลแล้ว");
+  } catch(e) { hideSaveOverlay(); toast("❌ บันทึกไม่ได้: "+e.message,"err"); }
 }
 
 
@@ -1977,7 +1989,7 @@ async function renderBody() {
       <div class="card">
         <div class="ctitle">อัปโหลดรูป Body Composition</div>
         <div id="bc-upload-status">${uploadStatusHtml}</div>
-        <div class="fg"><label>วันที่</label><input type="date" id="bc-dt" value="${today()}"></div>
+        <div class="fg"><label>วันที่</label><input type="date" id="bc-dt" value="${latestWeighDate||today()}"></div>
         <div class="up-area" id="bc-area"
           onclick="document.getElementById('bc-file').click()"
           ondrop="dropFile(event)" ondragover="event.preventDefault();this.classList.add('drag')"
@@ -2274,12 +2286,10 @@ function closeLb(){
 async function submitAdd() {
   const name = V("ad-name").trim();
   if (!name) { toast("กรอกชื่อผู้ป่วยก่อน","err"); return; }
-  const btn = event.currentTarget;
-  const restore = btnLoading(btn, "กำลังบันทึก...");
+  showSaveOverlay("กำลังสร้างผู้ป่วยใหม่...");
   try {
     const r = await api({action:"addPatient", name});
     if (r.success) {
-      toast("✅ "+r.message,"ok");
       // ถ้าเลือกมาจาก Medicloud และดึงเพศ/อายุ/ส่วนสูงมาได้ ให้บันทึกต่อทันที
       if (_pickedMcInfo && (_pickedMcInfo.sex || _pickedMcInfo.age || _pickedMcInfo.height)) {
         try {
@@ -2290,9 +2300,10 @@ async function submitAdd() {
       _pickedMcInfo = null;
       set("ad-name",""); document.getElementById("mc-list").innerHTML=""; await loadPatients(true);
       selectPt(name); // เปิดหน้าลงข้อมูลของผู้ป่วยใหม่นี้ทันที ไม่ต้องกลับไปเลือกเองจากรายชื่อ
+      showSaveDoneOverlay("✅ สร้างผู้ป่วยใหม่แล้ว");
     }
-    else { toast("❌ "+r.message,"err"); if(restore) restore(); }
-  } catch(e) { toast("❌ เพิ่มไม่ได้","err"); if(restore) restore(); }
+    else { hideSaveOverlay(); toast("❌ "+r.message,"err"); }
+  } catch(e) { hideSaveOverlay(); toast("❌ เพิ่มไม่ได้","err"); }
 }
 
 async function fetchTodayMedicloud() {
@@ -2379,6 +2390,28 @@ function showModal(html){
   document.getElementById("modal").style.display="flex";
 }
 function closeModal(){document.getElementById("modal").style.display="none";}
+
+// เบลอทั้งจอ คลิกอะไรไม่ได้ ระหว่างบันทึก/สร้างข้อมูล — ใช้ร่วมกันทั้ง submitEntry และ submitAdd
+function showSaveOverlay(text){
+  const el = document.getElementById("save-ov-text");
+  if (el) el.textContent = text || "กำลังบันทึก...";
+  const ov = document.getElementById("save-ov");
+  if (ov) ov.style.display = "flex";
+}
+function hideSaveOverlay(){
+  const ov = document.getElementById("save-ov");
+  if (ov) ov.style.display = "none";
+}
+function showSaveDoneOverlay(text, duration){
+  showSaveOverlay(text || "✅ อัปเดตข้อมูลแล้ว");
+  const spinEl = document.querySelector("#save-ov .spin");
+  if (spinEl) spinEl.style.display = "none"; // ตอนเสร็จแล้วไม่ต้องโชว์วงแหวนหมุนต่อ
+  setTimeout(() => {
+    hideSaveOverlay();
+    if (spinEl) spinEl.style.display = ""; // คืนค่าเดิมไว้ให้รอบถัดไปใช้ต่อได้
+  }, duration || 1200);
+}
+
 document.addEventListener("click",e=>{
   if(e.target===document.getElementById("modal"))closeModal();
 });
