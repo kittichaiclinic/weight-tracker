@@ -955,7 +955,7 @@ async function renderPatientHome() {
     pg.innerHTML = `
       <div class="banner">
         <div class="bname">${currentName}</div>
-        <div class="bsub">เริ่ม ${d.startDate} · กำหนด ${d.goalDate}</div>
+        <div class="bsub">เริ่ม ${d.startDate}</div>
       </div>
       <div class="sgrid">
         <div class="sc"><div class="slb">น้ำหนักปัจจุบัน</div>
@@ -1043,19 +1043,18 @@ async function renderEntry() {
     const last = d.records && d.records.length ? d.records[d.records.length-1] : null;
 
     // สรุป Plan ปัจจุบัน — ค้างแสดงตลอดถ้ามีการตั้งไว้แล้ว จนกว่าจะกดแก้ไข (Plan เดิมรวมมาไว้ที่นี่)
+    // วันเริ่มต้น/น้ำหนักเริ่มต้น ไม่โชว์ในนี้ เพราะเห็นได้จากตารางประวัติน้ำหนักข้างล่างอยู่แล้ว
     const sexLabel = d.sex === "male" ? "ชาย" : d.sex === "female" ? "หญิง" : "-";
     const hasGoal = !!d.goalWeight;
+    const hasPersonalInfo = !!(d.sex && d.age && d.height); // ครบทั้ง 3 ช่อง (ไม่ว่าจะมาจาก Medicloud หรือกรอกเอง)
     const planSummary = (!patientMode && hasGoal) ? `
       <div class="card">
         <div class="ctitle" style="display:flex;align-items:center;justify-content:space-between">
           <span>🎯 Plan ปัจจุบัน</span>
           <span onclick="togglePlanEdit()" style="cursor:pointer;font-size:13px;color:var(--rose-dp);font-weight:400">✏️ แก้ไข</span>
         </div>
-        <div class="srow"><span>วันเริ่มต้น (สป.1)</span><span>${d.startDate||"-"}</span></div>
-        <div class="srow"><span>น้ำหนักเริ่ม (สป.1)</span><span>${d.startWeight||"-"} kg</span></div>
         <div class="srow"><span>เป้าหมาย</span><span>${d.goalWeight||"-"} kg</span></div>
         <div class="srow"><span>ต้องลด</span><span>${(d.startWeight&&d.goalWeight)?Math.max(0,d.startWeight-d.goalWeight).toFixed(1):"-"} kg</span></div>
-        <div class="srow"><span>กำหนดวัน</span><span>${d.goalDate||"-"}</span></div>
         <div class="srow"><span>เพศ</span><span>${sexLabel}</span></div>
         <div class="srow"><span>อายุ</span><span>${d.age||"-"} ปี</span></div>
         <div class="srow"><span>ส่วนสูง</span><span>${d.height||"-"} cm</span></div>
@@ -1065,15 +1064,12 @@ async function renderEntry() {
     const planForm = !patientMode ? `
       <div class="card" id="plan-form-card" style="${hasGoal?'display:none':''}">
         <div class="ctitle">🎯 ตั้งเป้าหมาย</div>
-        <div class="r2">
-          <div class="fg"><label>เป้าหมาย (kg)</label><input type="number" id="pl-gw" step="0.1" placeholder="75" value="${d.goalWeight||""}"></div>
-          <div class="fg"><label>กำหนดวัน</label><input type="date" id="pl-gd" value="${d.goalDate||today()}"></div>
-        </div>
+        <div class="fg"><label>เป้าหมาย (kg)</label><input type="number" id="pl-gw" step="0.1" placeholder="75" value="${d.goalWeight||""}"></div>
         <button class="btn btn-pk" onclick="submitPlan()">💾 บันทึก Plan</button>
       </div>
-      <div class="card" id="patientinfo-form-card" style="${hasGoal?'display:none':''}">
+      <div class="card" id="patientinfo-form-card" style="${hasPersonalInfo?'display:none':''}">
         <div class="ctitle">👤 ข้อมูลส่วนตัว</div>
-        <div style="font-size:12px;color:var(--tx2);margin-bottom:10px">ใช้สำหรับคำนวณ body composition จากเครื่องชั่ง</div>
+        <div style="font-size:12px;color:var(--tx2);margin-bottom:10px">ใช้สำหรับคำนวณ body composition จากเครื่องชั่ง — กรอกเองที่นี่ได้เลยถ้ายังไม่ได้ดึงมาจาก Medicloud</div>
         <div class="r2">
           <div class="fg"><label>เพศ</label>
             <select id="pl-sex">
@@ -1259,10 +1255,10 @@ function togglePlanEdit() {
 }
 
 async function submitPlan() {
-  const gw = V("pl-gw"), gd = V("pl-gd");
-  if (!gw||!gd) { toast("กรอกเป้าหมายให้ครบ","err"); return; }
+  const gw = V("pl-gw");
+  if (!gw) { toast("กรอกเป้าหมายก่อน","err"); return; }
   try {
-    const r = await api({action:"savePlan", name:currentName, goalWeight:gw, goalDate:gd});
+    const r = await api({action:"savePlan", name:currentName, goalWeight:gw});
     if (r.success) { toast("✅ "+r.message,"ok"); invalidateCache(currentName); renderEntry(); }
     else toast("❌ "+r.message,"err");
   } catch(e) { toast("❌ บันทึกไม่ได้","err"); }
@@ -1292,7 +1288,7 @@ async function renderFact() {
     const summaryCard = `
       <div class="banner">
         <div class="bname">${currentName}</div>
-        <div class="bsub">เริ่ม ${d.startDate} · กำหนด ${d.goalDate}</div>
+        <div class="bsub">เริ่ม ${d.startDate}</div>
       </div>
       <div class="sgrid">
         <div class="sc"><div class="slb">น้ำหนักปัจจุบัน</div>
