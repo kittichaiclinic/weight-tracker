@@ -601,7 +601,11 @@ function invalidateCache(name) {
 // ถ้ามี request ของคนคนนี้กำลังทำงานอยู่แล้ว (จาก preload ที่ยังไม่เสร็จ) จะรอ Promise ตัวเดิมแทนที่จะยิงซ้ำ
 // — แก้ race condition ที่ผู้ใช้กดแท็บอื่นเร็วเกินกว่า preload จะเสร็จ
 function fetchPatientFullData(name, force=false) {
+  console.log("[DEBUG fetchPatientFullData] เรียกด้วย name:", name, "force:", force,
+    "| _cache:", !!_cache[name], "| _scaleCache:", _scaleCache[name] !== undefined,
+    "| _fullDataInFlight:", !!_fullDataInFlight[name]);
   if (!force && _cache[name] && _scaleCache[name] !== undefined) {
+    console.log("[DEBUG fetchPatientFullData] ใช้แคชเดิม return ทันที");
     // มีครบทุกแคชแล้ว ไม่ต้องโหลดใหม่
     return Promise.resolve({
       success: true,
@@ -609,8 +613,9 @@ function fetchPatientFullData(name, force=false) {
       scale: {success:true, records:_scaleCache[name]}
     });
   }
-  if (_fullDataInFlight[name]) return _fullDataInFlight[name]; // มีคำขอกำลังทำงานอยู่แล้ว รอตัวเดิม
+  if (_fullDataInFlight[name]) { console.log("[DEBUG fetchPatientFullData] มี in-flight อยู่แล้ว รอตัวเดิม"); return _fullDataInFlight[name]; } // มีคำขอกำลังทำงานอยู่แล้ว รอตัวเดิม
 
+  console.log("[DEBUG fetchPatientFullData] ไม่มีอะไรเลย ยิง apiGet ใหม่จริงๆ");
   const p = apiGet({action:"getPatientFullData", name}).then(r => {
     const patientData = (r.success && r.patient) ? r.patient : {success:false};
     const scaleData     = (r.success && r.scale) ? r.scale : {success:false};
@@ -1889,12 +1894,19 @@ let _renderBodyInFlight = {}; // { name: true } — กัน renderBody ทำ�
 async function renderBody() {
   const v = document.getElementById("body-v");
   if (!currentName) { v.innerHTML = noPatient(); return; }
-  if (_renderBodyInFlight[currentName]) return; // มีรอบที่กำลังโหลดอยู่แล้ว ไม่ต้องเริ่มซ้ำ
+  console.log("[DEBUG renderBody] เรียกแล้ว currentName:", currentName,
+    "| _renderBodyInFlight:", _renderBodyInFlight[currentName],
+    "| _bodyCache:", _bodyCache[currentName],
+    "| _cache:", _cache[currentName],
+    "| _fullDataInFlight:", _fullDataInFlight[currentName]);
+  if (_renderBodyInFlight[currentName]) { console.log("[DEBUG renderBody] ออกทันทีเพราะมี renderBodyInFlight ค้างอยู่"); return; }
   _renderBodyInFlight[currentName] = true;
 
   try {
     // เช็คแคชก่อน ถ้าไม่มีค่อยแสดงวงแหวนโหลด (ลดการกระพริบ)
     if (_bodyCache[currentName] === undefined || !_cache[currentName]) {
+      console.log("[DEBUG renderBody] เข้าเงื่อนไขโหลด เพราะ:",
+        _bodyCache[currentName] === undefined ? "_bodyCache undefined" : "_cache falsy");
       v.innerHTML = loading();
 
       // รอ preload ที่กำลังทำงานอยู่แทนที่จะยิงซ้ำ — ต้องรอตัวเดียวกับที่ selectPt() ใช้เป๊ะ
@@ -1904,8 +1916,11 @@ async function renderBody() {
         const d = await getPatientCached(currentName);
         if (d.success && d.images) _bodyCache[currentName] = d.images; // เผื่อยังไม่เคยเปิดหน้า "น้ำหนัก" มาก่อน (renderFact ไม่ได้ทำให้แล้ว)
       } else {
+        console.log("[DEBUG renderBody] กำลังเรียก fetchPatientFullData ตอนนี้ _fullDataInFlight[currentName]:", _fullDataInFlight[currentName]);
         await fetchPatientFullData(currentName); // ฟังก์ชันนี้จะรอ _fullDataInFlight ถ้ามี preload ค้างอยู่
       }
+    } else {
+      console.log("[DEBUG renderBody] มีแคชครบแล้ว ไม่โหลดใหม่");
     }
 
     const images = _bodyCache[currentName] || [];
