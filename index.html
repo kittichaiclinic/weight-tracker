@@ -601,8 +601,8 @@ function invalidateCache(name) {
 function fetchPatientFullData(name, force=false) {
   console.log("[DEBUG fetchPatientFullData] เรียกด้วย name:", name, "force:", force,
     "| _cache:", !!_cache[name], "| _scaleCache:", _scaleCache[name] !== undefined,
-    "| _fullDataInFlight:", !!_fullDataInFlight[name]);
-  if (!force && _cache[name] && _scaleCache[name] !== undefined) {
+    "| _bodyCache:", _bodyCache[name] !== undefined, "| _fullDataInFlight:", !!_fullDataInFlight[name]);
+  if (!force && _cache[name] && _scaleCache[name] !== undefined && _bodyCache[name] !== undefined) {
     console.log("[DEBUG fetchPatientFullData] ใช้แคชเดิม return ทันที");
     // มีครบทุกแคชแล้ว ไม่ต้องโหลดใหม่
     return Promise.resolve({
@@ -615,6 +615,10 @@ function fetchPatientFullData(name, force=false) {
 
   console.log("[DEBUG fetchPatientFullData] ไม่มีอะไรเลย ยิง apiGet ใหม่จริงๆ");
   const p = apiGet({action:"getPatientFullData", name}).then(r => {
+    console.log("[DEBUG fetchPatientFullData] ผลลัพธ์ที่ได้กลับมา r.success:", r.success,
+      "| r.patient?.success:", r.patient && r.patient.success,
+      "| r.patient?.images:", r.patient && r.patient.images,
+      "| r.patient?.images?.length:", r.patient && r.patient.images && r.patient.images.length);
     const patientData = (r.success && r.patient) ? r.patient : {success:false};
     const scaleData     = (r.success && r.scale) ? r.scale : {success:false};
 
@@ -1296,26 +1300,6 @@ function togglePlanEdit() {
 function togglePersonalInfoEdit() {
   const infoCard = document.getElementById("patientinfo-form-card");
   if (infoCard) infoCard.style.display = infoCard.style.display === "none" ? "block" : "none";
-}
-
-async function submitPlan() {
-  const gw = V("pl-gw");
-  if (!gw) { toast("กรอกเป้าหมายก่อน","err"); return; }
-  try {
-    const r = await api({action:"savePlan", name:currentName, goalWeight:gw});
-    if (r.success) { toast("✅ "+r.message,"ok"); invalidateCache(currentName); renderEntry(); }
-    else toast("❌ "+r.message,"err");
-  } catch(e) { toast("❌ บันทึกไม่ได้","err"); }
-}
-
-async function submitPatientInfo() {
-  const sex = V("pl-sex"), age = V("pl-age"), height = V("pl-height");
-  if (!sex && !age && !height) { toast("กรอกข้อมูลอย่างน้อย 1 ช่อง","err"); return; }
-  try {
-    const r = await api({action:"savePatientInfo", name:currentName, sex, age, height});
-    if (r.success) { toast("✅ "+r.message,"ok"); invalidateCache(currentName); renderEntry(); }
-    else toast("❌ "+r.message,"err");
-  } catch(e) { toast("❌ บันทึกไม่ได้","err"); }
 }
 
 // ===== FACT =====
