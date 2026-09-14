@@ -74,11 +74,15 @@ body{font-family:var(--sans);background:var(--bg);color:var(--tx);min-height:100
 
 /* HOME TABS */
 .htabs{display:flex;background:var(--cd);border-radius:13px;
-  overflow:hidden;margin-bottom:14px;box-shadow:var(--sh)}
-.htab{flex:1;padding:12px 4px;border:none;font-size:12.5px;font-weight:600;
+  overflow-x:auto;overflow-y:hidden;margin-bottom:14px;box-shadow:var(--sh);
+  -webkit-overflow-scrolling:touch;scrollbar-width:none}
+.htabs::-webkit-scrollbar{display:none}
+.htab{flex:0 0 auto;padding:12px 16px;border:none;font-size:12.5px;font-weight:600;
+  white-space:nowrap;
   font-family:var(--sans);cursor:pointer;border-right:1px solid var(--bd);
   transition:all .2s;background:var(--cd);color:var(--tx2)}
-.htab:last-child{border-right:none}
+.htab:first-child{border-radius:13px 0 0 13px}
+.htab:last-child{border-right:none;border-radius:0 13px 13px 0}
 .htab.on{background:var(--rose-btn);color:var(--ink);font-weight:700}
 
 /* FORM */
@@ -163,7 +167,7 @@ textarea{resize:vertical;min-height:56px}
   justify-content:center;flex-shrink:0}
 .pt-link{margin-top:11px;padding-top:11px;border-top:1px solid var(--bd);
   display:flex;align-items:center;gap:8px}
-.pt-link-txt{flex:1;background:var(--bl2);border-radius:8px;padding:7px 10px;
+.pt-link-txt{flex:1;min-width:0;background:var(--bl2);border-radius:8px;padding:7px 10px;
   font-size:11px;color:var(--bl);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 
 /* MEASURE TABS */
@@ -190,7 +194,7 @@ textarea{resize:vertical;min-height:56px}
 .img-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
 .img-card{border-radius:12px;overflow:hidden;cursor:pointer;
   box-shadow:var(--sh)}
-.img-card img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;background:var(--rose-lt)}
+.img-card img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:var(--rose-lt)}
 .img-date{font-size:11px;color:var(--tx2);padding:6px 7px;text-align:center}
 .img-del{width:100%;padding:6px;border:none;background:#f6edeb;color:var(--rd);
   font-size:11px;cursor:pointer;font-family:var(--sans);border-top:1px solid var(--bd)}
@@ -838,12 +842,10 @@ async function submitRenamePt(oldName) {
   const newName = V("rn-new-name").trim();
   if (!newName) { toast("กรอกชื่อใหม่ก่อน","err"); return; }
   if (newName === oldName) { toast("ชื่อเหมือนเดิม ไม่มีอะไรเปลี่ยน","err"); return; }
-  const btn = event.currentTarget;
-  const restore = btnLoading(btn, "กำลังบันทึก...");
+  showSaveOverlay("กำลังบันทึก...");
   try {
     const r = await api({action:"renamePatient", oldName, newName});
     if (r.success) {
-      toast("✅ "+r.message,"ok");
       closeModal();
 
       // ย้าย cache จากชื่อเดิมไปชื่อใหม่ แทนที่จะทิ้งแล้วโหลดใหม่ทั้งหมด
@@ -863,22 +865,24 @@ async function submitRenamePt(oldName) {
       _patientsLoaded = false;
       await loadPatients(true);
       renderPtList();
-    } else { toast("❌ "+r.message,"err"); if(restore) restore(); }
-  } catch(e) { toast("❌ บันทึกไม่ได้: "+e.message,"err"); if(restore) restore(); }
+      showSaveDoneOverlay("✅ เปลี่ยนชื่อแล้ว");
+    } else { hideSaveOverlay(); toast("❌ "+r.message,"err"); }
+  } catch(e) { hideSaveOverlay(); toast("❌ บันทึกไม่ได้: "+e.message,"err"); }
 }
 
 async function deletePt(name) {
+  showSaveOverlay("กำลังลบ...");
   try {
     const r = await api({action:"deletePatient", name});
     if (r.success) {
-      toast("✅ ลบ "+name+" สำเร็จ","ok");
       closeModal();
       invalidateCache(name);
       _patientsLoaded = false;
       await loadPatients(true);
       renderPtList();
-    } else toast("❌ "+r.message,"err");
-  } catch(e) { toast("❌ ลบไม่ได้","err"); }
+      showSaveDoneOverlay("✅ ลบ "+name+" แล้ว");
+    } else { hideSaveOverlay(); toast("❌ "+r.message,"err"); }
+  } catch(e) { hideSaveOverlay(); toast("❌ ลบไม่ได้","err"); }
 }
 
 function filterPtList(q) {
@@ -1508,18 +1512,20 @@ function drawMuscleChart(d) {
 async function submitFact() {
   const date=V("fc-dt"),weight=V("fc-w");
   if (!date||!weight){toast(" กรอกวันที่และน้ำหนัก","err");return;}
+  showSaveOverlay("กำลังบันทึก...");
   try {
     const r = await api({action:"logVisit",name:currentName,date,weight,
       dose:V("fc-ds"),doctor:V("fc-dr"),budget:V("fc-bg"),note:V("fc-nt")});
     if (r.success){
-      toast(" "+r.message,"ok");set("fc-w","");set("fc-ds","2.5");set("fc-bg","1500");set("fc-nt","");
+      set("fc-w","");set("fc-ds","2.5");set("fc-bg","1500");set("fc-nt","");
       invalidateCache(currentName);
       _lbCache = {}; // ข้อมูลน้ำหนักเปลี่ยน อันดับในหน้าสถิติอาจเปลี่ยนตาม ล้างแคชทิ้งให้โหลดใหม่
       Object.keys(_pstatCache).forEach(k => { if (k.startsWith(currentName+"|")) delete _pstatCache[k]; });
       renderFact();
+      showSaveDoneOverlay("✅ อัปเดตข้อมูลแล้ว");
     }
-    else toast(" "+r.message,"err");
-  } catch(e){toast(" ส่งข้อมูลไม่ได้","err");}
+    else { hideSaveOverlay(); toast(" "+r.message,"err"); }
+  } catch(e){ hideSaveOverlay(); toast(" ส่งข้อมูลไม่ได้","err"); }
 }
 
 function editFactModal(row,date,weight,dose,doctor,budget,note) {
@@ -1820,6 +1826,7 @@ function getChip(name) {
 async function submitSym() {
   const date=V("sy-dt");
   if(!date){toast(" กรอกวันที่","err");return;}
+  showSaveOverlay("กำลังบันทึก...");
   try {
     const r = await api({action:"logVisit",name:currentName,date,
       hunger:getChip("hunger"),fullness:getChip("full"),
@@ -1828,9 +1835,9 @@ async function submitSym() {
       fiber:getChip("fiber"),se:V("sy-se"),bowel:getChip("bowel"),
       mood:getChip("mood"),sleep:getChip("sleep"),motivation:getChip("motiv"),
       tone:V("sy-tone"),remark:V("sy-note")});
-    if(r.success){toast(" "+r.message,"ok");renderSym();}
-    else toast(" "+r.message,"err");
-  } catch(e){toast(" ส่งไม่ได้","err");}
+    if(r.success){ renderSym(); showSaveDoneOverlay("✅ อัปเดตข้อมูลแล้ว"); }
+    else { hideSaveOverlay(); toast(" "+r.message,"err"); }
+  } catch(e){ hideSaveOverlay(); toast(" ส่งไม่ได้","err"); }
 }
 
 // ===== MEASURE =====
@@ -1895,13 +1902,14 @@ async function renderMeas() {
 async function submitMeas() {
   const date=V("ms-dt");
   if(!date){toast(" กรอกวันที่","err");return;}
+  showSaveOverlay("กำลังบันทึก...");
   try {
     const r=await api({action:"logVisit",name:currentName,date,
       chest:V("ms-ch"),waist:V("ms-wa"),hip:V("ms-hi"),
       armR:V("ms-ar"),armL:V("ms-al"),thighR:V("ms-tr"),thighL:V("ms-tl")});
-    if(r.success){toast(" "+r.message,"ok");renderMeas();}
-    else toast(" "+r.message,"err");
-  } catch(e){toast(" ส่งไม่ได้","err");}
+    if(r.success){ renderMeas(); showSaveDoneOverlay("✅ อัปเดตข้อมูลแล้ว"); }
+    else { hideSaveOverlay(); toast(" "+r.message,"err"); }
+  } catch(e){ hideSaveOverlay(); toast(" ส่งไม่ได้","err"); }
 }
 
 // ===== BODY COMP =====
@@ -2276,11 +2284,12 @@ async function submitBody() {
 }
 async function deleteBody(fileId) {
   if(!confirm("ลบรูปนี้?"))return;
+  showSaveOverlay("กำลังลบ...");
   try {
     const r=await api({action:"deleteBodyComp",name:currentName,fileId});
-    if(r.success){toast(" ลบแล้ว","ok");delete _bodyCache[currentName];renderBody();}
-    else toast(" "+r.message,"err");
-  } catch(e){toast(" ลบไม่ได้","err");}
+    if(r.success){ delete _bodyCache[currentName]; renderBody(); showSaveDoneOverlay("✅ ลบแล้ว"); }
+    else { hideSaveOverlay(); toast(" "+r.message,"err"); }
+  } catch(e){ hideSaveOverlay(); toast(" ลบไม่ได้","err"); }
 }
 function openLb(fileId) {
   const img=document.getElementById("lb-img");
@@ -2723,11 +2732,12 @@ async function bookAppt(date, time) {
 
 async function confirmBookAppt(date, time) {
   closeModal();
+  showSaveOverlay("กำลังบันทึก...");
   try {
     const r = await api({action:"bookAppt", name:currentName, date, time});
-    if (r.success) { toast("✅ บันทึกเวลาเข้ารับบริการสำเร็จ","ok"); apptSelDate = null; invalidateApptCache(); renderAppt(); }
-    else toast("❌ "+r.message,"err");
-  } catch(e) { toast("❌ นัดไม่ได้","err"); }
+    if (r.success) { apptSelDate = null; invalidateApptCache(); renderAppt(); showSaveDoneOverlay("✅ บันทึกเวลาเข้ารับบริการแล้ว"); }
+    else { hideSaveOverlay(); toast("❌ "+r.message,"err"); }
+  } catch(e) { hideSaveOverlay(); toast("❌ นัดไม่ได้","err"); }
 }
 
 async function cancelAppt(id) {
@@ -2744,11 +2754,12 @@ async function cancelAppt(id) {
 
 async function confirmCancelAppt(id) {
   closeModal();
+  showSaveOverlay("กำลังยกเลิก...");
   try {
     const r = await api({action:"cancelAppt", id, name:currentName});
-    if (r.success) { toast("✅ ยกเลิกนัดแล้ว","ok"); apptSelDate = null; invalidateApptCache(); renderAppt(); }
-    else toast("❌ "+r.message,"err");
-  } catch(e) { toast("❌ ยกเลิกไม่ได้","err"); }
+    if (r.success) { apptSelDate = null; invalidateApptCache(); renderAppt(); showSaveDoneOverlay("✅ ยกเลิกนัดแล้ว"); }
+    else { hideSaveOverlay(); toast("❌ "+r.message,"err"); }
+  } catch(e) { hideSaveOverlay(); toast("❌ ยกเลิกไม่ได้","err"); }
 }
 
 // ===== หน้า Staff — ปฏิทินคิว =====
