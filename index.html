@@ -199,6 +199,41 @@ textarea{resize:vertical;min-height:56px}
 .img-del{width:100%;padding:6px;border:none;background:#f6edeb;color:var(--rd);
   font-size:11px;cursor:pointer;font-family:var(--sans);border-top:1px solid var(--bd)}
 
+/* NEW BODY COMPOSITION (FG2015ULB) — ให้ตรงกับหน้า server.py เป๊ะ */
+.weight-big{font-family:var(--serif);font-size:48px;font-weight:500;color:var(--pk3);
+  text-align:center;margin:10px 0 4px;letter-spacing:-.01em}
+.weight-unit{font-family:var(--sans);font-size:18px;color:var(--tx2);font-weight:500;margin-left:5px}
+.weight-delta{text-align:center;font-size:13px;margin-top:2px;min-height:17px}
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:9px}
+.metric-box{background:var(--bg);border-radius:13px;box-shadow:0 1px 4px rgba(58,51,44,.06);
+  padding:11px 8px;text-align:center}
+.metric-val{font-family:var(--serif);font-size:19px;font-weight:500;color:var(--pk3)}
+.metric-val .metric-unit{font-family:var(--sans);font-size:10.5px;font-weight:500;color:var(--tx2);margin-left:2px}
+.metric-label{font-size:10px;color:var(--tx2);margin-top:3px}
+.metric-delta{font-size:10px;margin-top:2px;min-height:13px;display:flex;align-items:center;justify-content:center;gap:2px}
+.metric-delta .up{color:var(--gr-tx)}
+.metric-delta .down{color:var(--rd)}
+.std-table{width:100%;border-collapse:collapse;font-size:12px}
+.std-table th{text-align:left;color:var(--tx2);font-weight:600;font-size:10.5px;
+  padding:6px 7px;border-bottom:1.5px solid var(--bd)}
+.std-table td{padding:7px;border-bottom:1px solid var(--bd)}
+.std-table tr:last-child td{border-bottom:none}
+.eval-tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;display:inline-block}
+.eval-tag.low{background:var(--am2);color:var(--am)}
+.eval-tag.high{background:#f6ece9;color:var(--rd)}
+.eval-tag.normal{background:var(--gr2);color:var(--gr-tx)}
+.seg-row{display:flex;justify-content:space-between;align-items:center;
+  padding:7px 0;border-bottom:1px solid var(--bd);font-size:12px}
+.seg-row:last-child{border-bottom:none}
+.seg-name{color:var(--tx2);font-weight:600;min-width:56px}
+.seg-vals{display:flex;gap:9px;font-size:11.5px}
+.balance-row{display:flex;gap:9px;margin-top:9px}
+.balance-box{flex:1;background:var(--bg);border-radius:11px;padding:9px;text-align:center}
+.balance-box .lbl{font-size:10.5px;color:var(--tx2)}
+.balance-box .val{font-size:12.5px;font-weight:700;color:var(--pk3);margin-top:2px}
+.lock-banner{margin-top:10px;padding:9px 12px;background:var(--gr2);
+  border-radius:10px;font-size:12px;color:var(--gr-tx);font-weight:600;text-align:center}
+
 /* UPLOAD */
 .up-area{border:2px dashed var(--bd);border-radius:13px;padding:26px;
   text-align:center;cursor:pointer;transition:border-color .2s,background .2s;margin-bottom:12px}
@@ -331,12 +366,12 @@ textarea{resize:vertical;min-height:56px}
   <!-- เพิ่มใหม่ -->
   <div id="sec-add" style="display:none">
     <div class="card">
-      <div class="ctitle">📋 ดึงรายชื่อวันนี้จาก Medicloud</div>
+      <div class="ctitle">ดึงรายชื่อวันนี้จาก Medicloud</div>
       <button class="btn-out" style="width:100%" onclick="fetchTodayMedicloud()">🔄 ดึงรายชื่อผู้ป่วยที่มาวันนี้</button>
       <div id="mc-list" style="margin-top:10px"></div>
     </div>
     <div class="card">
-      <div class="ctitle">➕ เพิ่มผู้ป่วยใหม่</div>
+      <div class="ctitle">เพิ่มผู้ป่วยใหม่</div>
       <div class="fg"><label>👤 ชื่อผู้ป่วย</label><input type="text" id="ad-name" placeholder="เช่น คุณเมย์"></div>
       <div class="info-box">กรอกชื่อแล้วสร้างได้เลย สามารถเพิ่มข้อมูล Plan ได้ทีหลัง</div>
       <button class="btn btn-gr" onclick="submitAdd()">✅ สร้างผู้ป่วยใหม่</button>
@@ -349,7 +384,7 @@ textarea{resize:vertical;min-height:56px}
   <div id="sec-apts" style="display:none"><div id="apts-home-v"></div></div>
   <div id="sec-cfg" style="display:none">
     <div class="card">
-      <div class="ctitle">⚙️ GAS URL</div>
+      <div class="ctitle">GAS URL</div>
       <div class="fg"><label>🔗 Web App URL</label>
         <input type="url" id="cfg-url" placeholder="https://script.google.com/macros/s/.../exec"></div>
       <div style="display:flex;gap:8px">
@@ -358,12 +393,12 @@ textarea{resize:vertical;min-height:56px}
       </div>
     </div>
     <div class="card">
-      <div class="ctitle">ℹ️ สถานะ</div>
+      <div class="ctitle">สถานะ</div>
       <div class="srow"><span>การเชื่อมต่อ</span><span id="cfg-conn" style="font-size:13px;color:var(--tx2)">-</span></div>
       <div class="srow"><span>ผู้ป่วยทั้งหมด</span><span id="cfg-count" style="font-size:13px;color:var(--tx2)">-</span></div>
     </div>
     <div class="card">
-      <div class="ctitle" style="font-size:12px">📋 วิธีติดตั้ง</div>
+      <div class="ctitle" style="font-size:12px">วิธีติดตั้ง</div>
       <div style="font-size:12px;color:var(--tx2);line-height:2.2">
         1️⃣ สร้าง Google Sheet (Master)<br>
         2️⃣ Extensions → Apps Script → วาง Code.gs<br>
@@ -1068,7 +1103,7 @@ async function renderEntry() {
     const planSummary = (!patientMode && hasGoal) ? `
       <div class="card">
         <div class="ctitle" style="display:flex;align-items:center;justify-content:space-between">
-          <span>🎯 Plan ปัจจุบัน</span>
+          <span>Plan ปัจจุบัน</span>
           <span onclick="togglePlanEdit()" style="cursor:pointer;font-size:13px;color:var(--rose-dp);font-weight:400">✏️ แก้ไข</span>
         </div>
         <div class="srow"><span>เป้าหมาย</span><span>${d.goalWeight||"-"} kg</span></div>
@@ -1079,7 +1114,7 @@ async function renderEntry() {
     const personalInfoSummary = (!patientMode && hasPersonalInfo) ? `
       <div class="card">
         <div class="ctitle" style="display:flex;align-items:center;justify-content:space-between">
-          <span>👤 ข้อมูลส่วนตัว</span>
+          <span>ข้อมูลส่วนตัว</span>
           <span onclick="togglePersonalInfoEdit()" style="cursor:pointer;font-size:13px;color:var(--rose-dp);font-weight:400">✏️ แก้ไข</span>
         </div>
         <div class="srow"><span>เพศ</span><span>${sexLabel}</span></div>
@@ -1091,11 +1126,11 @@ async function renderEntry() {
     // ไม่มีปุ่มบันทึกแยกแล้ว — บันทึกรวมไปกับปุ่ม "บันทึกข้อมูลทั้งหมด" ที่การ์ดลงข้อมูลด้านล่าง
     const planForm = !patientMode ? `
       <div class="card" id="plan-form-card" style="${hasGoal?'display:none':''}">
-        <div class="ctitle">🎯 ตั้งเป้าหมาย</div>
+        <div class="ctitle">ตั้งเป้าหมาย</div>
         <div class="fg"><label>เป้าหมาย (kg)</label><input type="number" id="pl-gw" step="0.1" value="${d.goalWeight||""}"></div>
       </div>
       <div class="card" id="patientinfo-form-card" style="${hasPersonalInfo?'display:none':''}">
-        <div class="ctitle">👤 ข้อมูลส่วนตัว</div>
+        <div class="ctitle">ข้อมูลส่วนตัว</div>
         <div style="font-size:12px;color:var(--tx2);margin-bottom:10px">ใช้สำหรับคำนวณ body composition จากเครื่องชั่ง — กรอกเองที่นี่ได้เลยถ้ายังไม่ได้ดึงมาจาก Medicloud</div>
         <div class="r2">
           <div class="fg"><label>เพศ</label>
@@ -1112,10 +1147,11 @@ async function renderEntry() {
 
     v.innerHTML = planSummary + personalInfoSummary + planForm + `
       <div class="card">
-        <div class="ctitle">📝 ลงข้อมูล</div>
+        <div class="ctitle">ลงข้อมูล</div>
         <div class="fg"><label>วันที่</label><input type="date" id="en-dt" value="${today()}"></div>
 
         <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:14px 0 8px">⚖️ น้ำหนัก</div>
+        <div id="en-draft-banner"></div>
         <div class="r3">
           <div class="fg"><label>น้ำหนัก (kg)</label><input type="number" id="en-w" step="0.1"></div>
           <div class="fg"><label>โดส (mg)</label><input type="number" id="en-ds" step="0.5" value="2.5"></div>
@@ -1153,12 +1189,12 @@ async function renderEntry() {
       </div>
 
       <div class="card">
-        <div class="ctitle">📈 กราฟน้ำหนัก</div>
+        <div class="ctitle">กราฟน้ำหนัก</div>
         <div class="ch-wrap"><canvas id="entry-wc"></canvas></div>
       </div>
 
       <div class="card">
-        <div class="ctitle">📋 ประวัติน้ำหนัก</div>
+        <div class="ctitle">ประวัติน้ำหนัก</div>
         <div style="overflow-x:auto">
           <table class="tbl">
             <thead><tr><th>ครั้งที่</th><th>วันที่</th><th>kg</th><th>ลด/+</th><th>โดส</th><th>แพทย์</th><th>งบ(฿)</th><th>หมายเหตุ</th><th></th></tr></thead>
@@ -1214,7 +1250,28 @@ async function renderEntry() {
     setTimeout(()=>{
       drawEntryChart(d);
     }, 80);
+
+    // เช็คว่ามีน้ำหนักจากเครื่องชั่งรออยู่ไหม (กดบันทึกจากหน้าเชื่อมเครื่องชั่ง FG2015ULB) — เติมให้อัตโนมัติ
+    if (!patientMode) checkDraftScaleReading();
   } catch(e) { v.innerHTML = err(e.message); }
+}
+
+async function checkDraftScaleReading() {
+  const banner = document.getElementById("en-draft-banner");
+  if (!banner) return;
+  const nameAtCallTime = currentName; // กันกรณีสลับคนไข้เร็วๆ ระหว่างรอผลตอบกลับ
+  try {
+    const r = await apiGet({action:"getDraftScaleReading", name:nameAtCallTime});
+    if (currentName !== nameAtCallTime) return; // สลับไปคนไข้คนอื่นแล้วระหว่างรอ — ทิ้งผลนี้ไป ไม่เขียนทับ
+    if (r.success && r.found) {
+      const wEl = document.getElementById("en-w");
+      if (wEl && !wEl.value) wEl.value = r.weight; // ไม่ทับถ้าคนพิมพ์เองไว้ก่อนแล้ว
+      const bannerEl = document.getElementById("en-draft-banner");
+      if (bannerEl) bannerEl.innerHTML = `<div style="font-size:12px;color:var(--gr-tx);background:var(--gr2);
+        border-radius:8px;padding:7px 10px;margin-bottom:8px;font-weight:600">
+        ⚖️ ดึงข้อมูลน้ำหนักแล้ว (${r.weight} kg จากเครื่องชั่ง ${r.capturedAt?("เมื่อ "+r.capturedAt):""})</div>`;
+    }
+  } catch(e) {} // เงียบไว้ ไม่ต้องรบกวนถ้าดึงไม่ได้ — ยังกรอกเองได้ตามปกติ
 }
 
 let enChart=null, enFatChart=null, enMuscleChart=null;
@@ -1296,6 +1353,7 @@ async function submitEntry() {
     invalidateCache(currentName);
     _lbCache = {}; // ข้อมูลน้ำหนักเปลี่ยน อันดับในหน้าสถิติอาจเปลี่ยนตาม ล้างแคชทิ้งให้โหลดใหม่
     Object.keys(_pstatCache).forEach(k => { if (k.startsWith(currentName+"|")) delete _pstatCache[k]; });
+    if (!patientMode) { try { await api({action:"clearDraftScaleReading", name:currentName}); } catch(e) {} }
     renderEntry();
     showSaveDoneOverlay("✅ อัปเดตข้อมูลแล้ว");
   } catch(e) { hideSaveOverlay(); toast("❌ บันทึกไม่ได้: "+e.message,"err"); }
@@ -1420,21 +1478,21 @@ async function renderFact() {
     const hasMuscle = d.records.some(r=>r.muscleMass);
     const chartCards = `
       <div class="card">
-        <div class="ctitle">📈 กราฟน้ำหนัก</div>
+        <div class="ctitle">กราฟน้ำหนัก</div>
         <div class="ch-wrap"><canvas id="fact-wc"></canvas></div>
       </div>
       ${hasFat ? `<div class="card">
-        <div class="ctitle" style="color:#d47d35">📈 กราฟมวลไขมัน</div>
+        <div class="ctitle" style="color:#d47d35">กราฟมวลไขมัน</div>
         <div class="ch-wrap"><canvas id="fact-fc"></canvas></div>
       </div>` : ""}
       ${hasMuscle ? `<div class="card">
-        <div class="ctitle" style="color:#3fa136">📈 กราฟมวลกล้ามเนื้อ</div>
+        <div class="ctitle" style="color:#3fa136">กราฟมวลกล้ามเนื้อ</div>
         <div class="ch-wrap"><canvas id="fact-mc"></canvas></div>
       </div>` : ""}`;
 
     const massTableCard = massRecs.length ? `
       <div class="card">
-        <div class="ctitle">📋 ประวัติมวลไขมัน / กล้ามเนื้อ</div>
+        <div class="ctitle">ประวัติมวลไขมัน / กล้ามเนื้อ</div>
         <div style="overflow-x:auto">
           <table class="tbl">
             <thead><tr><th>วันที่</th><th>ไขมัน (kg)</th><th>กล้ามเนื้อ (kg)</th>${!patientMode?"<th></th>":""}</tr></thead>
@@ -1463,8 +1521,6 @@ async function renderFact() {
 }
 
 let fChart = null, mChart2 = null;
-let _nbCharts = {}; // เก็บ instance กราฟของ New Body Composition แยกตาม metric key เพื่อ destroy ก่อน redraw
-
 function makeLineChart(ctx, label, data, labels, color, goalLine) {
   const datasets = [{
     label, data, borderColor:color, backgroundColor:color+"22",
@@ -1944,7 +2000,7 @@ async function renderBody() {
 
     const massForm = !patientMode ? `
       <div class="card">
-        <div class="ctitle">📊 บันทึกมวลไขมัน / กล้ามเนื้อ</div>
+        <div class="ctitle">บันทึกมวลไขมัน / กล้ามเนื้อ</div>
         <div class="fg"><label>วันที่</label><input type="date" id="bm-dt" value="${today()}"></div>
         <div class="r2">
           <div class="fg"><label>มวลไขมัน (kg)</label><input type="number" id="bm-fat" step="0.1"></div>
@@ -1970,17 +2026,17 @@ async function renderBody() {
     const hasMuscle = massRecs.some(r=>r.muscleMass);
     const massCharts = (hasFat||hasMuscle) ? `
       ${hasFat ? `<div class="card">
-        <div class="ctitle" style="color:#d47d35">📈 กราฟมวลไขมัน</div>
+        <div class="ctitle" style="color:#d47d35">กราฟมวลไขมัน</div>
         <div class="ch-wrap"><canvas id="body-fc"></canvas></div>
       </div>` : ""}
       ${hasMuscle ? `<div class="card">
-        <div class="ctitle" style="color:#3fa136">📈 กราฟมวลกล้ามเนื้อ</div>
+        <div class="ctitle" style="color:#3fa136">กราฟมวลกล้ามเนื้อ</div>
         <div class="ch-wrap"><canvas id="body-mc"></canvas></div>
       </div>` : ""}` : "";
 
     const massTable = `
       <div class="card">
-        <div class="ctitle">📋 ประวัติมวลไขมัน / กล้ามเนื้อ</div>
+        <div class="ctitle">ประวัติมวลไขมัน / กล้ามเนื้อ</div>
         <div style="overflow-x:auto">
           <table class="tbl">
             <thead><tr><th>วันที่</th><th>ไขมัน (kg)</th><th>กล้ามเนื้อ (kg)</th>${!patientMode?"<th></th>":""}</tr></thead>
@@ -2079,7 +2135,77 @@ async function submitBodyMass() {
   } catch(e) { toast("❌ บันทึกไม่ได้: "+e.message,"err"); if(restore) restore(); }
 }
 
-// ===== NEW BODY COMPOSITION (เตรียมเชื่อมเครื่องชั่งอัตโนมัติ) =====
+// ===== NEW BODY COMPOSITION (เชื่อมเครื่องชั่ง FG2015ULB) =====
+// แสดงผลแบบเดียวกับหน้า server.py เป๊ะ — การ์ดน้ำหนักใหญ่+ลูกศรเทียบ, กริดผลวิเคราะห์ 12 ค่า,
+// ตารางเทียบมาตรฐาน, แยกซ้าย-ขวา — ไม่มีฟอร์มกรอกเอง ไม่มีกราฟ เลือกย้อนดูครั้งก่อนๆ ได้ผ่าน dropdown
+const NB_METRIC_DEFS = [
+  ["bmi", "BMI", ""],
+  ["bodyFatPercent", "ไขมัน", "%"],
+  ["musclePercent", "กล้ามเนื้อ", "%"],
+  ["skeletalMusclePercent", "กล้ามเนื้อโครงร่าง", "%"],
+  ["subcutaneousFatPercent", "ไขมันใต้ผิวหนัง", "%"],
+  ["visceralFat", "ไขมันช่องท้อง", ""],
+  ["bodyWaterPercentFg", "น้ำ", "%"],
+  ["proteinPercent", "โปรตีน", "%"],
+  ["boneMassKg", "กระดูก", "kg"],
+  ["bmrKcal", "BMR", "kcal"],
+  ["metabolicAge", "อายุร่างกาย", "ปี"],
+  ["bodyScore", "คะแนนร่างกาย", ""],
+];
+const NB_STD_LABELS = {
+  fat_mass_kg: "มวลไขมัน", bone_mass_kg: "มวลกระดูก", protein_kg: "โปรตีน",
+  water_kg: "น้ำ", muscle_mass_kg: "มวลกล้ามเนื้อ", skeletal_muscle_kg: "กล้ามเนื้อโครงร่าง",
+};
+const NB_STD_EVAL_CLASS = { "ต่ำ": "low", "สูง": "high", "มาตรฐาน": "normal" };
+const NB_SEG_NAMES = { left_arm: "แขนซ้าย", right_arm: "แขนขวา", left_leg: "ขาซ้าย", right_leg: "ขาขวา", trunk: "ลำตัว" };
+
+function nbDeltaHtml(curVal, prevVal) {
+  const cur = parseFloat(curVal), prev = parseFloat(prevVal);
+  if (prevVal === null || prevVal === undefined || prevVal === "" || curVal === null || curVal === undefined || isNaN(cur) || isNaN(prev)) return "";
+  const diff = Math.round((cur - prev) * 10) / 10;
+  if (diff === 0) return `<span style="color:var(--tx3)">±0</span>`;
+  const cls = diff > 0 ? "up" : "down";
+  const arrow = diff > 0 ? "▲" : "▼";
+  return `<span class="${cls}">${arrow} ${Math.abs(diff)}</span>`;
+}
+
+function nbMetricGridHtml(rec, prevRec) {
+  return NB_METRIC_DEFS.map(([key, label, unit]) => {
+    const val = rec[key];
+    const prevVal = prevRec ? prevRec[key] : null;
+    const valStr = (val === null || val === undefined || val === "") ? "-" : val;
+    return `<div class="metric-box">
+      <div class="metric-val">${valStr}${unit ? `<span class="metric-unit">${unit}</span>` : ""}</div>
+      <div class="metric-label">${label}</div>
+      <div class="metric-delta">${nbDeltaHtml(val, prevVal)}</div>
+    </div>`;
+  }).join("");
+}
+
+function nbStandardsHtml(standards) {
+  if (!standards) return "";
+  const rows = Object.entries(standards).map(([key, s]) => `
+    <tr>
+      <td>${NB_STD_LABELS[key] || key}</td>
+      <td>${s.value} kg</td>
+      <td style="color:var(--tx2);font-size:11px">${s.low}–${s.high} kg</td>
+      <td><span class="eval-tag ${NB_STD_EVAL_CLASS[s.evaluation] || ""}">${s.evaluation}</span></td>
+    </tr>`).join("");
+  return `<thead><tr><th>รายการ</th><th>ค่าที่วัดได้</th><th>ช่วงมาตรฐาน</th><th>ผล</th></tr></thead><tbody>${rows}</tbody>`;
+}
+
+function nbSegmentsHtml(segments) {
+  if (!segments) return "";
+  return Object.entries(segments).map(([key, s]) => `
+    <div class="seg-row">
+      <span class="seg-name">${NB_SEG_NAMES[key] || key}</span>
+      <span class="seg-vals">
+        <span>ไขมัน ${s.fat_percent}%</span>
+        <span>กล้ามเนื้อ ${s.muscle_percent}%</span>
+      </span>
+    </div>`).join("");
+}
+
 let _renderNewBodyInFlight = {}; // { name: true } — กัน renderNewBody ทำงานซ้อนกันเองถ้ากดปุ่มซ้ำเร็วเกินไป
 async function renderNewBody() {
   const v = document.getElementById("newbody-v");
@@ -2092,135 +2218,113 @@ async function renderNewBody() {
       v.innerHTML = loading();
 
       // รอ preload ที่กำลังทำงานอยู่แทนที่จะยิงซ้ำ — ต้องรอตัวที่ถูกต้องตาม mode
-      // (เดิมเช็คแค่ patientMode&&_fullDataInFlight[scaleKey] ฝั่ง staff เลยไม่เคยเข้าเงื่อนไขนี้ได้เลย
-      //  ตกไป else ยิง getScaleData ใหม่ทุกครั้ง ทั้งที่ selectPt() preload ไว้แล้วผ่าน fetchPatientFullData)
       const scaleKey = currentName + "__scale";
       if (patientMode && _fullDataInFlight[scaleKey]) {
-        // ฝั่งคนไข้ — ถ้ากำลังโหลดข้อมูลล่วงหน้าอยู่ ให้รอ
         await _fullDataInFlight[scaleKey];
       } else if (!patientMode) {
-        // ฝั่ง staff — รอ fetchPatientFullData ตัวเดียวกับที่ selectPt() preload ไว้ (มี _scaleCache มาด้วย)
         await fetchPatientFullData(currentName);
       } else {
-        // ฝั่งคนไข้ แต่ไม่มี preload ค้างอยู่ (เช่น เข้ามาตรงๆ ไม่ผ่าน preload) — ดึงเองตรงๆ
         const r = await apiGet({action: "getScaleData", name: currentName});
         _scaleCache[currentName] = r.success ? (r.records || []) : [];
       }
     }
 
-    const recs = _scaleCache[currentName] || [];
+    // เอาเฉพาะที่มาจากเครื่อง FG2015ULB — ไม่เชื่อมกับ S400 อีกต่อไป
+    const recs = (_scaleCache[currentName] || []).filter(r => r.device === "FG2015ULB")
+      .slice().sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
 
-    const form = !patientMode ? `
-      <div class="card">
-        <div class="ctitle">⚖️ บันทึกข้อมูลจากเครื่องชั่ง</div>
-        <div class="r2">
-          <div class="fg"><label>วันที่</label><input type="date" id="nb-dt" value="${today()}"></div>
-          <div class="fg"><label>เวลา</label><input type="time" id="nb-tm" value="${new Date().toTimeString().slice(0,5)}"></div>
-        </div>
-        <div class="r2">
-          <div class="fg"><label>น้ำหนัก (kg)</label><input type="number" id="nb-w" step="0.1"></div>
-          <div class="fg"><label>ไขมัน (%)</label><input type="number" id="nb-fat" step="0.1"></div>
-        </div>
-        <div class="r2">
-          <div class="fg"><label>มวลกล้ามเนื้อ (kg)</label><input type="number" id="nb-musc" step="0.1"></div>
-          <div class="fg"><label>น้ำในร่างกาย (%)</label><input type="number" id="nb-water" step="0.1"></div>
-        </div>
-        <div class="r2">
-          <div class="fg"><label>มวลกระดูก (%)</label><input type="number" id="nb-bone" step="0.1"></div>
-          <div class="fg"><label>BMR (kcal)</label><input type="number" id="nb-bmr" step="1"></div>
-        </div>
-        <div class="fg"><label>อายุร่างกาย (ปี)</label><input type="number" id="nb-age" step="1"></div>
-        <button class="btn btn-pk" onclick="submitNewBody()">💾 บันทึก</button>
-      </div>` : "";
+    if (!recs.length) {
+      window._nbRecs = []; // ล้างทิ้งกันค้างข้อมูลของคนไข้คนก่อนหน้า แม้ในทางปฏิบัติจะไม่มี dropdown ให้กดถึงจุดนี้อยู่แล้วก็ตาม
+      v.innerHTML = `<div class="card"><div class="ld">ยังไม่มีข้อมูลจากเครื่องชั่ง FG2015ULB — ชั่งจากหน้าเชื่อมเครื่องชั่งก่อน</div></div>`;
+      return;
+    }
 
-    const metrics = [
-      { key:"weight",           label:"น้ำหนัก",         unit:"kg", color:"#377fbe" },
-      { key:"fatPercent",       label:"ไขมัน",           unit:"%",  color:"#d47d35" },
-      { key:"muscleMass",       label:"มวลกล้ามเนื้อ",   unit:"kg", color:"#3fa136" },
-      { key:"bodyWaterPercent", label:"น้ำในร่างกาย",     unit:"%",  color:"#549ad4" },
-      { key:"boneMassPercent",  label:"มวลกระดูก",       unit:"%",  color:"#7f39c6" },
-      { key:"bmr",              label:"BMR",             unit:"kcal", color:"#c62f41" },
-    ];
-
-    const chartCards = metrics.map(m => {
-      const has = recs.some(r => r[m.key]);
-      if (!has) return "";
-      return `<div class="card">
-        <div class="ctitle" style="color:${m.color}">📈 กราฟ${m.label}</div>
-        <div class="ch-wrap"><canvas id="nb-chart-${m.key}"></canvas></div>
-      </div>`;
+    // ดีฟอลต์แสดงครั้งล่าสุด (แถวสุดท้ายหลังเรียงจากเก่าไปใหม่)
+    const latestIdx = recs.length - 1;
+    const historyOptions = recs.slice().reverse().map((r, revIdx) => {
+      const idx = recs.length - 1 - revIdx; // ดัชนีจริงใน recs (เรียงเก่า→ใหม่)
+      return `<option value="${idx}" ${idx===latestIdx?"selected":""}>${r.date}${r.time?" "+r.time:""} — ${r.weight} kg</option>`;
     }).join("");
 
-    const tableCard = `
+    const rec = recs[latestIdx];
+    const prevRec = recs[latestIdx - 1] || null;
+
+    v.innerHTML = `
       <div class="card">
-        <div class="ctitle">📋 ประวัติมวลร่างกาย</div>
-        <div style="overflow-x:auto">
-          <table class="tbl">
-            <thead><tr>
-              <th>วันที่</th><th>น้ำหนัก</th><th>ไขมัน%</th><th>กล้ามเนื้อ</th>
-              <th>น้ำ%</th><th>กระดูก%</th><th>BMR</th><th>แหล่งข้อมูล</th>${!patientMode?"<th></th>":""}
-            </tr></thead>
-            <tbody>${
-              recs.length
-                ? recs.slice().reverse().map(r=>`<tr>
-                    <td style="font-size:11px;white-space:nowrap">${r.date}${r.time?" "+r.time:""}</td>
-                    <td style="color:#377fbe;font-weight:700">${r.weight||"-"}</td>
-                    <td style="color:#d47d35">${r.fatPercent||"-"}</td>
-                    <td style="color:#3fa136">${r.muscleMass||"-"}</td>
-                    <td style="color:#549ad4">${r.bodyWaterPercent||"-"}</td>
-                    <td style="color:#7f39c6">${r.boneMassPercent||"-"}</td>
-                    <td style="color:#c62f41">${r.bmr||"-"}</td>
-                    <td style="font-size:11px">${r.source==="scale"?"⚖️ เครื่องชั่ง":"✍️ กรอกเอง"}</td>
-                    ${!patientMode?`<td><span onclick='deleteNewBodyRow("${r.id}","${r.date}")'
-                        style="cursor:pointer;font-size:15px">🗑</span></td>`:""}
-                  </tr>`).join("")
-                : `<tr><td colspan="${!patientMode?9:8}" style="color:var(--tx2);padding:14px">ยังไม่มีข้อมูล — รอเชื่อมต่อเครื่องชั่งหรือกรอกด้วยมือ</td></tr>`
-            }</tbody>
-          </table>
+        <div class="ctitle" style="display:flex;align-items:center;justify-content:space-between">
+          <span>ผลการชั่ง (FG2015ULB)</span>
+          <select id="nb-history-select" onchange="onNbHistorySelect()" style="width:auto;padding:6px 10px;font-size:12px;margin:0">
+            ${historyOptions}
+          </select>
         </div>
-      </div>`;
+        <div class="weight-big" id="nb-weight-display">${rec.weight}<span class="weight-unit">kg</span></div>
+        <div class="weight-delta" id="nb-weight-delta">${nbDeltaHtml(rec.weight, prevRec ? prevRec.weight : null)}</div>
+      </div>
 
-    v.innerHTML = form + chartCards + tableCard;
+      <div class="card">
+        <div class="ctitle">ผลวิเคราะห์ Body Composition</div>
+        <div style="font-size:12px;color:var(--tx2);margin-bottom:10px">คำนวณจากอิมพีแดนซ์จริงที่วัดจากเครื่อง (สูตร WLA25 ของเครื่องเอง)</div>
+        <div class="metric-grid" id="nb-metric-grid">${nbMetricGridHtml(rec, prevRec)}</div>
+      </div>
 
-    setTimeout(() => {
-      metrics.forEach(m => {
-        const filtered = recs.filter(r => r[m.key]).slice().sort((a,b)=>a.date.localeCompare(b.date));
-        // ทำลาย chart เดิมของ metric นี้ก่อนเสมอ ป้องกัน instance ค้าง/โหลดซ้อนตอนสลับหน้าไปมาเร็วๆ
-        if (_nbCharts[m.key]) { _nbCharts[m.key].destroy(); _nbCharts[m.key] = null; }
-        if (!filtered.length) return;
-        const ctx = document.getElementById("nb-chart-"+m.key);
-        if (!ctx) return;
-        _nbCharts[m.key] = makeLineChart(ctx, `${m.label} (${m.unit})`,
-          filtered.map(r=>parseFloat(r[m.key])), filtered.map(r=>r.date), m.color);
-      });
-    }, 80);
+      ${rec.standards ? `
+      <div class="card">
+        <div class="ctitle">เทียบช่วงมาตรฐาน</div>
+        <div style="font-size:12px;color:var(--tx2);margin-bottom:10px">อ้างอิงจากส่วนสูง/เพศ (ถอดจากรายงาน Fitdays จริง)</div>
+        <table class="std-table" id="nb-std-table">${nbStandardsHtml(rec.standards)}</table>
+      </div>` : ""}
+
+      ${rec.segments ? `
+      <div class="card">
+        <div class="ctitle">แยกซ้าย-ขวา</div>
+        <div id="nb-seg-list">${nbSegmentsHtml(rec.segments)}</div>
+        <div class="balance-row">
+          <div class="balance-box"><div class="lbl">สมดุลแขน</div><div class="val">${rec.balance ? rec.balance.arms : "-"}</div></div>
+          <div class="balance-box"><div class="lbl">สมดุลขา</div><div class="val">${rec.balance ? rec.balance.legs : "-"}</div></div>
+        </div>
+      </div>` : ""}
+
+      ${!patientMode ? `
+      <div class="card">
+        <div class="ctitle">ลบผลการชั่งนี้</div>
+        <button class="btn-out" style="width:100%" onclick='deleteNewBodyRow("${rec.id}","${rec.date}")'>🗑 ลบข้อมูลวันที่ ${rec.date}</button>
+      </div>` : ""}
+    `;
+
+    // เก็บ recs ไว้ให้ onNbHistorySelect ใช้สลับได้โดยไม่ต้องโหลดใหม่
+    window._nbRecs = recs;
   } catch(e) { v.innerHTML = err(e.message); }
   finally { delete _renderNewBodyInFlight[currentName]; }
 }
 
-async function submitNewBody() {
-  const date = V("nb-dt");
-  if (!date) { toast("กรอกวันที่ก่อน","err"); return; }
-  const payload = {
-    action: "logScaleData", name: currentName, date, time: V("nb-tm"),
-    weight: V("nb-w"), fatPercent: V("nb-fat"), muscleMass: V("nb-musc"),
-    bodyWaterPercent: V("nb-water"), boneMassPercent: V("nb-bone"),
-    bmr: V("nb-bmr"), bodyAge: V("nb-age"), source: "manual"
-  };
-  const hasAny = ["weight","fatPercent","muscleMass","bodyWaterPercent","boneMassPercent","bmr","bodyAge"]
-    .some(k => payload[k]);
-  if (!hasAny) { toast("กรอกข้อมูลอย่างน้อย 1 ช่อง","err"); return; }
-  const btn = event.currentTarget;
-  const restore = btnLoading(btn, "กำลังบันทึก...");
-  try {
-    const r = await api(payload);
-    if (r.success) {
-      toast("✅ บันทึกสำเร็จ","ok");
-      ["nb-w","nb-fat","nb-musc","nb-water","nb-bone","nb-bmr","nb-age"].forEach(id=>set(id,""));
-      delete _scaleCache[currentName];
-      renderNewBody();
-    } else { toast("❌ "+r.message,"err"); if(restore) restore(); }
-  } catch(e) { toast("❌ บันทึกไม่ได้: "+e.message,"err"); if(restore) restore(); }
+function onNbHistorySelect() {
+  const sel = document.getElementById("nb-history-select");
+  const idx = parseInt(sel.value, 10);
+  const recs = window._nbRecs || [];
+  const rec = recs[idx];
+  if (!rec) return;
+  const prevRec = recs[idx - 1] || null;
+
+  document.getElementById("nb-weight-display").innerHTML = rec.weight + `<span class="weight-unit">kg</span>`;
+  document.getElementById("nb-weight-delta").innerHTML = nbDeltaHtml(rec.weight, prevRec ? prevRec.weight : null);
+
+  const gridEl = document.getElementById("nb-metric-grid");
+  if (gridEl) gridEl.innerHTML = nbMetricGridHtml(rec, prevRec);
+
+  const stdEl = document.getElementById("nb-std-table");
+  if (stdEl && rec.standards) stdEl.innerHTML = nbStandardsHtml(rec.standards);
+
+  const segEl = document.getElementById("nb-seg-list");
+  if (segEl && rec.segments) segEl.innerHTML = nbSegmentsHtml(rec.segments);
+
+  // อัปเดตปุ่มลบให้ชี้ไปที่แถวที่กำลังดูอยู่ (ไม่ใช่แถวล่าสุดเสมอ)
+  if (!patientMode) {
+    const delBtn = document.querySelector('#newbody-v button.btn-out[onclick^="deleteNewBodyRow"]');
+    if (delBtn) {
+      delBtn.setAttribute("onclick", `deleteNewBodyRow('${rec.id}','${rec.date}')`);
+      delBtn.textContent = "🗑 ลบข้อมูลวันที่ " + rec.date;
+    }
+  }
 }
 
 function deleteNewBodyRow(id, date) {
@@ -2578,7 +2682,7 @@ async function renderAppt() {
     if (myAppt) {
       // มีนัดแล้ว — แสดงการ์ดนัด
       v.innerHTML = `<div class="card">
-        <div class="ctitle">📅 เลือกเวลาเข้ารับบริการ</div>
+        <div class="ctitle">เลือกเวลาเข้ารับบริการ</div>
         <div style="background:var(--gr2);border:1.5px solid #a8c2a3;border-radius:12px;padding:16px;text-align:center;margin-bottom:14px">
           <div style="font-size:13px;font-weight:700;color:var(--gr-tx);margin-bottom:6px">✅ มีเวลานัดแล้ว</div>
           <div style="font-size:16px;font-weight:700;color:var(--tx);margin-bottom:4px">${thDate(myAppt.date)}</div>
@@ -2606,7 +2710,7 @@ async function renderAppt() {
     const openDays = allDays; // ใช้ทุกวัน
 
     if (!allDays.some(x=>x.isOpen)) {
-      v.innerHTML = `<div class="card"><div class="ctitle">📅 เลือกเวลาเข้ารับบริการครั้งถัดไป</div>
+      v.innerHTML = `<div class="card"><div class="ctitle">เลือกเวลาเข้ารับบริการครั้งถัดไป</div>
         <div class="ld">ไม่มีวันว่างใน 2 สัปดาห์ข้างหน้า</div></div>`;
       return;
     }
@@ -2703,7 +2807,7 @@ async function renderAppt() {
     }
 
     v.innerHTML = `<div class="card" style="overflow:visible">
-      <div class="ctitle">📅 เลือกวันเข้ารับบริการ</div>
+      <div class="ctitle">เลือกวันเข้ารับบริการ</div>
       ${dayTabs}
       <div id="appt-slot-area">${slotHtml}</div>
       <div style="height:80px"></div>
@@ -2812,7 +2916,7 @@ async function renderLeaderboard() {
 
     v.innerHTML = `
       <div class="card">
-        <div class="ctitle">🏆 จัดอันดับลดน้ำหนัก</div>
+        <div class="ctitle">จัดอันดับลดน้ำหนัก</div>
         <div class="mtabs">${periodChips}</div>
       </div>
       ${rows}
@@ -2861,7 +2965,7 @@ async function renderRecentWeighIns() {
 
     v.innerHTML = `
       <div class="card">
-        <div class="ctitle">🕐 ชั่งน้ำหนักล่าสุด</div>
+        <div class="ctitle">ชั่งน้ำหนักล่าสุด</div>
         <div style="font-size:12px;color:var(--tx2)">แสดง ${list.length} รายชื่อล่าสุด</div>
       </div>
       ${rows}
@@ -2977,7 +3081,7 @@ async function renderPatientStat() {
 
     v.innerHTML = `
       <div class="card">
-        <div class="ctitle">🏆 สถิติของฉัน</div>
+        <div class="ctitle">สถิติของฉัน</div>
         <div class="mtabs">${periodChips}</div>
       </div>
       ${body}
@@ -3058,7 +3162,7 @@ async function _renderApptStaffInto(v) {
     const open = isDayOpen(apptSelDate, overrides);
     const slots = getSlots(apptSelDate, overrides);
     detailHtml = `<div class="card" style="margin-top:10px">
-      <div class="ctitle">📋 ${apptSelDate}
+      <div class="ctitle">${apptSelDate}
         <span style="font-size:11px;color:var(--tx2);margin-left:8px">${open ? "เปิด" : "ปิด"}</span>
       </div>`;
 
