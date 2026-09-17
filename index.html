@@ -2143,17 +2143,17 @@ let nbMuscleChart = null, nbFatChart = null;
 function drawNbMuscleChart(recs) {
   const ctx = document.getElementById("nb-muscle-chart"); if (!ctx) return;
   if (nbMuscleChart) nbMuscleChart.destroy();
-  const filtered = recs.filter(r=>r.musclePercent);
-  nbMuscleChart = makeLineChart(ctx, "มวลกล้ามเนื้อ (%)",
-    filtered.map(r=>parseFloat(r.musclePercent)), filtered.map(r=>r.date), "#3fa136");
+  const filtered = recs.filter(r=>r.standards && r.standards.muscle_mass_kg);
+  nbMuscleChart = makeLineChart(ctx, "มวลกล้ามเนื้อ (kg)",
+    filtered.map(r=>parseFloat(r.standards.muscle_mass_kg.value)), filtered.map(r=>r.date), "#3fa136");
 }
 
 function drawNbFatChart(recs) {
   const ctx = document.getElementById("nb-fat-chart"); if (!ctx) return;
   if (nbFatChart) nbFatChart.destroy();
-  const filtered = recs.filter(r=>r.bodyFatPercent);
-  nbFatChart = makeLineChart(ctx, "มวลไขมัน (%)",
-    filtered.map(r=>parseFloat(r.bodyFatPercent)), filtered.map(r=>r.date), "#d47d35");
+  const filtered = recs.filter(r=>r.standards && r.standards.fat_mass_kg);
+  nbFatChart = makeLineChart(ctx, "มวลไขมัน (kg)",
+    filtered.map(r=>parseFloat(r.standards.fat_mass_kg.value)), filtered.map(r=>r.date), "#d47d35");
 }
 
 const NB_METRIC_DEFS = [
@@ -2285,13 +2285,13 @@ async function renderNewBody() {
         <div class="metric-grid" id="nb-metric-grid">${nbMetricGridHtml(rec, prevRec)}</div>
       </div>
 
-      ${recs.some(r=>r.musclePercent) ? `
+      ${recs.some(r=>r.standards && r.standards.muscle_mass_kg) ? `
       <div class="card">
         <div class="ctitle" style="color:#3fa136">กราฟมวลกล้ามเนื้อ</div>
         <div class="ch-wrap"><canvas id="nb-muscle-chart"></canvas></div>
       </div>` : ""}
 
-      ${recs.some(r=>r.bodyFatPercent) ? `
+      ${recs.some(r=>r.standards && r.standards.fat_mass_kg) ? `
       <div class="card">
         <div class="ctitle" style="color:#d47d35">กราฟมวลไขมัน</div>
         <div class="ch-wrap"><canvas id="nb-fat-chart"></canvas></div>
