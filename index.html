@@ -11,29 +11,29 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  /* ══ อิงจาก 4 สีหลักตรงตัว: ฟ้าเข้ม #81A6C6 / ฟ้าอ่อน #AACDDC / ครีม #F3E3D0 / น้ำตาลอ่อน #D2C4B4 ══ */
-  /* ตัวอักษร: น้ำตาลเข้มอุ่นๆ อ่านง่ายบนพื้นครีม/ฟ้าอ่อนทุกจุด */
-  --ink:#3a332c;--tx:#463f37;--tx2:#8a8076;--tx3:#c9bfb2;
+  /* ══ พาเลตต์ใหม่: ขาวอมชมพูอ่อน #F9F7F7 / ฟ้าอ่อนเทา #DBE2EF / น้ำเงินกลาง #3F72AF / น้ำเงินเข้ม #112D4E ══ */
+  /* ตัวอักษร: น้ำเงินเข้มเกือบดำ อ่านง่ายบนพื้นอ่อนทุกจุด */
+  --ink:#112d4e;--tx:#1c3a5e;--tx2:#6b7f97;--tx3:#aebdd0;
 
-  /* ฟ้าเข้ม #81A6C6 = สีหลัก (ปุ่ม, แท็บ, กราฟน้ำหนัก) — พื้นหลังตรงตัว ใช้ตัวหนังสือเข้ม (--ink) แทนขาว */
-  --rose:#81a6c6;--rose-lt:#e4eef5;--rose-dp:#587187;--rose-btn:#81a6c6;
-  --pk:#81a6c6;--pk2:#e4eef5;--pk3:#587187; /* alias เดิมคงไว้เพื่อไม่พังของเก่า — ใช้เป็น text-safe accent */
+  /* น้ำเงินกลาง #3F72AF = สีหลัก (ปุ่ม, แท็บ, กราฟน้ำหนัก) */
+  --rose:#3f72af;--rose-lt:#dbe2ef;--rose-dp:#112d4e;--rose-btn:#3f72af;
+  --pk:#3f72af;--pk2:#dbe2ef;--pk3:#112d4e; /* alias เดิมคงไว้เพื่อไม่พังของเก่า — ใช้เป็น text-safe accent */
 
-  /* ฟ้าอ่อน #AACDDC = สีข้อมูล/ลิงก์ ตัวสีตรงตัว */
-  --bl:#aacddc;--bl2:#eaf3f7;--bl-btn:#aacddc;
-  --pu:#5a7891;--pu2:#eaf3f7;
+  /* ฟ้าอ่อนเทา #DBE2EF = สีข้อมูล/ลิงก์ */
+  --bl:#8fa9c9;--bl2:#eef1f7;--bl-btn:#8fa9c9;
+  --pu:#3f72af;--pu2:#eef1f7;
 
-  /* ไม่มีสีเขียวในพาเลตต์ใหม่ จึงผสมเซจอ่อนที่กลมกลืนกับฟ้า-น้ำตาลไว้ใช้แทนสถานะสำเร็จ/บวก */
-  --gr:#c9dcc8;--gr-tx:#6f796e;--gr2:#eef4ed;
+  /* ไม่มีสีเขียวในพาเลตต์ใหม่ จึงผสมเซจอ่อนที่กลมกลืนกับน้ำเงินไว้ใช้แทนสถานะสำเร็จ/บวก */
+  --gr:#c8d8dc;--gr-tx:#5a7480;--gr2:#eef4f5;
 
-  /* น้ำตาลอ่อน #D2C4B4 = สีเสริม/border, เฉดเข้มสำหรับสถานะเตือน */
-  --am:#8a7360;--am2:#f3ece3;
+  /* เฉดกลางของพาเลตต์ = สีเสริม/border, เฉดเข้มสำหรับสถานะเตือน */
+  --am:#5c7ca0;--am2:#e9edf5;
 
-  /* สีอันตราย/ลบ: แดงอมน้ำตาลอุ่นๆ ให้เข้ากับโทนรวม ตัวหนังสือขาว */
-  --rd:#b56a5a;
+  /* สีอันตราย/ลบ: แดงอมม่วงอุ่นๆ ให้เข้ากับโทนน้ำเงินรวม ตัวหนังสือขาว */
+  --rd:#a15a6a;
 
-  --bd:#e6d9c8;--bg:#d8e1e9;--cd:#fdfefe;--rad:16px;
-  --sh:0 3px 20px rgba(129,166,198,.14);
+  --bd:#dbe2ef;--bg:#f9f7f7;--cd:#ffffff;--rad:16px;
+  --sh:0 3px 20px rgba(63,114,175,.14);
   --serif:'Noto Sans Thai',sans-serif;--sans:'Noto Sans Thai',sans-serif;
 }
 body{font-family:var(--sans);background:var(--bg);color:var(--tx);min-height:100vh;
@@ -43,7 +43,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--tx);min-height:100
 .num{font-family:var(--serif);font-optical-sizing:auto;letter-spacing:-.01em}
 
 /* TOP */
-.topbar{background:linear-gradient(150deg,#5d788f,#4d6477 78%);color:#fff;
+.topbar{background:linear-gradient(150deg,#112d4e,#1c3f66 78%);color:#fff;
   padding:15px 18px 13px;display:flex;align-items:center;gap:10px;
   position:sticky;top:0;z-index:200;box-shadow:0 3px 18px rgba(120,50,75,.2)}
 .topbar h1{font-family:var(--serif);font-weight:500;font-size:18px;flex:1;line-height:1.3;letter-spacing:.01em}
@@ -130,7 +130,7 @@ textarea{resize:vertical;min-height:56px}
 
 /* PROGRESS */
 .pbg{background:var(--bd);border-radius:99px;height:10px;overflow:hidden}
-.pfl{height:100%;border-radius:99px;background:linear-gradient(90deg,#a8c2d8,var(--rose-dp));transition:width .7s}
+.pfl{height:100%;border-radius:99px;background:linear-gradient(90deg,#8fa9c9,var(--rose-dp));transition:width .7s}
 .plb{display:flex;justify-content:space-between;font-size:11.5px;color:var(--tx2);margin-bottom:6px}
 
 /* CHART */
@@ -196,7 +196,7 @@ textarea{resize:vertical;min-height:56px}
   box-shadow:var(--sh)}
 .img-card img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:var(--rose-lt)}
 .img-date{font-size:11px;color:var(--tx2);padding:6px 7px;text-align:center}
-.img-del{width:100%;padding:6px;border:none;background:#f6edeb;color:var(--rd);
+.img-del{width:100%;padding:6px;border:none;background:#f5e9ec;color:var(--rd);
   font-size:11px;cursor:pointer;font-family:var(--sans);border-top:1px solid var(--bd)}
 
 /* NEW BODY COMPOSITION (FG2015ULB) — ให้ตรงกับหน้า server.py เป๊ะ */
@@ -265,7 +265,7 @@ textarea{resize:vertical;min-height:56px}
   border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center}
 
 /* BANNER */
-.banner{background:linear-gradient(150deg,var(--rose-lt),#d7e6ef);
+.banner{background:linear-gradient(150deg,var(--rose-lt),#eef1f7);
   border-radius:14px;padding:15px;box-shadow:var(--sh);
   margin-bottom:14px;text-align:center}
 .banner .bname{font-family:var(--serif);font-size:22px;font-weight:500;
@@ -291,8 +291,8 @@ textarea{resize:vertical;min-height:56px}
 .appt-day.today{border-color:var(--rose);font-weight:700}
 .appt-day.selected{background:var(--rose-btn);color:var(--ink);border-color:var(--rose-btn);font-weight:700}
 .appt-day.closed{background:var(--bg);color:var(--tx3);cursor:default}
-.appt-day.open{background:var(--gr2);border-color:#dbe0da}
-.appt-day.full{background:var(--am2);border-color:#dbd4cc}
+.appt-day.open{background:var(--gr2);border-color:#c5d8dc}
+.appt-day.full{background:var(--am2);border-color:#c9d3e2}
 .appt-day.past{color:var(--tx3);cursor:default;background:none}
 .appt-day.other-month{color:var(--tx3)}
 .appt-day-num{font-family:var(--serif);font-size:14px;font-weight:500;line-height:1.4}
@@ -335,7 +335,7 @@ textarea{resize:vertical;min-height:56px}
   padding:10px 0;border-bottom:1px solid var(--bd);font-size:13.5px}
 .srow:last-child{border-bottom:none}
 .info-box{background:var(--am2);border-radius:11px;box-shadow:var(--sh);
-  padding:11px 12px;margin-bottom:12px;font-size:12px;color:#5f4f36;line-height:1.5}
+  padding:11px 12px;margin-bottom:12px;font-size:12px;color:#2e4a6b;line-height:1.5}
 </style>
 </head>
 <body>
@@ -856,7 +856,7 @@ function renderOnePtCard(p) {
             onclick="copyLink('${link}','${bid}')">📋 คัดลอก</button>
           <button class="btn-sm" style="background:var(--gr2);color:var(--gr-tx);border:1px solid var(--gr)"
             onclick="editPtNameModal('${p.name.replace(/'/g,"\\'")}')">✏️ แก้ไข</button>
-          <button class="btn-sm" style="background:#f6edeb;color:var(--rd);border:1px solid #e9d2ce"
+          <button class="btn-sm" style="background:#f5e9ec;color:var(--rd);border:1px solid #dfc0c8"
             onclick="confirmDeletePt('${p.name.replace(/'/g,"\\'")}')">🗑 ลบ</button>
         </div>
       </div>
@@ -2828,12 +2828,12 @@ async function renderAppt() {
       // มีนัดแล้ว — แสดงการ์ดนัด
       v.innerHTML = `<div class="card">
         <div class="ctitle">เลือกเวลาเข้ารับบริการ</div>
-        <div style="background:var(--gr2);border:1.5px solid #a8c2a3;border-radius:12px;padding:16px;text-align:center;margin-bottom:14px">
+        <div style="background:var(--gr2);border:1.5px solid #a3bcc2;border-radius:12px;padding:16px;text-align:center;margin-bottom:14px">
           <div style="font-size:13px;font-weight:700;color:var(--gr-tx);margin-bottom:6px">✅ มีเวลานัดแล้ว</div>
           <div style="font-size:16px;font-weight:700;color:var(--tx);margin-bottom:4px">${thDate(myAppt.date)}</div>
           <div class="num" style="font-size:32px;font-weight:500;color:var(--rose-dp)">${String(myAppt.time).substring(0,5)} น.</div>
         </div>
-        <button class="btn" style="background:#f6edeb;color:var(--rd);font-size:13px" onclick="cancelAppt('${myAppt.id}')">ยกเลิกการนัด</button>
+        <button class="btn" style="background:#f5e9ec;color:var(--rd);font-size:13px" onclick="cancelAppt('${myAppt.id}')">ยกเลิกการนัด</button>
       </div>`;
       return;
     }
@@ -2895,7 +2895,7 @@ async function renderAppt() {
         diffColor = "var(--tx3)";
         dot = `<span style="font-size:9px;color:#ccc">ปิด</span>`;
       } else if (isFull) {
-        bg = "#f6edeb"; color = "var(--tx2)"; border = "#e9d2ce";
+        bg = "#f5e9ec"; color = "var(--tx2)"; border = "#dfc0c8";
         diffColor = "var(--rd)";
         dot = `<span style="font-size:9px;color:var(--rd)">เต็ม</span>`;
       } else {
