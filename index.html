@@ -367,6 +367,7 @@ textarea{resize:vertical;min-height:56px}
   <div id="sec-add" style="display:none">
     <div class="card">
       <div class="ctitle">ดึงรายชื่อวันนี้จาก Medicloud</div>
+      <div class="fg"><label>วันที่</label><input type="date" id="mc-date"></div>
       <button class="btn-out" style="width:100%" onclick="fetchTodayMedicloud()">🔄 ดึงรายชื่อผู้ป่วยที่มาวันนี้</button>
       <div id="mc-list" style="margin-top:10px"></div>
     </div>
@@ -486,6 +487,10 @@ let wChart = null, mChart = null;
 window.onload = async () => {
   const p = new URLSearchParams(location.search);
   const pn = p.get("patient");
+  const staffPn = p.get("staffPatient"); // เปิดตรงไปหาคนไข้คนนี้ในโหมด staff (แก้ไข/ลบได้ปกติ) — ต่างจาก
+                                          // ?patient= ที่เป็นโหมดคนไข้เข้าดูเอง (ดูอย่างเดียว)
+                                          // ใช้ตอนกดบันทึกผล/บันทึกเฉพาะน้ำหนักจากหน้าเชื่อมเครื่องชั่งเสร็จ
+                                          // แล้วอยากเปิดหน้าต่างใหม่ตรงไปที่ Body Composition ของคนไข้คนนั้น
 
   if (pn) {
     patientMode = true;
@@ -509,6 +514,14 @@ window.onload = async () => {
       }).catch(()=>{ delete _fullDataInFlight[scaleKey]; });
     }
     else { hTab("cfg"); toast(" กรุณาตั้งค่า URL ก่อน","err"); }
+  } else if (staffPn) {
+    // โหมด staff ปกติทุกอย่าง (patientMode ยังคง false) แค่ข้ามหน้ารายชื่อ เปิดตรงไปที่คนไข้คนนี้เลย
+    // selectPt() จัดการ buildNav(true)/preload/เปิดแท็บที่ต้องการให้เองครบอยู่แล้ว
+    if (gasUrl) {
+      const name = decodeURIComponent(staffPn);
+      const tab = p.get("tab") || "entry";
+      selectPt(name, tab);
+    } else { hTab("cfg"); toast(" กรุณาตั้งค่า URL ก่อน","err"); }
   } else {
     buildNav(false);
     document.querySelector(".main").style.paddingBottom = "20px";
@@ -748,6 +761,7 @@ function hTab(t) {
     if(b) b.classList.toggle("on", k===t);
   });
   if (t==="pt" && patients.length > 0) renderPtList();
+  if (t==="add") { const d = document.getElementById("mc-date"); if (d) d.value = today(); }
   if (t==="stat") renderLeaderboard();
   if (t==="recent") renderRecentWeighIns();
   if (t==="apts") renderApptHome();
@@ -2463,16 +2477,18 @@ async function submitAdd() {
 }
 
 async function fetchTodayMedicloud() {
+  const date = V("mc-date");
+  if (!date) { toast("เลือกวันที่ก่อน","err"); return; }
   const btn = event.currentTarget;
   const restore = btnLoading(btn, "กำลังดึงรายชื่อ...");
   const list = document.getElementById("mc-list");
   try {
-    const r = await apiGet({action:"getTodayMedicloudPatients"});
+    const r = await apiGet({action:"getTodayMedicloudPatients", date});
     if (restore) restore();
     if (!r.success) { toast("❌ "+r.message,"err"); list.innerHTML = `<div class="ld">❌ ${r.message}</div>`; return; }
     const names = r.names || [];
     _mcInfo = r.info || {};
-    if (!names.length) { list.innerHTML = '<div class="ld">ไม่มีผู้ป่วยเข้ามาวันนี้</div>'; return; }
+    if (!names.length) { list.innerHTML = `<div class="ld">ไม่มีผู้ป่วยเข้ามาวันที่ ${date}</div>`; return; }
     const existingNames = new Set(patients.map(p=>p.name));
     list.innerHTML = names.map(n => {
       const already = existingNames.has(n);
