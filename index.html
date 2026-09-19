@@ -2557,6 +2557,8 @@ async function submitAdd() {
   } catch(e) { hideSaveOverlay(); toast("❌ เพิ่มไม่ได้","err"); }
 }
 
+let _mcListHtml = ""; // เก็บ HTML ของลิสต์เต็มไว้ กันไว้กางกลับมาดูได้โดยไม่ต้องดึงรายชื่อใหม่
+
 async function fetchTodayMedicloud() {
   const date = V("mc-date");
   if (!date) { toast("เลือกวันที่ก่อน","err"); return; }
@@ -2571,7 +2573,7 @@ async function fetchTodayMedicloud() {
     _mcInfo = r.info || {};
     if (!names.length) { list.innerHTML = `<div class="ld">ไม่มีผู้ป่วยเข้ามาวันที่ ${date}</div>`; return; }
     const existingNames = new Set(patients.map(p=>p.name));
-    list.innerHTML = names.map(n => {
+    _mcListHtml = names.map(n => {
       const already = existingNames.has(n);
       return `<div onclick="${already?'':`pickMcName('${n.replace(/'/g,"\\'")}')`}"
         style="padding:10px 12px;border:1.5px solid var(--bd);border-radius:9px;margin-bottom:6px;
@@ -2581,6 +2583,7 @@ async function fetchTodayMedicloud() {
         ${already?'<span style="font-size:11px">มีในระบบแล้ว</span>':'<span style="font-size:13px;color:var(--rose-dp)">เลือก ›</span>'}
       </div>`;
     }).join("");
+    list.innerHTML = _mcListHtml;
   } catch(e) {
     if (restore) restore();
     toast("❌ ดึงรายชื่อไม่ได้","err");
@@ -2603,6 +2606,19 @@ function pickMcName(name) {
     _pickedMcInfo = null;
     toast("เลือก "+name+" แล้ว (ไม่พบข้อมูลเพศ/อายุ/ส่วนสูงใน Medicloud) กด ✅ สร้างผู้ป่วยใหม่","ok");
   }
+
+  // พับรายชื่ออื่นๆ ที่เหลือขึ้นไป เหลือแค่แถบสรุป — กันไม่ให้ต้องไล่มองหาชื่อที่เลือกอยู่ท่ามกลางชื่ออื่น
+  // เก็บ _mcListHtml ไว้ก่อนหน้านี้แล้ว กดกางดูรายชื่อเดิมกลับมาได้โดยไม่ต้องดึงจาก Medicloud ใหม่
+  const list = document.getElementById("mc-list");
+  list.innerHTML = `<div style="padding:10px 12px;border:1.5px solid var(--bd);border-radius:9px;
+      display:flex;align-items:center;justify-content:space-between;background:var(--cd)">
+    <span>✅ เลือก <b>${name}</b> แล้ว</span>
+    <span onclick="expandMcList()" style="font-size:12px;color:var(--rose-dp);cursor:pointer">กางดูรายชื่ออื่น ▾</span>
+  </div>`;
+}
+
+function expandMcList() {
+  document.getElementById("mc-list").innerHTML = _mcListHtml;
 }
 
 
