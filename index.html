@@ -420,6 +420,7 @@ textarea{resize:vertical;min-height:56px}
 <!-- BODY COMP -->
 <div id="pg-body" class="page"><div id="body-v"></div></div>
 <div id="pg-newbody" class="page"><div id="newbody-v"></div></div>
+<div id="pg-recommend" class="page"><div id="recommend-v"></div></div>
 <div id="pg-stat" class="page"><div id="pstat-v"></div></div>
 <!-- ENTRY -->
 <div id="pg-entry" class="page"><div id="entry-v"></div></div>
@@ -577,6 +578,7 @@ function buildNav(patient) {
         <button onclick="gp('sym',this)"><span class="ni">📞</span>ติดตาม</button>
         <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
         <button onclick="gp('newbody',this)"><span class="ni">⚖️</span>New Body Composition</button>
+        <button onclick="gp('recommend',this)"><span class="ni">🍽️</span>แนะนำ</button>
         <button onclick="gp('appt',this)"><span class="ni">📅</span>เลือกเวลา</button>
         <button onclick="backHome()"><span class="ni">↩️</span>กลับแท็บล่าสุด</button>`;
     } else {
@@ -587,6 +589,7 @@ function buildNav(patient) {
         <button onclick="gp('meas',this)"><span class="ni">📏</span>สัดส่วน</button>
         <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
         <button onclick="gp('newbody',this)"><span class="ni">⚖️</span>New Body Composition</button>
+        <button onclick="gp('recommend',this)"><span class="ni">🍽️</span>แนะนำ</button>
         <button onclick="gp('stat',this)"><span class="ni">🏆</span>สถิติ</button>
         <button onclick="gp('appt',this)"><span class="ni">📅</span>เลือกเวลา</button>`;
     }
@@ -607,6 +610,7 @@ function gp(name, btn) {
   else if (name==="meas") renderMeas();
   else if (name==="body") renderBody();
   else if (name==="newbody") renderNewBody();
+  else if (name==="recommend") renderRecommend();
   else if (name==="stat") renderPatientStat();
   else if (name==="entry") renderEntry();
   else if (name==="appt") renderAppt();
@@ -2239,6 +2243,83 @@ function nbSegmentsHtml(segments) {
 }
 
 let _renderNewBodyInFlight = {}; // { name: true } — กัน renderNewBody ทำงานซ้อนกันเองถ้ากดปุ่มซ้ำเร็วเกินไป
+// ===== แนะนำ (โปรตีน + แคลอรี่เป้าหมาย) =====
+// Mifflin-St Jeor: ผู้ชาย = 10×kg + 6.25×cm - 5×อายุ + 5, ผู้หญิง = 10×kg + 6.25×cm - 5×อายุ - 161
+function calcMifflinBMR(weightKg, heightCm, age, sex) {
+  const base = 10 * weightKg + 6.25 * heightCm - 5 * age;
+  return Math.round(sex === "male" ? base + 5 : base - 161);
+}
+
+async function renderRecommend() {
+  const v = document.getElementById("recommend-v");
+  if (!currentName) { v.innerHTML = noPatient(); return; }
+  v.innerHTML = loading();
+  try {
+    // ใช้ cache ตัวเดียวกับหน้าอื่นๆ (preload มาแล้วจาก selectPt()) ไม่ยิง request ซ้ำ
+    const d = await getPatientCached(currentName);
+    if (!d.success) { v.innerHTML = err(d.message); return; }
+
+    const weight = d.currentWeight;
+    if (!weight) {
+      v.innerHTML = `<div class="card"><div class="ld">ยังไม่มีข้อมูลน้ำหนัก — ลงข้อมูลน้ำหนักอย่างน้อย 1 ครั้งก่อน</div></div>`;
+      return;
+    }
+
+    // ── โปรตีนที่ควรทานต่อวัน — จากน้ำหนักตัวจริงล่าสุด 1.2 g/kg ──
+    const proteinG = Math.round(weight * 1.2);
+
+    // ── BMR — ใช้จากเครื่องชั่ง FG2015ULB ล่าสุดถ้ามี ไม่งั้นคำนวณด้วยสูตร Mifflin-St Jeor ──
+    const scaleRecs = (_scaleCache[currentName] || []).filter(r => r.device === "FG2015ULB" && r.bmrKcal)
+      .slice().sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
+    const latestScale = scaleRecs.length ? scaleRecs[scaleRecs.length-1] : null;
+
+    let bmr, bmrSource;
+    if (latestScale) {
+      bmr = parseFloat(latestScale.bmrKcal);
+      bmrSource = `จากเครื่องชั่ง FG2015ULB (${latestScale.date})`;
+    } else if (d.sex && d.age && d.height) {
+      bmr = calcMifflinBMR(weight, parseFloat(d.height), parseFloat(d.age), d.sex);
+      bmrSource = "คำนวณจากสูตร Mifflin-St Jeor (ยังไม่เคยชั่งด้วยเครื่อง FG2015ULB)";
+    } else {
+      v.innerHTML = `<div class="card"><div class="ld">ต้องมีข้อมูลเพศ/อายุ/ส่วนสูงให้ครบก่อน (หรือชั่งด้วยเครื่อง FG2015ULB) ถึงจะคำนวณ BMR ได้</div></div>`;
+      return;
+    }
+
+    // ── แคลอรี่เป้าหมาย — BMR ลบ deficit 300-500 kcal/วัน ──
+    const calLow = Math.round(bmr - 500);
+    const calHigh = Math.round(bmr - 300);
+
+    v.innerHTML = `
+      <div class="card">
+        <div class="ctitle">โปรตีนที่ควรทานต่อวัน</div>
+        <div style="text-align:center;padding:14px 0">
+          <div style="font-family:var(--serif);font-size:40px;font-weight:500;color:var(--pk3)">
+            ${proteinG}<span style="font-size:16px;font-weight:400;color:var(--tx2);margin-left:4px">g</span>
+          </div>
+          <div style="font-size:12px;color:var(--tx2);margin-top:6px">
+            คำนวณจากน้ำหนักตัวล่าสุด ${weight} kg × 1.2 g/kg
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="ctitle">พลังงานที่ควรได้ต่อวัน (เพื่อลดน้ำหนัก)</div>
+        <div style="text-align:center;padding:14px 0">
+          <div style="font-family:var(--serif);font-size:32px;font-weight:500;color:var(--pk3)">
+            ${calLow.toLocaleString()}–${calHigh.toLocaleString()}<span style="font-size:14px;font-weight:400;color:var(--tx2);margin-left:4px">kcal</span>
+          </div>
+          <div style="font-size:12px;color:var(--tx2);margin-top:6px">
+            BMR ${bmr.toLocaleString()} kcal (${bmrSource}) ลบ deficit 300–500 kcal/วัน
+          </div>
+        </div>
+        <div class="info-box" style="margin-top:8px">
+          ตัวเลขนี้เป็นค่าประมาณเบื้องต้น ควรปรับตามความเหมาะสมของผู้ป่วยแต่ละราย (กิจกรรมประจำวัน, โรคประจำตัว ฯลฯ)
+        </div>
+      </div>
+    `;
+  } catch(e) { v.innerHTML = err(e.message); }
+}
+
 async function renderNewBody() {
   const v = document.getElementById("newbody-v");
   if (!currentName) { v.innerHTML = noPatient(); return; }
