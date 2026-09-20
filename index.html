@@ -336,6 +336,8 @@ textarea{resize:vertical;min-height:56px}
 .srow:last-child{border-bottom:none}
 .info-box{background:var(--am2);border-radius:11px;box-shadow:var(--sh);
   padding:11px 12px;margin-bottom:12px;font-size:12px;color:#2e4a6b;line-height:1.5}
+details summary::-webkit-details-marker{display:none}
+details[open] .detail-arrow{transform:rotate(90deg)}
 </style>
 </head>
 <body>
@@ -2250,6 +2252,96 @@ function calcMifflinBMR(weightKg, heightCm, age, sex) {
   return Math.round(sex === "male" ? base + 5 : base - 161);
 }
 
+// ข้อมูลอาหารโปรตีนสูง — เก็บเป็น array แทนการเขียน HTML ตรงๆ เพื่อให้คำนวณยอดรวมจากช่อง
+// "จำนวนหน่วยที่ทาน" ได้ ตัวเลขโปรตีน/แคลอรี่เป็นค่าประมาณต่อหน่วยบริโภคทั่วไป (ปรุงสุก)
+const PROTEIN_FOODS = [
+  { cat: "เนื้อสัตว์", items: [
+    { id:"chicken",  name:"อกไก่ (ไม่มีหนัง) 1 ชิ้น (~100 g)", protein:31,   cal:165 },
+    { id:"beef",     name:"เนื้อวัวไม่ติดมัน 1 ชิ้น (~100 g)", protein:26,   cal:185 },
+    { id:"pork",     name:"เนื้อหมูสันใน 1 ชิ้น (~100 g)",     protein:27,   cal:143 },
+    { id:"salmon",   name:"ปลาแซลมอน 1 ชิ้น (~100 g)",         protein:25,   cal:208 },
+    { id:"tuna",     name:"ปลาทูน่ากระป๋อง 1 กระป๋อง",         protein:39,   cal:165 },
+    { id:"shrimp",   name:"กุ้ง 1 ตัว (ขนาดกลาง)",             protein:3.6,  cal:15  },
+    { id:"tilapia",  name:"ปลาทับทิม/นิล 1 ตัว",               protein:39,   cal:156 },
+  ]},
+  { cat: "ไข่และผลิตภัณฑ์นม", items: [
+    { id:"egg",      name:"ไข่ไก่ 1 ฟอง",                      protein:6.5,  cal:78  },
+    { id:"eggwhite", name:"ไข่ขาว 1 ฟอง",                      protein:3.6,  cal:17  },
+    { id:"milk",     name:"นมวัว 1 แก้ว (240 ml)",             protein:8,    cal:149 },
+    { id:"yogurt",   name:"โยเกิร์ตกรีก 1 ถ้วย",               protein:15,   cal:100 },
+    { id:"cheese",   name:"ชีสเชดดาร์ 1 แผ่น",                 protein:5,    cal:80  },
+  ]},
+  { cat: "พืชตระกูลถั่ว", items: [
+    { id:"tofu",     name:"เต้าหู้แข็ง 1 ก้อน",                protein:12,   cal:106 },
+    { id:"soybean",  name:"ถั่วเหลืองต้ม 1 ถ้วยตวง",           protein:30.6, cal:298 },
+    { id:"blackbean",name:"ถั่วดำ/ถั่วแดงต้ม 1 ถ้วยตวง",       protein:15.3, cal:227 },
+    { id:"peanut",   name:"ถั่วลิสง 1 กำมือ",                  protein:7.8,  cal:170 },
+    { id:"almond",   name:"อัลมอนด์ 1 กำมือ",                  protein:6.3,  cal:174 },
+  ]},
+  { cat: "ธัญพืช", items: [
+    { id:"quinoa",   name:"ควินัวหุงสุก 1 ถ้วยตวง",            protein:8.3,  cal:222 },
+    { id:"oat",      name:"ข้าวโอ๊ต 1 ถ้วยตวง (แห้ง)",         protein:11.7, cal:307 },
+    { id:"brownrice",name:"ข้าวกล้องหุงสุก 1 ถ้วยตวง",         protein:5.1,  cal:216 },
+  ]},
+];
+
+function proteinFoodTableHtml() {
+  return PROTEIN_FOODS.map(group => `
+    <div style="font-size:11px;font-weight:700;color:var(--tx2);margin:10px 0 4px">${group.cat}</div>
+    <table class="tbl" style="font-size:12.5px">
+      <thead><tr><th style="text-align:left">อาหาร</th><th style="text-align:right">โปรตีน</th><th style="text-align:right">แคลอรี่</th><th style="text-align:center;width:56px">จำนวน</th></tr></thead>
+      <tbody>
+        ${group.items.map(f => `
+        <tr>
+          <td style="text-align:left">${f.name}</td>
+          <td style="text-align:right">${f.protein} g</td>
+          <td style="text-align:right">${f.cal} kcal</td>
+          <td style="text-align:center">
+            <input type="number" min="0" step="1" id="pf-qty-${f.id}" value="0" oninput="updateProteinPlanTotal()"
+              style="width:48px;padding:4px 2px;margin:0;font-size:12px;text-align:center">
+          </td>
+        </tr>`).join("")}
+      </tbody>
+    </table>`).join("");
+}
+
+// รวมยอดโปรตีน/แคลอรี่จากช่อง "จำนวน" ที่กรอกไว้ทุกแถว แล้วเทียบกับเป้าหมายรายวัน
+// (เก็บเป้าหมายไว้ใน window ตอน render การ์ดหลัก เพราะฟังก์ชันนี้ถูกเรียกจาก oninput แยกต่างหาก)
+function updateProteinPlanTotal() {
+  let totalProtein = 0, totalCal = 0;
+  PROTEIN_FOODS.forEach(group => group.items.forEach(f => {
+    const qty = parseFloat(V(`pf-qty-${f.id}`)) || 0;
+    totalProtein += qty * f.protein;
+    totalCal += qty * f.cal;
+  }));
+  totalProtein = Math.round(totalProtein * 10) / 10;
+  totalCal = Math.round(totalCal);
+
+  const targetProtein = window._recommendTargets?.proteinG || 0;
+  const targetCalLow = window._recommendTargets?.calLow || 0;
+  const targetCalHigh = window._recommendTargets?.calHigh || 0;
+
+  const proteinPct = targetProtein ? Math.round((totalProtein / targetProtein) * 100) : 0;
+  const calInRange = targetCalLow && totalCal >= targetCalLow && totalCal <= targetCalHigh;
+  const calColor = !targetCalLow ? "var(--tx)" : calInRange ? "var(--gr-tx)" : (totalCal > targetCalHigh ? "var(--rd)" : "var(--tx2)");
+  const proteinColor = !targetProtein ? "var(--tx)" : proteinPct >= 90 ? "var(--gr-tx)" : "var(--tx)";
+
+  const box = document.getElementById("pf-total-box");
+  if (box) {
+    box.innerHTML = `
+      <div style="display:flex;justify-content:space-around;text-align:center;gap:10px">
+        <div>
+          <div style="font-family:var(--serif);font-size:22px;font-weight:500;color:${proteinColor}">${totalProtein} g</div>
+          <div style="font-size:11px;color:var(--tx2)">โปรตีนรวม${targetProtein?` (${proteinPct}% ของเป้า ${targetProtein}g)`:""}</div>
+        </div>
+        <div>
+          <div style="font-family:var(--serif);font-size:22px;font-weight:500;color:${calColor}">${totalCal.toLocaleString()} kcal</div>
+          <div style="font-size:11px;color:var(--tx2)">แคลอรี่รวม${targetCalLow?` (เป้า ${targetCalLow.toLocaleString()}–${targetCalHigh.toLocaleString()})`:""}</div>
+        </div>
+      </div>`;
+  }
+}
+
 async function renderRecommend() {
   const v = document.getElementById("recommend-v");
   if (!currentName) { v.innerHTML = noPatient(); return; }
@@ -2289,6 +2381,9 @@ async function renderRecommend() {
     const calLow = Math.round(bmr - 500);
     const calHigh = Math.round(bmr - 300);
 
+    // เก็บเป้าหมายไว้ให้ updateProteinPlanTotal() ใช้เทียบตอนกรอกจำนวนหน่วยอาหาร (เรียกจาก oninput แยกต่างหาก)
+    window._recommendTargets = { proteinG, calLow, calHigh };
+
     v.innerHTML = `
       <div class="card">
         <div class="ctitle">โปรตีนที่ควรทานต่อวัน</div>
@@ -2316,7 +2411,26 @@ async function renderRecommend() {
           ตัวเลขนี้เป็นค่าประมาณเบื้องต้น ควรปรับตามความเหมาะสมของผู้ป่วยแต่ละราย (กิจกรรมประจำวัน, โรคประจำตัว ฯลฯ)
         </div>
       </div>
+
+      <div class="card">
+        <details>
+          <summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--rose-dp);
+            list-style:none;display:flex;align-items:center;gap:5px;padding:2px 0">
+            <span class="detail-arrow" style="transition:transform .15s;display:inline-block">▸</span>
+            ทดลองเลือกอาหาร
+          </summary>
+          <div style="margin-top:8px;overflow-x:auto">
+            ${proteinFoodTableHtml()}
+            <div style="font-size:11px;color:var(--tx3);margin-top:8px">
+              ปริมาณเป็นค่าประมาณต่อหน่วยบริโภคทั่วไป (ปรุงสุก) — อาจแตกต่างกันตามขนาดจริงของอาหารแต่ละครั้ง
+              ใส่จำนวนหน่วยที่ทานในช่อง "จำนวน" เพื่อรวมยอดโปรตีน/แคลอรี่เทียบกับเป้าหมายรายวันด้านบน
+            </div>
+            <div id="pf-total-box" style="margin-top:10px;padding:12px;background:var(--bg);border-radius:11px"></div>
+          </div>
+        </details>
+      </div>
     `;
+    updateProteinPlanTotal(); // แสดงยอดรวมเริ่มต้น (0 g / 0 kcal) ทันที ไม่ต้องรอพิมพ์อะไรก่อน
   } catch(e) { v.innerHTML = err(e.message); }
 }
 
