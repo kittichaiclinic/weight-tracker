@@ -166,9 +166,11 @@ textarea{resize:vertical;min-height:56px}
   font-family:var(--serif);font-size:16px;font-weight:500;display:flex;align-items:center;
   justify-content:center;flex-shrink:0}
 .pt-link{margin-top:11px;padding-top:11px;border-top:1px solid var(--bd);
-  display:flex;align-items:center;gap:8px}
-.pt-link-txt{flex:1;min-width:0;background:var(--bl2);border-radius:8px;padding:7px 10px;
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.pt-link-txt{flex:1 1 100%;min-width:0;background:var(--bl2);border-radius:8px;padding:7px 10px;
   font-size:11px;color:var(--bl);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.pt-link-btns{display:flex;gap:6px;flex:1 1 100%}
+.pt-link-btns .btn-sm{flex:1;text-align:center}
 
 /* MEASURE TABS */
 .mtabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:13px}
@@ -371,6 +373,9 @@ details[open] .detail-arrow{transform:rotate(90deg)}
       <div class="ctitle">ดึงรายชื่อวันนี้จาก Medicloud</div>
       <div class="fg"><label>วันที่</label><input type="date" id="mc-date"></div>
       <button class="btn-out" style="width:100%" onclick="fetchTodayMedicloud()">🔄 ดึงรายชื่อผู้ป่วยที่มาวันนี้</button>
+      <div id="mc-search-wrap" style="display:none;margin-top:10px">
+        <input type="text" id="mc-search" placeholder="พิมพ์ชื่อเพื่อค้นหาในรายชื่อที่ดึงมา..." oninput="filterMcList()">
+      </div>
       <div id="mc-list" style="margin-top:10px"></div>
     </div>
     <div class="card">
@@ -489,11 +494,22 @@ let wChart = null, mChart = null;
 // ===== INIT =====
 window.onload = async () => {
   const p = new URLSearchParams(location.search);
-  const pn = p.get("patient");
+  let pn = p.get("patient");
+  const pid = p.get("patientId"); // ลิงก์ที่สร้างจาก Patient ID (คนไข้ใหม่) — ต้องแปลงเป็นชื่อปัจจุบันก่อน
+                                   // เพราะระบบข้อมูลที่เหลือทั้งหมด (Visits/ScaleData) ยังคงผูกกับชื่ออยู่
   const staffPn = p.get("staffPatient"); // เปิดตรงไปหาคนไข้คนนี้ในโหมด staff (แก้ไข/ลบได้ปกติ) — ต่างจาก
                                           // ?patient= ที่เป็นโหมดคนไข้เข้าดูเอง (ดูอย่างเดียว)
                                           // ใช้ตอนกดบันทึกผล/บันทึกเฉพาะน้ำหนักจากหน้าเชื่อมเครื่องชั่งเสร็จ
                                           // แล้วอยากเปิดหน้าต่างใหม่ตรงไปที่ Body Composition ของคนไข้คนนั้น
+
+  let pidResolveFailed = false;
+  if (pid && !pn && gasUrl) {
+    try {
+      const r = await apiGet({action:"resolvePatientId", patientId:pid});
+      if (r.success && r.name) pn = r.name; // แปลง ID เป็นชื่อล่าสุดสำเร็จ — ใช้ flow เดียวกับ ?patient= ต่อได้เลย
+      else pidResolveFailed = true;
+    } catch(e) { pidResolveFailed = true; }
+  }
 
   if (pn) {
     patientMode = true;
@@ -517,6 +533,10 @@ window.onload = async () => {
       }).catch(()=>{ delete _fullDataInFlight[scaleKey]; });
     }
     else { hTab("cfg"); toast(" กรุณาตั้งค่า URL ก่อน","err"); }
+  } else if (pidResolveFailed) {
+    buildNav(false);
+    document.querySelector(".main").style.paddingBottom = "20px";
+    toast("❌ ลิงก์นี้ไม่ถูกต้องหรือคนไข้ถูกลบไปแล้ว","err");
   } else if (staffPn) {
     // โหมด staff ปกติทุกอย่าง (patientMode ยังคง false) แค่ข้ามหน้ารายชื่อ เปิดตรงไปที่คนไข้คนนี้เลย
     // selectPt() จัดการ buildNav(true)/preload/เปิดแท็บที่ต้องการให้เองครบอยู่แล้ว
@@ -840,7 +860,11 @@ function renderPtCards(list, flat) {
 
 function renderOnePtCard(p) {
   const base = location.href.split("?")[0];
-  const link = `${base}?patient=${encodeURIComponent(p.name)}`;
+  // คนไข้ใหม่ (มี patientId) ใช้ ID สร้างลิงก์ — ลิงก์นี้ใช้ได้ตลอดแม้จะเปลี่ยนชื่อทีหลัง
+  // คนไข้เก่า (ไม่มี patientId เพราะเพิ่มก่อนระบบนี้) ยังคงใช้ชื่อสร้างลิงก์เหมือนเดิมทุกประการ
+  const link = p.patientId
+    ? `${base}?patientId=${encodeURIComponent(p.patientId)}`
+    : `${base}?patient=${encodeURIComponent(p.name)}`;
   const bid = "cb_"+p.name.replace(/\s/g,"_");
   return `<div class="pt-card">
       <div class="pt-top" onclick="selectPt('${p.name.replace(/'/g,"\\'")}')">
@@ -853,7 +877,7 @@ function renderOnePtCard(p) {
       </div>
       <div class="pt-link">
         <div class="pt-link-txt">${link}</div>
-        <div style="display:flex;gap:6px">
+        <div class="pt-link-btns">
           <button id="${bid}" class="btn-sm" style="background:var(--bl2);color:var(--pu);border:1px solid var(--bl-btn)"
             onclick="copyLink('${link}','${bid}')">📋 คัดลอก</button>
           <button class="btn-sm" style="background:var(--gr2);color:var(--gr-tx);border:1px solid var(--gr)"
@@ -2285,11 +2309,35 @@ const PROTEIN_FOODS = [
   ]},
 ];
 
-function proteinFoodTableHtml() {
-  return PROTEIN_FOODS.map(group => `
+let _customFoods = []; // อาหารที่ staff เพิ่มเอง โหลดจาก Google Sheets (CustomFoods) — ดึงครั้งเดียวตอนเปิดหน้า "แนะนำ"
+let _pfQuantities = {}; // { foodId: qty } — เก็บจำนวนที่กรอกไว้แยกจาก DOM โดยเฉพาะ เพราะ filterFoodTable()
+                         // เขียนทับ innerHTML ทั้งก้อนทุกครั้งที่ค้นหา ถ้าอ่านค่าจาก input element ตรงๆ
+                         // จำนวนที่กรอกไว้ของแถวที่ถูกกรองซ่อนแล้วโผล่กลับมาจะรีเซ็ตเป็น 0 อย่างไม่ตั้งใจ
+
+// รวมอาหารมาตรฐาน (PROTEIN_FOODS) กับอาหารที่ staff เพิ่มเอง (_customFoods) เป็นกลุ่มเดียวกัน
+// จัดกลุ่มอาหารที่เพิ่มเองตามหมวดที่ staff ระบุไว้ตอนเพิ่ม (หรือ "อื่นๆ (เพิ่มเอง)" ถ้าไม่ได้ระบุ)
+function getAllFoodGroups() {
+  const groups = PROTEIN_FOODS.map(g => ({ cat: g.cat, items: [...g.items] }));
+  _customFoods.forEach(f => {
+    let group = groups.find(g => g.cat === f.cat);
+    if (!group) { group = { cat: f.cat, items: [] }; groups.push(group); }
+    group.items.push({ id: f.id, name: f.name, protein: f.protein, cal: f.cal });
+  });
+  return groups;
+}
+
+function proteinFoodTableHtml(query) {
+  const q = (query || "").trim().toLowerCase();
+  const groups = getAllFoodGroups()
+    .map(g => ({ cat: g.cat, items: q ? g.items.filter(f => f.name.toLowerCase().includes(q)) : g.items }))
+    .filter(g => g.items.length > 0);
+
+  if (!groups.length) return `<div class="ld">ไม่พบอาหารที่ตรงกับ "${query}"</div>`;
+
+  return groups.map(group => `
     <div style="font-size:11px;font-weight:700;color:var(--tx2);margin:10px 0 4px">${group.cat}</div>
     <table class="tbl" style="font-size:12.5px">
-      <thead><tr><th style="text-align:left">อาหาร</th><th style="text-align:right">โปรตีน</th><th style="text-align:right">แคลอรี่</th><th style="text-align:center;width:56px">จำนวน</th></tr></thead>
+      <thead><tr><th style="text-align:left">อาหาร</th><th style="text-align:right">โปรตีน</th><th style="text-align:right">แคลอรี่</th><th style="text-align:center;width:90px">จำนวน</th></tr></thead>
       <tbody>
         ${group.items.map(f => `
         <tr>
@@ -2297,20 +2345,86 @@ function proteinFoodTableHtml() {
           <td style="text-align:right">${f.protein} g</td>
           <td style="text-align:right">${f.cal} kcal</td>
           <td style="text-align:center">
-            <input type="number" min="0" step="1" id="pf-qty-${f.id}" value="0" oninput="updateProteinPlanTotal()"
-              style="width:48px;padding:4px 2px;margin:0;font-size:12px;text-align:center">
+            <div style="display:flex;align-items:center;justify-content:center;gap:3px">
+              <button type="button" onclick="stepProteinQty('${f.id}',-1)"
+                style="width:22px;height:22px;padding:0;border-radius:6px;border:1px solid var(--bd);
+                  background:var(--bg);color:var(--tx2);font-size:14px;font-weight:700;line-height:1;flex-shrink:0">−</button>
+              <input type="number" min="0" step="1" id="pf-qty-${f.id}" value="${_pfQuantities[f.id]||0}" readonly
+                style="width:26px;padding:4px 0;margin:0;font-size:12px;text-align:center;border:none;background:transparent">
+              <button type="button" onclick="stepProteinQty('${f.id}',1)"
+                style="width:22px;height:22px;padding:0;border-radius:6px;border:1px solid var(--bd);
+                  background:var(--bg);color:var(--tx2);font-size:14px;font-weight:700;line-height:1;flex-shrink:0">+</button>
+            </div>
           </td>
         </tr>`).join("")}
       </tbody>
     </table>`).join("");
 }
 
+function filterFoodTable() {
+  const q = V("pf-search");
+  document.getElementById("pf-table-container").innerHTML = proteinFoodTableHtml(q);
+}
+
+// เพิ่ม/ลดจำนวนหน่วยอาหารทีละ 1 — ใช้ปุ่มแทนการพิมพ์ตัวเลข เพราะพิมพ์ตัวเลขบนคีย์บอร์ดมือถือยากและช้า
+function stepProteinQty(id, delta) {
+  const next = Math.max(0, (_pfQuantities[id] || 0) + delta);
+  _pfQuantities[id] = next;
+  const input = document.getElementById(`pf-qty-${id}`);
+  if (input) input.value = next; // อัปเดตแค่ตัวเลขที่แสดง ไม่ต้อง re-render ทั้งตาราง
+  updateProteinPlanTotal();
+}
+
+// เปิด modal ให้ staff กรอกอาหารใหม่เอง (ชื่อ + หมวดหมู่ + โปรตีน + แคลอรี่) — เก็บถาวรใน Google Sheets
+// (CustomFoods) ทุกเครื่องที่เปิดแอปนี้จะเห็นอาหารที่เพิ่มเองเหมือนกันหมด
+function openAddFoodModal() {
+  const catOptions = [...new Set(PROTEIN_FOODS.map(g => g.cat))]; // หมวดที่มีอยู่แล้ว ให้เลือกง่ายๆ แทนพิมพ์เอง
+  showModal(`
+    <div class="modal-title">➕ เพิ่มรายการอาหารใหม่<span class="modal-x" onclick="closeModal()">✕</span></div>
+    <div class="fg"><label>ชื่ออาหาร (พร้อมหน่วย เช่น "1 ชิ้น", "1 ถ้วย")</label>
+      <input type="text" id="af-name" placeholder="เช่น อกไก่ย่าง 1 ชิ้น (~150 g)"></div>
+    <div class="fg"><label>หมวดหมู่</label>
+      <select id="af-cat">
+        ${catOptions.map(c => `<option value="${c}">${c}</option>`).join("")}
+        <option value="อื่นๆ (เพิ่มเอง)">อื่นๆ (เพิ่มเอง)</option>
+      </select>
+    </div>
+    <div class="r2">
+      <div class="fg"><label>โปรตีน (g)</label><input type="number" id="af-protein" step="0.1" min="0"></div>
+      <div class="fg"><label>แคลอรี่ (kcal)</label><input type="number" id="af-cal" step="1" min="0"></div>
+    </div>
+    <button class="btn btn-gr" onclick="submitAddFood()">✅ เพิ่มอาหารนี้</button>
+  `);
+}
+
+async function submitAddFood() {
+  const name = V("af-name").trim();
+  const cat = V("af-cat");
+  const protein = V("af-protein");
+  const cal = V("af-cal");
+  if (!name) { toast("กรอกชื่ออาหารก่อน","err"); return; }
+  if (protein === "" || cal === "") { toast("กรอกโปรตีนและแคลอรี่ให้ครบ","err"); return; }
+
+  const btn = event.currentTarget;
+  const restore = btnLoading(btn, "กำลังบันทึก...");
+  try {
+    const r = await api({action:"addCustomFood", name, cat, protein, cal});
+    if (r.success) {
+      toast("✅ เพิ่ม "+name+" สำเร็จ","ok");
+      closeModal();
+      _customFoods.push(r.food); // เพิ่มเข้ารายการทันทีโดยไม่ต้องดึงใหม่ทั้งหมด
+      const container = document.getElementById("pf-table-container");
+      if (container) container.innerHTML = proteinFoodTableHtml(V("pf-search"));
+    } else { toast("❌ "+r.message,"err"); if(restore) restore(); }
+  } catch(e) { toast("❌ เพิ่มไม่ได้: "+e.message,"err"); if(restore) restore(); }
+}
+
 // รวมยอดโปรตีน/แคลอรี่จากช่อง "จำนวน" ที่กรอกไว้ทุกแถว แล้วเทียบกับเป้าหมายรายวัน
 // (เก็บเป้าหมายไว้ใน window ตอน render การ์ดหลัก เพราะฟังก์ชันนี้ถูกเรียกจาก oninput แยกต่างหาก)
 function updateProteinPlanTotal() {
   let totalProtein = 0, totalCal = 0;
-  PROTEIN_FOODS.forEach(group => group.items.forEach(f => {
-    const qty = parseFloat(V(`pf-qty-${f.id}`)) || 0;
+  getAllFoodGroups().forEach(group => group.items.forEach(f => {
+    const qty = _pfQuantities[f.id] || 0;
     totalProtein += qty * f.protein;
     totalCal += qty * f.cal;
   }));
@@ -2384,6 +2498,14 @@ async function renderRecommend() {
     // เก็บเป้าหมายไว้ให้ updateProteinPlanTotal() ใช้เทียบตอนกรอกจำนวนหน่วยอาหาร (เรียกจาก oninput แยกต่างหาก)
     window._recommendTargets = { proteinG, calLow, calHigh };
 
+    // โหลดอาหารที่ staff เพิ่มเองจาก Google Sheets — เรียกทุกครั้งที่เปิดแท็บนี้ เผื่อมีคนอื่นเพิ่มอาหารใหม่เข้ามา
+    // ระหว่างนั้น ล้มเหลวได้โดยไม่กระทบการทำงานส่วนอื่น (แค่ไม่เห็นอาหารที่เพิ่มเอง ยังคงใช้ตารางมาตรฐานได้ปกติ)
+    try {
+      const cf = await apiGet({action:"getCustomFoods"});
+      _customFoods = cf.success ? (cf.foods || []) : [];
+    } catch(e) { _customFoods = []; }
+    _pfQuantities = {}; // เริ่มนับใหม่ทุกครั้งที่เปิดแท็บนี้ (คนละคนไข้ ไม่ควรมีจำนวนค้างจากคนก่อนหน้า)
+
     v.innerHTML = `
       <div class="card">
         <div class="ctitle">โปรตีนที่ควรทานต่อวัน</div>
@@ -2419,8 +2541,13 @@ async function renderRecommend() {
             <span class="detail-arrow" style="transition:transform .15s;display:inline-block">▸</span>
             ทดลองเลือกอาหาร
           </summary>
-          <div style="margin-top:8px;overflow-x:auto">
-            ${proteinFoodTableHtml()}
+          <div style="margin-top:8px">
+            <input type="text" id="pf-search" placeholder="ค้นหาชื่ออาหาร..." oninput="filterFoodTable()" style="margin-bottom:10px">
+            ${!patientMode ? `
+            <button class="btn-out" style="width:100%;margin-bottom:10px;font-size:12.5px" onclick="openAddFoodModal()">
+              ➕ เพิ่มรายการอาหารใหม่
+            </button>` : ""}
+            <div id="pf-table-container" style="overflow-x:auto">${proteinFoodTableHtml()}</div>
             <div style="font-size:11px;color:var(--tx3);margin-top:8px">
               ปริมาณเป็นค่าประมาณต่อหน่วยบริโภคทั่วไป (ปรุงสุก) — อาจแตกต่างกันตามขนาดจริงของอาหารแต่ละครั้ง
               ใส่จำนวนหน่วยที่ทานในช่อง "จำนวน" เพื่อรวมยอดโปรตีน/แคลอรี่เทียบกับเป้าหมายรายวันด้านบน
@@ -2672,6 +2799,28 @@ async function submitAdd() {
 }
 
 let _mcListHtml = ""; // เก็บ HTML ของลิสต์เต็มไว้ กันไว้กางกลับมาดูได้โดยไม่ต้องดึงรายชื่อใหม่
+let _mcNames = []; // เก็บรายชื่อดิบไว้แยกต่างหาก ใช้กรองตอนพิมพ์ค้นหาโดยไม่ต้องดึงจาก Medicloud ใหม่
+
+function mcRenderList(names) {
+  const existingNames = new Set(patients.map(p=>p.name));
+  return names.map(n => {
+    const already = existingNames.has(n);
+    return `<div onclick="${already?'':`pickMcName('${n.replace(/'/g,"\\'")}')`}"
+      style="padding:10px 12px;border:1.5px solid var(--bd);border-radius:9px;margin-bottom:6px;
+        cursor:${already?"default":"pointer"};display:flex;align-items:center;justify-content:space-between;
+        background:${already?"var(--bg)":"var(--cd)"};color:${already?"var(--tx3)":"var(--tx)"}">
+      <span>${n}</span>
+      ${already?'<span style="font-size:11px">มีในระบบแล้ว</span>':'<span style="font-size:13px;color:var(--rose-dp)">เลือก ›</span>'}
+    </div>`;
+  }).join("");
+}
+
+function filterMcList() {
+  const q = V("mc-search").trim().toLowerCase();
+  const filtered = q ? _mcNames.filter(n => n.toLowerCase().includes(q)) : _mcNames;
+  const list = document.getElementById("mc-list");
+  list.innerHTML = filtered.length ? mcRenderList(filtered) : `<div class="ld">ไม่พบชื่อที่ตรงกับ "${V("mc-search")}"</div>`;
+}
 
 async function fetchTodayMedicloud() {
   const date = V("mc-date");
@@ -2679,29 +2828,24 @@ async function fetchTodayMedicloud() {
   const btn = event.currentTarget;
   const restore = btnLoading(btn, "กำลังดึงรายชื่อ...");
   const list = document.getElementById("mc-list");
+  const searchWrap = document.getElementById("mc-search-wrap");
   try {
     const r = await apiGet({action:"getTodayMedicloudPatients", date});
     if (restore) restore();
-    if (!r.success) { toast("❌ "+r.message,"err"); list.innerHTML = `<div class="ld">❌ ${r.message}</div>`; return; }
+    if (!r.success) { toast("❌ "+r.message,"err"); list.innerHTML = `<div class="ld">❌ ${r.message}</div>`; searchWrap.style.display="none"; return; }
     const names = r.names || [];
     _mcInfo = r.info || {};
-    if (!names.length) { list.innerHTML = `<div class="ld">ไม่มีผู้ป่วยเข้ามาวันที่ ${date}</div>`; return; }
-    const existingNames = new Set(patients.map(p=>p.name));
-    _mcListHtml = names.map(n => {
-      const already = existingNames.has(n);
-      return `<div onclick="${already?'':`pickMcName('${n.replace(/'/g,"\\'")}')`}"
-        style="padding:10px 12px;border:1.5px solid var(--bd);border-radius:9px;margin-bottom:6px;
-          cursor:${already?"default":"pointer"};display:flex;align-items:center;justify-content:space-between;
-          background:${already?"var(--bg)":"var(--cd)"};color:${already?"var(--tx3)":"var(--tx)"}">
-        <span>${n}</span>
-        ${already?'<span style="font-size:11px">มีในระบบแล้ว</span>':'<span style="font-size:13px;color:var(--rose-dp)">เลือก ›</span>'}
-      </div>`;
-    }).join("");
+    if (!names.length) { list.innerHTML = `<div class="ld">ไม่มีผู้ป่วยเข้ามาวันที่ ${date}</div>`; searchWrap.style.display="none"; return; }
+    _mcNames = names;
+    _mcListHtml = mcRenderList(names);
     list.innerHTML = _mcListHtml;
+    set("mc-search", ""); // เคลียร์คำค้นหาเก่าทุกครั้งที่ดึงรายชื่อใหม่ กันเห็นผลกรองของวันที่ก่อนหน้าค้างอยู่
+    searchWrap.style.display = "block";
   } catch(e) {
     if (restore) restore();
     toast("❌ ดึงรายชื่อไม่ได้","err");
     list.innerHTML = `<div class="ld">❌ ${e.message}</div>`;
+    searchWrap.style.display = "none";
   }
 }
 
@@ -2732,6 +2876,7 @@ function pickMcName(name) {
 }
 
 function expandMcList() {
+  set("mc-search", "");
   document.getElementById("mc-list").innerHTML = _mcListHtml;
 }
 
