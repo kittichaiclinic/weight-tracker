@@ -733,11 +733,30 @@ function fetchPatientFullData(name, force=false) {
   return p;
 }
 
+// เจอปัญหาที่รู้จักกันของ Google Apps Script web app: บางครั้ง (ไม่บ่อย แต่เกิดจริง) script ทำงาน
+// สำเร็จจริงๆ (เห็นใน Executions log ว่า "เสร็จสมบูรณ์" เร็วมาก) แต่ browser ฝั่ง client กลับอ่าน
+// response ไม่ได้ (CORS/redirect handling ที่ไม่สมบูรณ์ในบางจังหวะ ขึ้นกับ browser/เครือข่ายของเครื่องนั้น)
+// ทำให้ fetch() throw TypeError ทั้งที่ server ทำงานสำเร็จแล้วจริง — retry สั้นๆ 2-3 ครั้งช่วยได้จริง
+// เพราะปัญหานี้ไม่ได้เกิดซ้ำๆ ต่อเนื่อง (ถ้าลองใหม่มักจะผ่าน)
+async function fetchWithRetry(url, options, maxAttempts = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fetch(url, options);
+    } catch (e) {
+      lastError = e;
+      if (e.name === "AbortError") throw e; // timeout ครบ 30 วิแล้วจริง — ไม่มีประโยชน์จะลองซ้ำทันที
+      if (attempt < maxAttempts) await new Promise(r => setTimeout(r, attempt * 400)); // หน่วงเพิ่มทีละนิดก่อนลองใหม่
+    }
+  }
+  throw lastError;
+}
+
 async function api(data) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30000);
   try {
-    const r = await fetch(gasUrl, {
+    const r = await fetchWithRetry(gasUrl, {
       method: "POST",
       body: JSON.stringify(data),
       signal: controller.signal
@@ -755,7 +774,7 @@ async function apiGet(params) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30000);
   try {
-    const r = await fetch(gasUrl + "?" + qs, {signal: controller.signal});
+    const r = await fetchWithRetry(gasUrl + "?" + qs, {signal: controller.signal});
     clearTimeout(timer);
     return r.json();
   } catch(e) {
