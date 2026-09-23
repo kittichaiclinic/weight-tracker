@@ -11,6 +11,11 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
+  --topbar-h:54px; /* ความสูงจริงโดยประมาณของ .topbar — ให้ sticky element อื่นในหน้าอ้างอิงแทนใช้ top:0 ตรงๆ
+                      กันไม่ให้ไปซ้อนทับกับแถบนี้ (ซึ่งก็ sticky top:0 อยู่แล้วเช่นกัน) ประกาศที่ :root เพราะ
+                      .topbar กับจุดที่ต้องใช้ค่านี้เป็น sibling กันใน DOM ไม่ใช่ parent-child เลย ประกาศไว้
+                      ใน .topbar เองจะอ่านค่าจากนอก element นั้นไม่ได้ (custom property inherit ตาม DOM tree)
+
   /* ══ พาเลตต์ใหม่: ขาวอมชมพูอ่อน #F9F7F7 / ฟ้าอ่อนเทา #DBE2EF / น้ำเงินกลาง #3F72AF / น้ำเงินเข้ม #112D4E ══ */
   /* ตัวอักษร: น้ำเงินเข้มเกือบดำ อ่านง่ายบนพื้นอ่อนทุกจุด */
   --ink:#112d4e;--tx:#1c3a5e;--tx2:#6b7f97;--tx3:#aebdd0;
@@ -77,7 +82,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--tx);min-height:100
   letter-spacing:.02em;text-transform:uppercase;opacity:.92}
 
 /* HOME TABS */
-.htabs{display:flex;background:var(--cd);border-radius:16px;
+.htabs{display:inline-flex;max-width:100%;background:var(--cd);border-radius:16px;
   overflow-x:auto;overflow-y:hidden;margin-bottom:14px;box-shadow:var(--sh);
   -webkit-overflow-scrolling:touch;scrollbar-width:none}
 .htabs::-webkit-scrollbar{display:none}
@@ -171,6 +176,91 @@ textarea{resize:vertical;min-height:56px}
 @media (min-width:700px){
   .main{max-width:1100px}
   .pt-group-body{grid-template-columns:repeat(auto-fill,minmax(320px,1fr));align-items:start}
+
+  /* ขยายตัวหนังสือทั้งแอป ~1.2 เท่าบนจอกว้าง (คอม) — ไฟล์นี้ใช้ font-size เป็น px ล้วนไม่มี rem เลย
+     (198 จุด, 128 จุดในนั้นเป็น inline style) จึงไม่มีทางขยายผ่าน root font-size ธรรมดาได้
+     ต้องจับคู่แต่ละค่าที่พบจริงในไฟล์ (24 ค่าที่ต่างกัน) ทีละคู่แทน — attribute selector จับคู่จาก
+     ข้อความ "font-size:Npx" ที่อยู่ใน style="" ตรงๆ (ทดสอบแล้วว่าไม่ชนกันข้ามค่า เช่น 11px จะไม่โดน
+     11.5px หรือ 110px จับคู่ผิดด้วย เพราะมีอักขระอื่นคั่นก่อนถึง "px" เสมอ) !important จำเป็นเพราะ
+     inline style มี specificity สูงกว่า CSS class เสมอไม่ว่าจะเขียนยังไงก็ตาม
+     รักษาสัดส่วนเดิมระหว่างตัวเลขใหญ่/label เล็กไว้ครบ เพราะคูณด้วยอัตราส่วนเดียวกันทุกค่า */
+  [style*="font-size:9px"]{font-size:10.8px!important}
+  [style*="font-size:10px"]{font-size:12px!important}
+  [style*="font-size:10.5px"]{font-size:12.6px!important}
+  [style*="font-size:11px"]{font-size:13.2px!important}
+  [style*="font-size:11.5px"]{font-size:13.8px!important}
+  [style*="font-size:12px"]{font-size:14.4px!important}
+  [style*="font-size:12.5px"]{font-size:15px!important}
+  [style*="font-size:13px"]{font-size:15.6px!important}
+  [style*="font-size:13.5px"]{font-size:16.2px!important}
+  [style*="font-size:14px"]{font-size:16.8px!important}
+  [style*="font-size:14.5px"]{font-size:17.4px!important}
+  [style*="font-size:15px"]{font-size:18px!important}
+  [style*="font-size:16px"]{font-size:19.2px!important}
+  [style*="font-size:18px"]{font-size:21.6px!important}
+  [style*="font-size:19px"]{font-size:22.8px!important}
+  [style*="font-size:20px"]{font-size:24px!important}
+  [style*="font-size:22px"]{font-size:26.4px!important}
+  [style*="font-size:24px"]{font-size:28.8px!important}
+  [style*="font-size:25px"]{font-size:30px!important}
+  [style*="font-size:30px"]{font-size:36px!important}
+  [style*="font-size:32px"]{font-size:38.4px!important}
+  [style*="font-size:36px"]{font-size:43.2px!important}
+  [style*="font-size:40px"]{font-size:48px!important}
+  [style*="font-size:48px"]{font-size:57.6px!important}
+  .slb{font-size:12.6px}
+  .sv{font-size:30px}
+  .su{font-size:13.2px}
+  .plb{font-size:13.8px}
+  .tbl{font-size:15px}
+  .st{font-size:14.4px}
+  .img-date{font-size:13.2px}
+  .weight-unit{font-size:21.6px}
+  .weight-delta{font-size:15.6px}
+  .metric-val{font-size:22.8px}
+  .metric-label{font-size:12px}
+  .metric-delta{font-size:12px}
+  .std-table{font-size:14.4px}
+  .eval-tag{font-size:12px}
+  .seg-vals{font-size:13.8px}
+  .save-ov-text{font-size:22.8px}
+  .appt-day-num{font-size:16.8px}
+  .appt-day-dot{font-size:10.8px}
+  .appt-slot-time{font-size:18px}
+  .appt-slot-info{font-size:14.4px}
+  .appt-slot-badge{font-size:12.6px}
+  .cal-month{font-size:18px}
+  .appt-card-name{font-size:15.6px}
+  .appt-card-del{font-size:21.6px}
+  .ld{font-size:16.2px}
+  .appt-card-time{font-size:16.8px}
+  .appt-day{font-size:14.4px}
+  .appt-day-hd{font-size:12px}
+  .badge{font-size:12.6px}
+  .btn{font-size:17.4px}
+  .btn-out{font-size:14.4px}
+  .btn-sm{font-size:15px}
+  .chip{font-size:15px}
+  .ctitle{font-size:15px}
+  .day-close-btn{font-size:13.2px}
+  .day-open-btn{font-size:13.2px}
+  .htab{font-size:15px}
+  .img-del{font-size:13.2px}
+  .info-box{font-size:14.4px}
+  .lb-x{font-size:28.8px}
+  .lock-banner{font-size:14.4px}
+  .modal-title{font-size:17.4px}
+  .modal-x{font-size:22.8px}
+  .mtab{font-size:14.4px}
+  .pt-av{font-size:19.2px}
+  .pt-link-txt{font-size:13.2px}
+  .seg-row{font-size:14.4px}
+  .srow{font-size:16.2px}
+  .sym-dt{font-size:14.4px}
+  .sym-note{font-size:14.4px}
+  .sym-tp{font-size:12px}
+  .toast{font-size:16.2px}
+  .weight-big{font-size:57.6px}
 }
 .pt-top{display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:0;
   transition:opacity .12s,transform .12s;border-radius:8px}
@@ -183,8 +273,8 @@ textarea{resize:vertical;min-height:56px}
   display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .pt-link-txt{flex:1 1 100%;min-width:0;background:var(--bl2);border-radius:8px;padding:7px 10px;
   font-size:11px;color:var(--bl);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.pt-link-btns{display:flex;gap:6px;flex:1 1 100%}
-.pt-link-btns .btn-sm{flex:1;text-align:center}
+.pt-link-btns{display:flex;gap:4px;flex:1 1 100%}
+.pt-link-btns .btn-sm{flex:1;text-align:center;padding:8px 4px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 
 /* MEASURE TABS */
 .mtabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:13px}
@@ -2345,6 +2435,9 @@ const PROTEIN_FOODS = [
 ];
 
 let _customFoods = []; // อาหารที่ staff เพิ่มเอง โหลดจาก Google Sheets (CustomFoods) — ดึงครั้งเดียวตอนเปิดหน้า "แนะนำ"
+let _customFoodsLoaded = false; // true หลังโหลดสำเร็จครั้งแรก — ไม่ต้องยิง request ซ้ำทุกครั้งที่สลับแท็บอีก
+                                  // (cache ไว้ตลอดการเปิดแอปครั้งนี้ ถ้ามีคนเพิ่มอาหารใหม่ระหว่างนั้น ต้อง
+                                  // ปิด-เปิดแอปใหม่ถึงจะเห็น — ยอมรับข้อแลกเปลี่ยนนี้เพื่อความเร็ว)
 let _pfQuantities = {}; // { foodId: qty } — เก็บจำนวนที่กรอกไว้แยกจาก DOM โดยเฉพาะ เพราะ filterFoodTable()
                          // เขียนทับ innerHTML ทั้งก้อนทุกครั้งที่ค้นหา ถ้าอ่านค่าจาก input element ตรงๆ
                          // จำนวนที่กรอกไว้ของแถวที่ถูกกรองซ่อนแล้วโผล่กลับมาจะรีเซ็ตเป็น 0 อย่างไม่ตั้งใจ
@@ -2533,12 +2626,16 @@ async function renderRecommend() {
     // เก็บเป้าหมายไว้ให้ updateProteinPlanTotal() ใช้เทียบตอนกรอกจำนวนหน่วยอาหาร (เรียกจาก oninput แยกต่างหาก)
     window._recommendTargets = { proteinG, calLow, calHigh };
 
-    // โหลดอาหารที่ staff เพิ่มเองจาก Google Sheets — เรียกทุกครั้งที่เปิดแท็บนี้ เผื่อมีคนอื่นเพิ่มอาหารใหม่เข้ามา
-    // ระหว่างนั้น ล้มเหลวได้โดยไม่กระทบการทำงานส่วนอื่น (แค่ไม่เห็นอาหารที่เพิ่มเอง ยังคงใช้ตารางมาตรฐานได้ปกติ)
-    try {
-      const cf = await apiGet({action:"getCustomFoods"});
-      _customFoods = cf.success ? (cf.foods || []) : [];
-    } catch(e) { _customFoods = []; }
+    // โหลดอาหารที่ staff เพิ่มเองจาก Google Sheets — แค่ครั้งแรกที่เปิดแท็บนี้ในเซสชันนี้เท่านั้น
+    // (cache ไว้ตลอด ไม่ยิงซ้ำทุกครั้งที่สลับแท็บ — ถ้ามีคนเพิ่มอาหารใหม่ระหว่างนั้น ต้องปิด-เปิดแอปใหม่ถึงจะเห็น)
+    // ล้มเหลวได้โดยไม่กระทบการทำงานส่วนอื่น (แค่ไม่เห็นอาหารที่เพิ่มเอง ยังคงใช้ตารางมาตรฐานได้ปกติ)
+    if (!_customFoodsLoaded) {
+      try {
+        const cf = await apiGet({action:"getCustomFoods"});
+        _customFoods = cf.success ? (cf.foods || []) : [];
+        _customFoodsLoaded = true;
+      } catch(e) { _customFoods = []; }
+    }
     _pfQuantities = {}; // เริ่มนับใหม่ทุกครั้งที่เปิดแท็บนี้ (คนละคนไข้ ไม่ควรมีจำนวนค้างจากคนก่อนหน้า)
 
     v.innerHTML = `
@@ -2577,7 +2674,7 @@ async function renderRecommend() {
             ทดลองเลือกอาหาร
           </summary>
           <div style="margin-top:8px">
-            <div id="pf-total-box" style="position:sticky;top:0;z-index:5;margin-bottom:10px;padding:12px;
+            <div id="pf-total-box" style="position:sticky;top:var(--topbar-h);z-index:5;margin-bottom:10px;padding:12px;
               background:var(--bg);border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.08)"></div>
             <div id="pf-search-wrap" style="display:none">
               <input type="text" inputmode="search" id="pf-search" placeholder="ค้นหาชื่ออาหาร..." oninput="filterFoodTable()" style="margin-bottom:10px">
