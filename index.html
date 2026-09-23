@@ -170,9 +170,9 @@ textarea{resize:vertical;min-height:56px}
 .sb2{overflow:hidden;transition:max-height .35s ease}
 
 /* PATIENT CARD */
-.pt-card{background:var(--cd);border-radius:16px;
+.pt-card{background:var(--cd);border-radius:16px;min-width:0;overflow:hidden;
   padding:14px 15px;margin-bottom:0;box-shadow:var(--sh)}
-.pt-group-body{display:grid;grid-template-columns:1fr;gap:11px;padding-top:11px}
+.pt-group-body{display:grid;grid-template-columns:minmax(0,1fr);gap:11px;padding-top:11px}
 @media (min-width:700px){
   .main{max-width:1100px}
   .pt-group-body{grid-template-columns:repeat(auto-fill,minmax(320px,1fr));align-items:start}
