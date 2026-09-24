@@ -585,6 +585,37 @@ let _apptInFlight = null;   // Promise ของ getApptData ที่กำล�
 let _entryHadCompleteSetup = false; // มี Plan+ข้อมูลส่วนตัวครบอยู่แล้วก่อนหน้านี้ไหม (เช็คตอนโหลดหน้าลงข้อมูล)
                                      // ใช้ตัดสินว่า submitEntry ต้องบังคับกรอกครบก่อนบันทึกหรือไม่ ถ้าเคยครบแล้วไม่ต้องกรอกซ้ำ
 let _lastHomeTab = "pt"; // แท็บหน้าแรก (pt/add/stat/recent/apts/cfg) ที่เพิ่งดูล่าสุด ใช้ตอนกด "กลับแท็บล่าสุด" จากหน้าคนไข้
+
+// ===== Browser History API — กันปุ่มย้อนกลับของเบราว์เซอร์ออกจากเว็บไปเลย =====
+// เดิมแอปนี้ไม่เคยสร้าง history entry ใหม่เลยตอนสลับแท็บ/เข้าดูคนไข้ (แค่เปลี่ยน innerHTML/display ธรรมดา)
+// เบราว์เซอร์เลยไม่มี "หน้าก่อนหน้า" ให้ย้อนกลับไปนอกจากหน้าเว็บก่อนเข้าแอปนี้ — กด back จึงออกจากเว็บทันที
+let _navigatingFromPopstate = false; // true ระหว่างที่กำลังตอบสนอง popstate (กด back/forward) — กัน hTab()/
+                                       // selectPt() ที่ถูกเรียกจากในนี้ไป pushState ซ้ำอีกรอบ (จะกลายเป็น
+                                       // สร้าง history entry ใหม่ทุกครั้งที่กด back แทนที่จะถอยกลับจริงๆ)
+
+window.addEventListener("popstate", (event) => {
+  _navigatingFromPopstate = true;
+  const state = event.state;
+  if (!state || state.type === "tab") {
+    // ไม่มี state (กลับไปจนสุด ก่อนที่แอปจะเริ่ม push อะไรเลย) หรือเป็นแท็บบนสุด — ปิดหน้าคนไข้ (ถ้าเปิดอยู่)
+    // กลับไปแท็บที่ระบุไว้ (หรือแท็บล่าสุดถ้าไม่มี state เลย)
+    if (currentName) {
+      currentName = "";
+      document.getElementById("tb-title").textContent = "Weight Tracker";
+      document.getElementById("tb-badge").textContent = "Staff";
+      document.getElementById("htabs").style.display = "flex";
+      document.getElementById("nav").style.display = "none";
+      document.querySelector(".main").style.paddingBottom = "20px";
+      document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+      document.getElementById("pg-home").classList.add("active");
+    }
+    hTab(state ? state.tab : _lastHomeTab);
+  } else if (state.type === "patient") {
+    selectPt(state.name, state.tab);
+  }
+  _navigatingFromPopstate = false;
+});
+
 let _mcInfo = {};          // name -> { sex, age, height } จากรอบดึงรายชื่อ Medicloud ล่าสุด
 let _pickedMcInfo = null;  // { sex, age, height } ของชื่อที่กด "เลือก" ล่าสุด รอไปใช้ตอนสร้างผู้ป่วยสำเร็จ
 let _bookingSchedule = {   // ตารางเวลาจากระบบจองคิว
@@ -659,7 +690,18 @@ window.onload = async () => {
     const today = new Date().toISOString().split("T")[0];
     ["ad-sd"].forEach(id=>{const e=document.getElementById(id);if(e)e.value=today;});
     if (gasUrl) {
-      hTab("pt");
+      history.replaceState({type:"tab", tab:"pt"}, "", location.pathname + location.search);
+      // ใช้ replaceState แทน hTab("pt") ตรงๆ (ซึ่งจะ pushState เพิ่ม) เฉพาะตอนโหลดหน้าครั้งแรกนี้จุดเดียว
+      // กันไม่ให้กด back ครั้งแรกสุดต้องเจอ state ซ้ำก่อนถึงจะออกจากเว็บได้จริง (ติด tag ให้ entry ที่มีอยู่
+      // แล้วจาก browser เอง แทนที่จะสร้าง entry ใหม่ซ้อนเข้าไป) เรียก logic ที่เหลือของ hTab("pt") เองตรงๆ
+      // แทนเรียกทั้งฟังก์ชัน เพราะ hTab() จะ pushState อีกรอบถ้าเรียกตรงๆ (ไม่มีทาง skip ได้จากจุดนี้)
+      _lastHomeTab = "pt";
+      ["pt","add","stat","recent","apts","cfg"].forEach(k=>{
+        const s = document.getElementById("sec-"+k);
+        const b = document.getElementById("ht-"+k);
+        if(s) s.style.display = k==="pt"?"block":"none";
+        if(b) b.classList.toggle("on", k==="pt");
+      });
       document.getElementById("pt-list").innerHTML = '<div class="ld"><div class="spin"></div>กำลังโหลด...</div>';
       // โหลด patients แบบ non-blocking แสดง UI ก่อน
       loadPatients().then(ok => {
@@ -712,7 +754,7 @@ function buildNav(patient) {
     } else {
       // Patient nav — ไม่มี Plan
       nav.innerHTML = `
-        <button class="active" onclick="gp('fact',this)"><span class="ni">⚖️</span>น้ำหนัก</button>
+        <button class="active" onclick="gp('fact',this)"><span class="ni">⚖️</span>ภาพรวม</button>
         <button onclick="gp('sym',this)"><span class="ni">📞</span>ติดตาม</button>
         <button onclick="gp('meas',this)"><span class="ni">📏</span>สัดส่วน</button>
         <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
@@ -905,6 +947,9 @@ async function loadPatients(force=false) {
 
 function hTab(t) {
   _lastHomeTab = t; // จำแท็บล่าสุดไว้ ใช้ตอนกด "กลับแท็บล่าสุด" จากหน้าคนไข้
+  if (!_navigatingFromPopstate) {
+    history.pushState({type:"tab", tab:t}, "", location.pathname + location.search);
+  }
   ["pt","add","stat","recent","apts","cfg"].forEach(k=>{
     const s = document.getElementById("sec-"+k);
     const b = document.getElementById("ht-"+k);
@@ -1113,6 +1158,9 @@ function copyLink(url, btnId) {
 
 function selectPt(name, targetTab) {
   currentName = name;
+  if (!_navigatingFromPopstate) {
+    history.pushState({type:"patient", name, tab:targetTab || "entry"}, "", location.pathname + location.search);
+  }
   document.getElementById("tb-title").innerHTML =
     `<span onclick="backHome()" style="cursor:pointer;margin-right:6px;font-size:19px;opacity:.85">‹</span>${name}`;
   document.getElementById("tb-badge").textContent = "กำลังจัดการ";
@@ -1150,6 +1198,15 @@ function selectPt(name, targetTab) {
 }
 
 function backHome() {
+  // ใช้ history.back() แทนการแก้ DOM ตรงๆ — ให้ popstate listener (ที่ผูกไว้แล้ว) เป็นคนจัดการ UI ทั้งหมด
+  // กัน DOM กับ browser history ไม่ตรงกัน (เช่น กดปุ่ม "‹" ในแอปแล้ว แต่ history ยังค้าง state ของหน้าคนไข้
+  // อยู่ ถ้ากดปุ่มย้อนกลับเบราว์เซอร์ทีหลังจะเจอ state เก่าที่ไม่ตรงกับที่เห็นบนจอ)
+  // เช็ค history.state ก่อนเผื่อไม่มีอะไรให้ back จริงๆ (เช่น เปิดหน้าคนไข้มาจาก URL ตรงๆ เป็นหน้าแรกสุด
+  // ของ session ไม่เคย push อะไรมาก่อนเลย) — ถ้าไม่มีให้ทำแบบเดิม (แก้ DOM ตรงๆ) กันไม่ให้กดแล้วออกจากเว็บ
+  if (history.state && history.state.type === "patient") {
+    history.back();
+    return;
+  }
   currentName = "";
   document.getElementById("tb-title").textContent = "Weight Tracker";
   document.getElementById("tb-badge").textContent = "Staff";
@@ -1549,6 +1606,20 @@ async function renderFact() {
     if (!d.success) { v.innerHTML=err(d.message); return; }
     if (d.images) _bodyCache[currentName] = d.images; // images มาพร้อมกันกับข้อมูลคนไข้ ไม่ต้องยิง request แยก
 
+    // รอ preload ข้อมูลเครื่องชั่งให้เสร็จก่อน (จำเป็นเพราะฟังก์ชันนี้มักถูกเรียกทันทีตอนเข้าหน้าคนไข้
+    // ก่อนที่ preload จะเสร็จ) ถ้าไม่รอ _scaleCache อาจจะยังไม่มีข้อมูล ทำให้กราฟมวลกล้ามเนื้อ/ไขมันด้านล่าง
+    // ว่างเปล่าทั้งที่จริงๆ มีข้อมูลอยู่แล้ว — โหมดคนไข้กับ staff preload คนละทางกัน ต้องรอให้ถูกตัว:
+    // คนไข้ใช้ scaleKey แยกต่างหาก (เริ่มไว้ใน window.onload), staff ได้ scale data มาพร้อมกับข้อมูล
+    // คนไข้ในคำขอเดียว (fetchPatientFullData ใช้ key เป็นชื่อตรงๆ ไม่ใช่ scaleKey)
+    if (_scaleCache[currentName] === undefined) {
+      const scaleKey = currentName + "__scale";
+      if (patientMode && _fullDataInFlight[scaleKey]) {
+        try { await _fullDataInFlight[scaleKey]; } catch(e) {}
+      } else if (!patientMode && _fullDataInFlight[currentName]) {
+        try { await _fullDataInFlight[currentName]; } catch(e) {}
+      }
+    }
+
     const pct = Math.min(Math.max(d.progress||0,0),100);
     const summaryCard = `
       <div class="banner">
@@ -1631,20 +1702,12 @@ async function renderFact() {
       </tr>`;
     }).join("");
 
-    // ตารางมวลไขมัน/กล้ามเนื้อ แยกจากตารางน้ำหนัก
-    const massRecs = d.records.filter(r=>r.fatMass||r.muscleMass);
-    const massRows = massRecs.slice().sort((a,b)=>a.date.localeCompare(b.date)).reverse().map(r=>`<tr>
-        <td style="font-size:11px">${r.date}</td>
-        <td style="color:#b8960c">${r.fatMass||"-"}</td>
-        <td style="color:#a3211f">${r.muscleMass||"-"}</td>
-        ${!patientMode?`<td><span onclick='editMassModal(${r.row},"${r.date}",${r.fatMass||0},${r.muscleMass||0})'
-            style="cursor:pointer;font-size:15px;margin-right:6px">✏️</span><span onclick='deleteMassRow(${r.row},"${r.date}")'
-            style="cursor:pointer;font-size:15px">🗑</span></td>`:""}
-      </tr>`).join("");
-
-    // กราฟแยก 3 อัน
-    const hasFat    = d.records.some(r=>r.fatMass);
-    const hasMuscle = d.records.some(r=>r.muscleMass);
+    // มวลกล้ามเนื้อ/ไขมัน — ใช้ข้อมูลจาก New Body Composition (เครื่องชั่ง FG2015ULB) แทนของเดิมที่กรอกมือ
+    // ตารางประวัติมวลไขมัน/กล้ามเนื้อแบบเก่า (จาก Visits sheet) เอาออกไปแล้วตามที่ต้องการ เหลือแค่กราฟ
+    const nbRecs = (_scaleCache[currentName] || []).filter(r => r.device === "FG2015ULB")
+      .slice().sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
+    const hasFat    = nbRecs.some(r => r.standards && r.standards.fat_mass_kg);
+    const hasMuscle = nbRecs.some(r => r.standards && r.standards.muscle_mass_kg);
     const chartCards = `
       <div class="card">
         <div class="ctitle">กราฟน้ำหนัก</div>
@@ -1659,17 +1722,6 @@ async function renderFact() {
         <div class="ch-wrap"><canvas id="fact-mc"></canvas></div>
       </div>` : ""}`;
 
-    const massTableCard = massRecs.length ? `
-      <div class="card">
-        <div class="ctitle">ประวัติมวลไขมัน / กล้ามเนื้อ</div>
-        <div style="overflow-x:auto">
-          <table class="tbl">
-            <thead><tr><th>วันที่</th><th>ไขมัน (kg)</th><th>กล้ามเนื้อ (kg)</th>${!patientMode?"<th></th>":""}</tr></thead>
-            <tbody>${massRows}</tbody>
-          </table>
-        </div>
-      </div>` : "";
-
     v.innerHTML = summaryCard + logForm + budgetCard + chartCards + `
       <div class="card">
         <div class="ctitle">ประวัติน้ำหนัก</div>
@@ -1679,17 +1731,16 @@ async function renderFact() {
             <tbody>${rows||noData(9)}</tbody>
           </table>
         </div>
-      </div>` + massTableCard;
+      </div>`;
 
     setTimeout(()=>{
       drawFactChart(d);
-      if (d.records.some(r=>r.fatMass))    drawFatChart(d);
-      if (d.records.some(r=>r.muscleMass)) drawMuscleChart(d);
+      if (hasFat)    drawFactFatChart(nbRecs);
+      if (hasMuscle) drawFactMuscleChart(nbRecs);
     }, 80);
   } catch(e) { v.innerHTML=err(e.message); }
 }
 
-let fChart = null, mChart2 = null;
 function makeLineChart(ctx, label, data, labels, color, goalLine) {
   const datasets = [{
     label, data, borderColor:color, backgroundColor:color+"22",
@@ -1716,22 +1767,6 @@ function drawFactChart(d) {
   const recs = d.records.filter(r=>r.weight!==null);
   wChart = makeLineChart(ctx, "น้ำหนัก (kg)",
     recs.map(r=>r.weight), recs.map(r=>r.date), "#377fbe", d.goalWeight);
-}
-
-function drawFatChart(d) {
-  const ctx = document.getElementById("fact-fc"); if (!ctx) return;
-  if (fChart) fChart.destroy();
-  const recs = d.records.filter(r=>r.fatMass).slice().sort((a,b)=>a.date.localeCompare(b.date));
-  fChart = makeLineChart(ctx, "มวลไขมัน (kg)",
-    recs.map(r=>parseFloat(r.fatMass)), recs.map(r=>r.date), "#b8960c");
-}
-
-function drawMuscleChart(d) {
-  const ctx = document.getElementById("fact-mc"); if (!ctx) return;
-  if (mChart2) mChart2.destroy();
-  const recs = d.records.filter(r=>r.muscleMass).slice().sort((a,b)=>a.date.localeCompare(b.date));
-  mChart2 = makeLineChart(ctx, "มวลกล้ามเนื้อ (kg)",
-    recs.map(r=>parseFloat(r.muscleMass)), recs.map(r=>r.date), "#a3211f");
 }
 
 async function submitFact() {
@@ -2014,7 +2049,7 @@ async function renderSym() {
 
     // open all sections
     ["sy-s1","sy-s2","sy-s3"].forEach(id=>{
-      const el=document.getElementById(id);if(el)el.style.maxHeight="2000px";
+      const el=document.getElementById(id);if(el)el.style.maxHeight="20000px";
       const tog=document.getElementById("tog-"+id);if(tog)tog.classList.add("open");
     });
   } catch(e){v.innerHTML=err(e.message);}
@@ -2322,6 +2357,29 @@ function drawNbFatChart(recs) {
   if (nbFatChart) nbFatChart.destroy();
   const filtered = recs.filter(r=>r.standards && r.standards.fat_mass_kg);
   nbFatChart = makeLineChart(ctx, "มวลไขมัน (kg)",
+    filtered.map(r=>parseFloat(r.standards.fat_mass_kg.value)), filtered.map(r=>r.date), "#b8960c");
+}
+
+// ── กราฟมวลกล้ามเนื้อ/ไขมันสำหรับหน้า "ภาพรวม" (fact) ของคนไข้ — ข้อมูลชุดเดียวกับ New Body
+// Composition (เครื่องชั่ง FG2015ULB) แต่ render ลง canvas คนละตัว (fact-mc/fact-fc แทน nb-muscle-chart/
+// nb-fat-chart) และเก็บ instance แยกต่างหาก กันชนกับกราฟของหน้า New Body Composition ถ้าทั้ง 2 หน้า
+// เคย render ไปแล้วในเซสชันเดียวกัน (Chart.js ผูก instance กับ canvas เฉพาะตัว ไม่แชร์กันได้อยู่แล้ว
+// แต่แยกตัวแปรไว้ให้ชัดเจนว่าเป็นคนละกราฟกัน อ่านโค้ดเข้าใจง่ายกว่า)
+let factMuscleChart = null, factFatChart = null;
+
+function drawFactMuscleChart(recs) {
+  const ctx = document.getElementById("fact-mc"); if (!ctx) return;
+  if (factMuscleChart) factMuscleChart.destroy();
+  const filtered = recs.filter(r=>r.standards && r.standards.muscle_mass_kg);
+  factMuscleChart = makeLineChart(ctx, "มวลกล้ามเนื้อ (kg)",
+    filtered.map(r=>parseFloat(r.standards.muscle_mass_kg.value)), filtered.map(r=>r.date), "#a3211f");
+}
+
+function drawFactFatChart(recs) {
+  const ctx = document.getElementById("fact-fc"); if (!ctx) return;
+  if (factFatChart) factFatChart.destroy();
+  const filtered = recs.filter(r=>r.standards && r.standards.fat_mass_kg);
+  factFatChart = makeLineChart(ctx, "มวลไขมัน (kg)",
     filtered.map(r=>parseFloat(r.standards.fat_mass_kg.value)), filtered.map(r=>r.date), "#b8960c");
 }
 
@@ -3043,7 +3101,7 @@ function toggleSec(id){
   const b=document.getElementById(id),t=document.getElementById("tog-"+id);
   if(!b)return;
   const open=b.style.maxHeight&&b.style.maxHeight!=="0px";
-  b.style.maxHeight=open?"0px":"2000px";
+  b.style.maxHeight=open?"0px":"20000px";
   if(t)t.classList.toggle("open",!open);
 }
 
