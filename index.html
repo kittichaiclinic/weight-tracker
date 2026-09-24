@@ -612,6 +612,17 @@ window.addEventListener("popstate", (event) => {
     hTab(state ? state.tab : _lastHomeTab);
   } else if (state.type === "patient") {
     selectPt(state.name, state.tab);
+  } else if (state.type === "subtab") {
+    if (state.patientMode) {
+      // patient mode: หน้าคนไข้ตั้งค่าไว้ครั้งเดียวตอนโหลดหน้าแรก (?patient=) ไม่เคยเปลี่ยนคนไข้ระหว่างนั้น
+      // เรียก gp() ตรงๆ ได้เลย เหมือนที่ window.onload เรียกตอนเปิดหน้าครั้งแรก
+      currentName = state.name;
+      gp(state.tab, document.querySelector(`.nav button[onclick*="${state.tab}"]`));
+    } else if (state.name) {
+      // staff mode: ต้องผ่าน selectPt() ก่อนเพื่อ rebuild หัวข้อ/nav ของหน้าคนไข้ให้ถูกต้อง (เผื่อ back
+      // ข้ามคนไข้คนละคนกัน ไม่ใช่แค่สลับ tab ของคนเดิม) — selectPt() เรียก gp() ให้เองครบอยู่แล้วข้างใน
+      selectPt(state.name, state.tab);
+    }
   }
   _navigatingFromPopstate = false;
 });
@@ -657,7 +668,11 @@ window.onload = async () => {
     buildNav(true);
     document.querySelector(".main").style.paddingBottom = "82px";
     if (gasUrl) {
+      history.replaceState({type:"subtab", tab:"fact", name:currentName, patientMode:true}, "", location.pathname + location.search);
+      const wasNavigating = _navigatingFromPopstate;
+      _navigatingFromPopstate = true; // กัน gp() pushState ซ้ำ — เพิ่ง replaceState ไปแล้วบรรทัดบน (ตั้งค่าเริ่มต้นของหน้า ไม่ใช่การ navigate จริงที่ควรสร้าง entry ใหม่)
       gp("fact", document.querySelector('.nav button[onclick*="fact"]'));
+      _navigatingFromPopstate = wasNavigating;
       // preload ข้อมูลเครื่องชั่งเบื้องหลัง ไม่ต้องรอ — ให้สลับแท็บทีหลังเร็วขึ้นเหมือนฝั่ง staff
       // getBodyCompImages ไม่ต้องเรียกแยกแล้ว เพราะ renderFact() (เรียกจาก gp("fact") ข้างบน)
       // จะได้ images มาพร้อมกับข้อมูลคนไข้อยู่แล้ว แล้วเก็บลง _bodyCache ให้เองในตัว
@@ -771,6 +786,12 @@ function buildNav(patient) {
 
 function gp(name, btn) {
   if (!patientMode && !currentName && name !== "home") { toast(" เลือกผู้ป่วยก่อน","err"); return; }
+  if (!_navigatingFromPopstate) {
+    // เก็บ currentName ไว้ด้วย (ไม่ใช่แค่ tab) เพราะ gp() ทำงานได้ทั้ง staff mode (currentName เปลี่ยนได้
+    // ระหว่างดูคนไข้คนละคน) และ patient mode (currentName คงที่ตลอด session) — ต้องรู้ทั้งคู่ตอน popstate
+    // ถึงจะ restore กลับไปหน้าที่ถูกต้องได้จริง ไม่ใช่แค่สลับ tab แต่ชื่อคนไข้ผิดคน
+    history.pushState({type:"subtab", tab:name, name:currentName, patientMode}, "", location.pathname + location.search);
+  }
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
   document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
   document.getElementById("pg-"+name).classList.add("active");
@@ -1185,16 +1206,27 @@ function selectPt(name, targetTab) {
     // ไม่ระบุมา ก็เปิด entry ตามปกติ (Plan รวมอยู่ในหน้าลงข้อมูลแล้ว)
     if (!patientMode) {
       const t = targetTab || "entry";
+      const wasNavigating = _navigatingFromPopstate;
+      _navigatingFromPopstate = true; // กัน gp() push ซ้ำ — selectPt() เพิ่ง push {type:"patient"} ไปแล้วข้างบน ครอบทั้ง name+tab ไว้ครบอยู่แล้ว
       gp(t, document.querySelector(`.nav button[onclick*="${t}"]`));
+      _navigatingFromPopstate = wasNavigating;
     }
   }).catch(()=>{
     if (!patientMode) {
       const t = targetTab || "entry";
+      const wasNavigating = _navigatingFromPopstate;
+      _navigatingFromPopstate = true;
       gp(t, document.querySelector(`.nav button[onclick*="${t}"]`));
+      _navigatingFromPopstate = wasNavigating;
     }
   });
 
-  if (patientMode) gp("fact", document.querySelector('.nav button[onclick*="fact"]'));
+  if (patientMode) {
+    const wasNavigating = _navigatingFromPopstate;
+    _navigatingFromPopstate = true;
+    gp("fact", document.querySelector('.nav button[onclick*="fact"]'));
+    _navigatingFromPopstate = wasNavigating;
+  }
 }
 
 function backHome() {
