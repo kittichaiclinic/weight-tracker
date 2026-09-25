@@ -15,6 +15,8 @@
                       กันไม่ให้ไปซ้อนทับกับแถบนี้ (ซึ่งก็ sticky top:0 อยู่แล้วเช่นกัน) ประกาศที่ :root เพราะ
                       .topbar กับจุดที่ต้องใช้ค่านี้เป็น sibling กันใน DOM ไม่ใช่ parent-child เลย ประกาศไว้
                       ใน .topbar เองจะอ่านค่าจากนอก element นั้นไม่ได้ (custom property inherit ตาม DOM tree)
+  --nav-h:55px; /* ความสูงจริงโดยประมาณของ .nav (แถบเมนูล่างในหน้าคนไข้) — ให้ปุ่มบันทึกแบบ sticky
+                   ที่ลอยเหนือมันอ้างอิงแทนใช้ bottom:0 ตรงๆ เหตุผลเดียวกับ --topbar-h ข้างบน */
 
   /* ══ พาเลตต์ใหม่: ขาวอมชมพูอ่อน #F9F7F7 / ฟ้าอ่อนเทา #DBE2EF / น้ำเงินกลาง #3F72AF / น้ำเงินเข้ม #112D4E ══ */
   /* ตัวอักษร: น้ำเงินเข้มเกือบดำ อ่านง่ายบนพื้นอ่อนทุกจุด */
@@ -66,6 +68,16 @@ body{font-family:var(--sans);background:var(--bg);color:var(--tx);min-height:100
 .nav button .ni{font-size:18px;display:block;margin-bottom:2px;opacity:.9}
 .nav button.active .ni{opacity:1}
 .nav button:active{transform:scale(.93)}
+
+@media (max-width:699px){
+  /* ปุ่มบันทึกของฟอร์ม "ลงข้อมูล" ลอยติดเหนือแถบเมนูล่างเสมอบนมือถือ — ฟอร์มนี้ยาว (สัดส่วน 7 ช่อง +
+     โดส/แพทย์/งบ/หมายเหตุ) ไม่ต้อง scroll กลับลงมาสุดฟอร์มทุกครั้งเพื่อกดบันทึก ใช้ --nav-h กันไม่ให้
+     ไปซ้อนทับกับแถบเมนูล่าง (.nav) ที่ fixed อยู่แล้วเช่นกัน (หลักการเดียวกับ --topbar-h) */
+  .entry-save-btn{
+    position:sticky;bottom:calc(var(--nav-h) + 10px);z-index:50;
+    box-shadow:0 4px 16px rgba(0,0,0,.18);
+  }
+}
 
 /* MAIN */
 .main{padding:16px 15px 200px;max-width:540px;margin:0 auto}
@@ -978,6 +990,12 @@ function hTab(t) {
     if(b) b.classList.toggle("on", k===t);
   });
   if (t==="pt" && patients.length > 0) renderPtList();
+  if (t==="pt" && window.innerWidth >= 700) {
+    // auto-focus ช่องค้นหาเฉพาะจอกว้าง (คอม) เท่านั้น — มือถือไม่เอา กันคีย์บอร์ดหน้าจอเปิดเองโดยไม่ตั้งใจ
+    // จนบังพื้นที่จอไปครึ่งหนึ่งทันทีที่เปิดแท็บนี้ ทั้งที่ผู้ใช้อาจแค่อยากดูรายชื่อเฉยๆ ไม่ได้ตั้งใจค้นหา
+    const searchEl = document.getElementById("pt-search");
+    if (searchEl) searchEl.focus();
+  }
   if (t==="add") { const d = document.getElementById("mc-date"); if (d) d.value = today(); }
   if (t==="stat") renderLeaderboard();
   if (t==="recent") renderRecentWeighIns();
@@ -1057,11 +1075,12 @@ function renderOnePtCard(p) {
     ? `${base}?patientId=${encodeURIComponent(p.patientId)}`
     : `${base}?patient=${encodeURIComponent(p.name)}`;
   const bid = "cb_"+p.name.replace(/\s/g,"_");
+  const safeName = escapeHtml(p.name);
   return `<div class="pt-card">
-      <div class="pt-top" onclick="selectPt('${p.name.replace(/'/g,"\\'")}')">
-        <div class="pt-av">${p.name.charAt(0)}</div>
+      <div class="pt-top" onclick="selectPt('${escapeHtml(p.name.replace(/'/g,"\\'"))}')">
+        <div class="pt-av">${escapeHtml(p.name.charAt(0))}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</div>
+          <div style="font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${safeName}</div>
           <div style="font-size:12px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.startWeight} → ${p.goalWeight} kg · เริ่ม ${p.startDate}</div>
         </div>
         <span style="font-size:22px;color:var(--tx3)">›</span>
@@ -1072,33 +1091,35 @@ function renderOnePtCard(p) {
           <button id="${bid}" class="btn-sm" style="background:var(--bl2);color:var(--pu);border:1px solid var(--bl-btn)"
             onclick="copyLink('${link}','${bid}')">📋 คัดลอก</button>
           <button class="btn-sm" style="background:var(--gr2);color:var(--gr-tx);border:1px solid var(--gr)"
-            onclick="editPtNameModal('${p.name.replace(/'/g,"\\'")}')">✏️ แก้ไข</button>
+            onclick="editPtNameModal('${escapeHtml(p.name.replace(/'/g,"\\'"))}')">✏️ แก้ไข</button>
           <button class="btn-sm" style="background:#f5e9ec;color:var(--rd);border:1px solid #dfc0c8"
-            onclick="confirmDeletePt('${p.name.replace(/'/g,"\\'")}')">🗑 ลบ</button>
+            onclick="confirmDeletePt('${escapeHtml(p.name.replace(/'/g,"\\'"))}')">🗑 ลบ</button>
         </div>
       </div>
     </div>`;
 }
 
 async function confirmDeletePt(name) {
+  const safeName = escapeHtml(name);
   showModal(`
     <div class="modal-title">🗑 ลบผู้ป่วย<span class="modal-x" onclick="closeModal()">✕</span></div>
     <div style="text-align:center;padding:10px 0 18px">
       <div style="font-size:36px;margin-bottom:10px">⚠️</div>
-      <div style="font-size:15px;font-weight:700;margin-bottom:6px">ลบ "${name}" ออกจากระบบ?</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:6px">ลบ "${safeName}" ออกจากระบบ?</div>
       <div style="font-size:13px;color:var(--tx2);margin-bottom:18px">ข้อมูลทั้งหมดจะถูกลบออกจาก Google Sheet<br>และไม่สามารถกู้คืนได้</div>
       <div style="display:flex;gap:10px;justify-content:center">
         <button class="btn-out" onclick="closeModal()">ยกเลิก</button>
-        <button class="btn" style="background:var(--rd)" onclick="deletePt('${name.replace(/'/g,"\\'")}')">🗑 ยืนยันลบ</button>
+        <button class="btn" style="background:var(--rd)" onclick="deletePt('${escapeHtml(name.replace(/'/g,"\\'"))}')">🗑 ยืนยันลบ</button>
       </div>
     </div>`);
 }
 
 function editPtNameModal(name) {
+  const safeName = escapeHtml(name);
   showModal(`
     <div class="modal-title">✏️ แก้ไขชื่อผู้ป่วย<span class="modal-x" onclick="closeModal()">✕</span></div>
-    <div class="fg"><label>ชื่อเดิม</label><input type="text" value="${name}" disabled style="opacity:.6"></div>
-    <div class="fg"><label>ชื่อใหม่</label><input type="text" id="rn-new-name" value="${name}"></div>
+    <div class="fg"><label>ชื่อเดิม</label><input type="text" value="${safeName}" disabled style="opacity:.6"></div>
+    <div class="fg"><label>ชื่อใหม่</label><input type="text" id="rn-new-name" value="${safeName}"></div>
     <div style="font-size:12px;color:var(--tx2);margin-bottom:14px">
       ระบบจะเปลี่ยนชื่อในข้อมูลทั้งหมด (น้ำหนัก, ยา, นัดหมาย, Body Composition) ให้อัตโนมัติ
     </div>
@@ -1183,7 +1204,7 @@ function selectPt(name, targetTab) {
     history.pushState({type:"patient", name, tab:targetTab || "entry"}, "", location.pathname + location.search);
   }
   document.getElementById("tb-title").innerHTML =
-    `<span onclick="backHome()" style="cursor:pointer;margin-right:6px;font-size:19px;opacity:.85">‹</span>${name}`;
+    `<span onclick="backHome()" style="cursor:pointer;margin-right:6px;font-size:19px;opacity:.85">‹</span>${escapeHtml(name)}`;
   document.getElementById("tb-badge").textContent = "กำลังจัดการ";
   document.getElementById("htabs").style.display = "none";
   document.querySelector(".main").style.paddingBottom = "82px";
@@ -1264,7 +1285,7 @@ async function renderPatientHome() {
     const pct = Math.min(Math.max(d.progress||0,0),100);
     pg.innerHTML = `
       <div class="banner">
-        <div class="bname">${currentName}</div>
+        <div class="bname">${escapeHtml(currentName)}</div>
         <div class="bsub">เริ่ม ${d.startDate}</div>
       </div>
       <div class="sgrid">
@@ -1385,7 +1406,7 @@ async function renderEntry() {
     const planForm = !patientMode ? `
       <div class="card" id="plan-form-card" style="${hasGoal?'display:none':''}">
         <div class="ctitle">ตั้งเป้าหมาย</div>
-        <div class="fg"><label>เป้าหมาย (kg)</label><input type="number" id="pl-gw" step="0.1" value="${d.goalWeight||""}"></div>
+        <div class="fg"><label>เป้าหมาย (kg)</label><input type="number" id="pl-gw" step="0.1" min="0" value="${d.goalWeight||""}"></div>
       </div>
       <div class="card" id="patientinfo-form-card" style="${hasPersonalInfo?'display:none':''}">
         <div class="ctitle">ข้อมูลส่วนตัว</div>
@@ -1398,9 +1419,9 @@ async function renderEntry() {
               <option value="female" ${d.sex==="female"?"selected":""}>หญิง</option>
             </select>
           </div>
-          <div class="fg"><label>อายุ (ปี)</label><input type="number" id="pl-age" step="1" value="${d.age||""}"></div>
+          <div class="fg"><label>อายุ (ปี)</label><input type="number" id="pl-age" step="1" min="0" max="150" value="${d.age||""}"></div>
         </div>
-        <div class="fg"><label>ส่วนสูง (cm)</label><input type="number" id="pl-height" step="0.1" value="${d.height||""}"></div>
+        <div class="fg"><label>ส่วนสูง (cm)</label><input type="number" id="pl-height" step="0.1" min="0" value="${d.height||""}"></div>
       </div>` : "";
 
     v.innerHTML = planSummary + personalInfoSummary + planForm + `
@@ -1411,13 +1432,13 @@ async function renderEntry() {
         <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:14px 0 8px">⚖️ น้ำหนัก</div>
         <div id="en-draft-banner"></div>
         <div class="r3">
-          <div class="fg"><label>น้ำหนัก (kg)</label><input type="number" id="en-w" step="0.1"></div>
+          <div class="fg"><label>น้ำหนัก (kg)</label><input type="number" id="en-w" step="0.1" min="0"></div>
           <div class="fg"><label>โดส (mg)</label><input type="number" id="en-ds" step="0.5" value="2.5"></div>
           <div class="fg"><label>แพทย์</label>
             <select id="en-dr">
               <option value="">-- เลือกแพทย์ --</option>
-              <option value="หมอชมพู่">พ.ญ.พนิดา (หมอชมพู่)</option>
-              <option value="หมอปาย">นพ.กิตติชัย (หมอปาย)</option>
+              <option value="หมอชมพู่" ${localStorage.getItem("wt_v4_lastdr")==="หมอชมพู่"?"selected":""}>พ.ญ.พนิดา (หมอชมพู่)</option>
+              <option value="หมอปาย" ${localStorage.getItem("wt_v4_lastdr")==="หมอปาย"?"selected":""}>นพ.กิตติชัย (หมอปาย)</option>
             </select>
           </div>
         </div>
@@ -1443,7 +1464,7 @@ async function renderEntry() {
           <div class="fg"><label>ต้นขาซ้าย</label><input type="number" id="en-tl" step="0.5" value="${last&&last.thighL||""}"></div>
         </div>
 
-        <button class="btn btn-pk" onclick="submitEntry()" style="margin-top:16px">💾 บันทึกข้อมูลทั้งหมด</button>
+        <button class="btn btn-pk entry-save-btn" onclick="submitEntry()" style="margin-top:16px">💾 บันทึกข้อมูลทั้งหมด</button>
       </div>
 
       <div class="card">
@@ -1590,6 +1611,17 @@ async function submitEntry() {
     armR:V("en-ar"), armL:V("en-al"),
     thighR:V("en-tr"), thighL:V("en-tl")
   };
+  // กันค่าติดลบ — min="0" ที่ตั้งไว้ในช่องกรอกกันได้แค่ระดับ UI (ลูกศร +/- ของ browser) ไม่ได้กันการพิมพ์
+  // เลขติดลบตรงๆ เข้าไป ต้องเช็คซ้ำตรงนี้ก่อนส่งจริง เพราะค่าติดลบไม่มีความหมายทางการแพทย์และจะทำให้
+  // การคำนวณ (BMI, progress %) ผิดเพี้ยนไปเลย
+  const negativeFields = { weight: "น้ำหนัก", chest: "รอบอก", waist: "รอบเอว", hip: "รอบสะโพก",
+    armR: "แขนขวา", armL: "แขนซ้าย", thighR: "ต้นขาขวา", thighL: "ต้นขาซ้าย" };
+  for (const [key, label] of Object.entries(negativeFields)) {
+    if (payload[key] !== "" && parseFloat(payload[key]) < 0) {
+      toast(`ค่า "${label}" ต้องไม่ติดลบ`, "err");
+      return;
+    }
+  }
   // ลบ field ว่างออก
   Object.keys(payload).forEach(k => { if(payload[k]==="") delete payload[k]; });
   showSaveOverlay("กำลังบันทึก...");
@@ -1598,22 +1630,46 @@ async function submitEntry() {
     if (!r.success) { hideSaveOverlay(); toast("❌ "+r.message,"err"); return; }
 
     // บันทึก Plan + ข้อมูลส่วนตัวไปพร้อมกัน ถ้ามีการกรอก/แก้ไขในฟอร์มนั้นๆ (ไม่ทำถ้าเป็นโหมดคนไข้)
+    // เก็บผลลัพธ์แต่ละจุดไว้แยกกัน — ถ้าอันไหนล้มเหลว ต้องแจ้ง staff ชัดเจนว่าอันไหนไม่ได้บันทึกจริง
+    // (ก่อนหน้านี้ catch(e){} เงียบไว้ ทำให้เห็น "✅ อัปเดตข้อมูลแล้ว" ทั้งที่ Plan/ข้อมูลส่วนตัวไม่ได้บันทึก)
+    const failedParts = [];
     if (!patientMode) {
       const gw = V("pl-gw");
-      if (gw) { try { await api({action:"savePlan", name:currentName, goalWeight:gw}); } catch(e) {} }
+      if (gw && parseFloat(gw) < 0) { toast('ค่า "เป้าหมายน้ำหนัก" ต้องไม่ติดลบ',"err"); hideSaveOverlay(); return; }
+      if (gw) {
+        try {
+          const pr = await api({action:"savePlan", name:currentName, goalWeight:gw});
+          if (!pr.success) failedParts.push("เป้าหมายน้ำหนัก");
+        } catch(e) { failedParts.push("เป้าหมายน้ำหนัก"); }
+      }
       const sex = V("pl-sex"), age = V("pl-age"), height = V("pl-height");
+      if (age && parseFloat(age) < 0) { toast('ค่า "อายุ" ต้องไม่ติดลบ',"err"); hideSaveOverlay(); return; }
+      if (height && parseFloat(height) < 0) { toast('ค่า "ส่วนสูง" ต้องไม่ติดลบ',"err"); hideSaveOverlay(); return; }
       if (sex || age || height) {
-        try { await api({action:"savePatientInfo", name:currentName, sex, age, height}); } catch(e) {}
+        try {
+          const ir = await api({action:"savePatientInfo", name:currentName, sex, age, height});
+          if (!ir.success) failedParts.push("ข้อมูลส่วนตัว (เพศ/อายุ/ส่วนสูง)");
+        } catch(e) { failedParts.push("ข้อมูลส่วนตัว (เพศ/อายุ/ส่วนสูง)"); }
       }
     }
 
     set("en-w","");
+    // จำแพทย์ที่เลือกไว้ ให้เป็นค่าเริ่มต้นของรอบถัดไป — ลดการเลือกซ้ำทุกครั้งถ้าคนเดียวใช้แอปนี้ทั้งวัน
+    const chosenDr = V("en-dr");
+    if (chosenDr) localStorage.setItem("wt_v4_lastdr", chosenDr);
     invalidateCache(currentName);
     _lbCache = {}; // ข้อมูลน้ำหนักเปลี่ยน อันดับในหน้าสถิติอาจเปลี่ยนตาม ล้างแคชทิ้งให้โหลดใหม่
     Object.keys(_pstatCache).forEach(k => { if (k.startsWith(currentName+"|")) delete _pstatCache[k]; });
+    // ล้าง draft จากเครื่องชั่ง — แค่ข้อมูลชั่วคราว ไม่ใช่ข้อมูลจริงของคนไข้ ล้มเหลวได้โดยไม่ต้องแจ้งเตือน
     if (!patientMode) { try { await api({action:"clearDraftScaleReading", name:currentName}); } catch(e) {} }
+    _entryDirty = false; // บันทึกสำเร็จแล้ว — เคลียร์ flag กัน beforeunload เตือนซ้ำทั้งที่ข้อมูลปลอดภัยแล้วจริง
     renderEntry();
-    showSaveDoneOverlay("✅ อัปเดตข้อมูลแล้ว");
+    if (failedParts.length) {
+      showSaveDoneOverlay("✅ บันทึกน้ำหนักแล้ว");
+      toast("⚠️ บันทึกไม่สำเร็จ: " + failedParts.join(", ") + " — กรุณาลองแก้ไขอีกครั้ง", "err");
+    } else {
+      showSaveDoneOverlay("✅ อัปเดตข้อมูลแล้ว");
+    }
   } catch(e) { hideSaveOverlay(); toast("❌ บันทึกไม่ได้: "+e.message,"err"); }
 }
 
@@ -1655,7 +1711,7 @@ async function renderFact() {
     const pct = Math.min(Math.max(d.progress||0,0),100);
     const summaryCard = `
       <div class="banner">
-        <div class="bname">${currentName}</div>
+        <div class="bname">${escapeHtml(currentName)}</div>
         <div class="bsub">เริ่ม ${d.startDate}</div>
       </div>
       <div class="sgrid">
@@ -1826,7 +1882,7 @@ function editFactModal(row,date,weight,dose,doctor,budget,note) {
     <div class="modal-title">แก้ไขข้อมูล<span class="modal-x" onclick="closeModal()"></span></div>
     <div class="r2">
       <div class="fg"><label>วันที่</label><input type="date" id="ed-dt" value="${iso}"></div>
-      <div class="fg"><label>น้ำหนัก</label><input type="number" id="ed-w" value="${weight}" step="0.1"></div>
+      <div class="fg"><label>น้ำหนัก</label><input type="number" id="ed-w" value="${weight}" step="0.1" min="0"></div>
     </div>
     <div class="r3">
       <div class="fg"><label>โดส</label><input type="number" id="ed-ds" value="${dose}" step="0.5"></div>
@@ -3003,21 +3059,34 @@ function closeLb(){
 async function submitAdd() {
   const name = V("ad-name").trim();
   if (!name) { toast("กรอกชื่อผู้ป่วยก่อน","err"); return; }
+  // กันค่าติดลบจาก Medicloud ด้วย — แม้จะดึงมาอัตโนมัติ ก็ยังเป็นข้อมูลภายนอกที่ไม่ควรเชื่อถือ 100%
+  // ค่าติดลบไม่มีความหมายทางการแพทย์และจะทำให้การคำนวณ (BMI ฯลฯ) ผิดเพี้ยนไปเลย
+  if (_pickedMcInfo) {
+    if (_pickedMcInfo.age && parseFloat(_pickedMcInfo.age) < 0) { toast('ค่า "อายุ" จาก Medicloud ผิดปกติ (ติดลบ) กรุณากรอกเองแทน',"err"); return; }
+    if (_pickedMcInfo.height && parseFloat(_pickedMcInfo.height) < 0) { toast('ค่า "ส่วนสูง" จาก Medicloud ผิดปกติ (ติดลบ) กรุณากรอกเองแทน',"err"); return; }
+  }
   showSaveOverlay("กำลังสร้างผู้ป่วยใหม่...");
   try {
     const r = await api({action:"addPatient", name});
     if (r.success) {
       // ถ้าเลือกมาจาก Medicloud และดึงเพศ/อายุ/ส่วนสูงมาได้ ให้บันทึกต่อทันที
+      let infoFailed = false;
       if (_pickedMcInfo && (_pickedMcInfo.sex || _pickedMcInfo.age || _pickedMcInfo.height)) {
         try {
-          await api({action:"savePatientInfo", name,
+          const ir = await api({action:"savePatientInfo", name,
             sex:_pickedMcInfo.sex, age:_pickedMcInfo.age, height:_pickedMcInfo.height});
-        } catch(e) {}
+          if (!ir.success) infoFailed = true;
+        } catch(e) { infoFailed = true; }
       }
       _pickedMcInfo = null;
       set("ad-name",""); document.getElementById("mc-list").innerHTML=""; await loadPatients(true);
       selectPt(name); // เปิดหน้าลงข้อมูลของผู้ป่วยใหม่นี้ทันที ไม่ต้องกลับไปเลือกเองจากรายชื่อ
-      showSaveDoneOverlay("✅ สร้างผู้ป่วยใหม่แล้ว");
+      if (infoFailed) {
+        showSaveDoneOverlay("✅ สร้างผู้ป่วยแล้ว");
+        toast("⚠️ บันทึกเพศ/อายุ/ส่วนสูงจาก Medicloud ไม่สำเร็จ — กรุณากรอกเองในหน้าลงข้อมูล","err");
+      } else {
+        showSaveDoneOverlay("✅ สร้างผู้ป่วยใหม่แล้ว");
+      }
     }
     else { hideSaveOverlay(); toast("❌ "+r.message,"err"); }
   } catch(e) { hideSaveOverlay(); toast("❌ เพิ่มไม่ได้","err"); }
@@ -3095,7 +3164,7 @@ function pickMcName(name) {
   const list = document.getElementById("mc-list");
   list.innerHTML = `<div style="padding:10px 12px;border:1.5px solid var(--bd);border-radius:8px;
       display:flex;align-items:center;justify-content:space-between;background:var(--cd)">
-    <span>✅ เลือก <b>${name}</b> แล้ว</span>
+    <span>✅ เลือก <b>${escapeHtml(name)}</b> แล้ว</span>
     <span onclick="expandMcList()" style="font-size:12px;color:var(--rose-dp);cursor:pointer">กางดูรายชื่ออื่น ▾</span>
   </div>`;
 }
@@ -3167,6 +3236,34 @@ function showSaveDoneOverlay(text, duration){
 
 document.addEventListener("click",e=>{
   if(e.target===document.getElementById("modal"))closeModal();
+});
+
+// Enter = บันทึกทันที ในฟอร์ม "ลงข้อมูล" (หน้าที่กรอกบ่อยที่สุด ทุกวัน) — ลดการต้องกดปุ่มบันทึกด้วยเมาส์/
+// แตะหน้าจอทุกครั้ง scope แค่ input ข้างใน #entry-v เท่านั้น (ไม่ใช่ select/button ที่ Enter มีความหมาย
+// อื่นอยู่แล้วตามธรรมชาติของ browser — เช่น เปิด dropdown) กันไม่ให้ไป trigger submit ผิดที่ผิดทางจากส่วน
+// อื่นของหน้าเว็บ (ค้นหาคนไข้, modal ต่างๆ, ฟอร์ม Plan ที่แยกปุ่มบันทึกของตัวเองอยู่แล้ว)
+document.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  const entryV = document.getElementById("entry-v");
+  if (!entryV || !entryV.contains(e.target)) return;
+  if (e.target.tagName === "SELECT" || e.target.tagName === "BUTTON") return;
+  e.preventDefault();
+  submitEntry();
+});
+
+// เตือนก่อนปิดแท็บ/รีเฟรช/ปิดเบราว์เซอร์ ถ้ายังมีข้อมูลที่กรอกในฟอร์ม "ลงข้อมูล" ค้างไว้ยังไม่ได้บันทึก —
+// ฟอร์มที่กรอกบ่อยที่สุดทุกวัน เสี่ยงข้อมูลหายมากที่สุดถ้าเผลอปิดหน้าไปกลางทาง scope เฉพาะ beforeunload
+// (ปิดแท็บ/รีเฟรช) เท่านั้น ไม่ครอบคลุมการสลับแท็บภายในแอปเอง (SPA ไม่ reload หน้าจริง ต้องเขียน logic
+// แยกต่างหากซึ่งซับซ้อนกว่ามาก และเสี่ยงเตือนพร่ำเพรื่อจนน่ารำคาญถ้า track ไม่ครบทุกจุดจริงๆ)
+let _entryDirty = false;
+document.addEventListener("input", e => {
+  const entryV = document.getElementById("entry-v");
+  if (entryV && entryV.contains(e.target)) _entryDirty = true;
+});
+window.addEventListener("beforeunload", e => {
+  if (!_entryDirty) return;
+  e.preventDefault();
+  e.returnValue = ""; // ข้อความเองกำหนดไม่ได้ในเบราว์เซอร์สมัยใหม่ (ความปลอดภัย) — ใช้ dialog มาตรฐานของเบราว์เซอร์แทน
 });
 
 // แสดงสถานะกำลังโหลดบนปุ่ม (ใช้ตอนกดบันทึก/ลบ ที่ต้องรอ API)
@@ -3534,7 +3631,7 @@ async function renderLeaderboard() {
         <div class="pt-card" style="display:flex;align-items:center;gap:12px;padding:12px 15px;margin-bottom:9px">
           <div style="font-size:${rank<=3?'22px':'15px'};font-weight:700;min-width:34px;text-align:center;color:${rank<=3?'inherit':'var(--tx2)'}">${medal}</div>
           <div style="flex:1">
-            <div style="font-weight:600;font-size:14px">${r.name}</div>
+            <div style="font-weight:600;font-size:14px">${escapeHtml(r.name)}</div>
             <div style="font-size:11.5px;color:var(--tx2)">${r.fromDate} → ${r.toDate}</div>
           </div>
           <div style="text-align:right">
@@ -3577,7 +3674,7 @@ async function renderRecentWeighIns() {
           <div style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="selectPt('${safeName}','body')">
             <div class="pt-av">${r.name.charAt(0)}</div>
             <div style="flex:1">
-              <div style="font-weight:600;font-size:14px">${r.name}</div>
+              <div style="font-weight:600;font-size:14px">${escapeHtml(r.name)}</div>
               <div style="font-size:11.5px;color:var(--tx2)">ชั่งล่าสุด ${r.date}</div>
             </div>
             <div style="text-align:right">
@@ -3606,7 +3703,7 @@ async function renderRecentWeighIns() {
 function quickUploadBodyModal(name, weighDate) {
   showModal(`
     <div class="modal-title">📷 อัปโหลด Body Composition<span class="modal-x" onclick="closeModal()">✕</span></div>
-    <div style="font-size:13px;color:var(--tx2);margin-bottom:12px">${name}</div>
+    <div style="font-size:13px;color:var(--tx2);margin-bottom:12px">${escapeHtml(name)}</div>
     <div class="fg"><label>วันที่</label><input type="date" id="qbc-dt" value="${weighDate}"></div>
     <div class="up-area" id="qbc-area"
       onclick="document.getElementById('qbc-file').click()"
@@ -3912,6 +4009,15 @@ async function staffCancelAppt(id) {
 // ===== HELPERS =====
 function V(id){const e=document.getElementById(id);return e?e.value:"";}
 function set(id,v){const e=document.getElementById(id);if(e)e.value=v;}
+// กัน XSS — แปลงอักขระพิเศษ (<, >, &, ", ') เป็น HTML entity ก่อนแทรกข้อความที่มาจากผู้ใช้ (เช่น ชื่อคนไข้)
+// เข้า innerHTML/template string ตรงๆ ไม่งั้นถ้าใครตั้งชื่อเป็น HTML/JavaScript payload จะรันโค้ดได้ทันที
+// ที่การ์ด/ข้อความนั้นถูกแสดงผล — ใช้ browser's own text-node encoding ผ่าน div ที่ไม่ได้ต่อเข้า DOM จริง
+function escapeHtml(s) {
+  if (s === null || s === undefined) return "";
+  const div = document.createElement("div");
+  div.textContent = String(s);
+  return div.innerHTML;
+}
 function today(){return new Date().toLocaleDateString("sv-SE",{timeZone:"Asia/Bangkok"});}
 function thDate(ds) {
   if (!ds) return "-";
