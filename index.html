@@ -591,6 +591,7 @@ let _bodyCache = {};       // cache รูป body composition { name: images }
 let _scaleCache = {};      // cache ข้อมูล New Body Composition { name: records }
 let _fullDataInFlight = {}; // { name: Promise } — เก็บ Promise ของ getPatientFullData ที่กำลังทำงานอยู่
                              // กันไม่ให้ยิงซ้ำตอนแท็บอื่นถูกเปิดก่อน preload จะเสร็จ (race condition)
+let _recentCache = null;    // cache ข้อมูล "ชั่งน้ำหนักล่าสุด" — ยังไม่เคยมีมาก่อน โหลดใหม่ทุกครั้งที่เข้าแท็บ
 let _apptCache = null;      // cache ข้อมูลนัดหมายทั้งหมด (getApptData คืนข้อมูลทุกเดือนอยู่แล้ว
                              // ไม่ได้กรองตามเดือนที่ backend เลย — กดเปลี่ยนเดือนไม่จำเป็นต้องโหลดใหม่)
 let _apptInFlight = null;   // Promise ของ getApptData ที่กำลังทำงานอยู่ (กันยิงซ้ำจาก 3 จุดที่เรียกพร้อมกัน)
@@ -646,6 +647,24 @@ let _bookingSchedule = {   // ตารางเวลาจากระบบ�
   openDates:   {},
   closedDates: []
 };
+// ── สำเนาถาวรใน localStorage + stale-while-revalidate (เทคนิคเดียวกับที่ server.py ใช้กับ SQLite) ──
+// ปิดแท็บ/รีเฟรชหน้าแล้ว cache ในตัวแปร JS หายหมด ต้องโหลดใหม่ทุกครั้ง — เก็บ snapshot ล่าสุดไว้ใน localStorage
+// ด้วย จะได้เอามาโชว์ก่อนได้ทันทีตั้งแต่เปิดหน้า (ไม่ต้องรอ GAS ตอบ) แล้วค่อยรีเฟรชเงียบๆ เบื้องหลังถ้าเก่าเกิน TTL
+// ("เก่าไม่เป็นไร แสดงเลย แล้วค่อยอัปเดตทีหลัง" — ต่างจาก cache เดิมที่ไม่มีวันหมดอายุเองเลยจนกว่าจะปิดแอป)
+function lsCacheGet(key) {
+  try {
+    const raw = localStorage.getItem("wt_cache_" + key);
+    if (!raw) return null;
+    const { data, at } = JSON.parse(raw);
+    return { data, age: Date.now() - at };
+  } catch (e) { return null; } // JSON เสีย/localStorage ปิดอยู่ — ถือว่าไม่มี cache ปลอดภัยกว่าทำให้พัง
+}
+function lsCacheSet(key, data) {
+  try { localStorage.setItem("wt_cache_" + key, JSON.stringify({ data, at: Date.now() })); }
+  catch (e) {} // localStorage เต็ม/ปิดอยู่ — ข้ามไปเงียบๆ ไม่กระทบการทำงานหลัก (แค่ไม่มี snapshot ให้ใช้รอบหน้า)
+}
+function lsCacheClear(key) { try { localStorage.removeItem("wt_cache_" + key); } catch (e) {} }
+
 let _patientsLoaded = false; // cache รายชื่อ
 let patients = [], patientMode = false;
 let currentName = "";
@@ -737,6 +756,13 @@ window.onload = async () => {
           document.getElementById("pt-list").innerHTML = '<div class="ld"> โหลดไม่ได้ ลองไปที่แท็บ  ตั้งค่า</div>';
           toast(" โหลดรายชื่อไม่ได้","err");
         }
+        // preload ข้อมูล 3 แท็บที่เหลือ (สถิติ/ชั่งล่าสุด/นัดหมาย) เบื้องหลัง — ทำต่อจาก loadPatients() เสร็จ
+        // ไม่ใช่พร้อมกันตั้งแต่ต้น เพราะ GAS มี fixed overhead สูงต่อคำขอ ยิง 4 คำขอพร้อมกันตอนเปิดหน้าจะแย่ง
+        // กันเองจนแท็บแรก (รายชื่อ) ที่สำคัญที่สุดช้าลง พอสลับไปแท็บอื่นทีหลังจะเจอข้อมูลพร้อมแล้วจาก cache ทันที
+        // ล้มเหลวแบบเงียบๆ ได้ (ไม่ toast/error) เพราะเป็นแค่การเตรียมข้อมูลล่วงหน้า ถ้าพลาดก็ยังโหลดใหม่ได้ตามปกติตอนเข้าแท็บจริง
+        renderLeaderboard().catch(()=>{});
+        renderRecentWeighIns().catch(()=>{});
+        fetchApptData().catch(()=>{});
       });
     } else {
       hTab("cfg");
@@ -844,12 +870,24 @@ async function getPatientCached(name, force=false) {
 // ดึงข้อมูลนัดหมายทั้งหมด (ทุกเดือน) — getApptData ไม่ได้กรองตามเดือนที่ backend เลย
 // เพราะงั้นกดเปลี่ยนเดือนดูปฏิทินไม่ต้องโหลดใหม่ทุกครั้ง ใช้ข้อมูลชุดเดียวกัน filter ใน frontend เอา
 // มี cache + in-flight dedup กันยิงซ้ำจาก 3 จุดที่เรียก (renderAppt, renderApptHome, renderApptStaff)
+const APPT_TTL_MS = 60000; // นัดหมายเปลี่ยนแปลงได้บ่อยพอสมควร (จองคิวใหม่/ยกเลิก) ใช้ TTL เดียวกับรายชื่อผู้ป่วย
+
 async function fetchApptData(force=false) {
   if (!force && _apptCache) return _apptCache;
   if (!force && _apptInFlight) return _apptInFlight;
 
+  if (!force && !_apptCache) {
+    // เพิ่งเปิดหน้า/เพิ่ง reload ยังไม่มี cache ในตัวแปร JS เลย — ลองอ่านจาก localStorage ก่อน ได้ผลทันทีไม่ต้องรอ GAS
+    const cached = lsCacheGet("appt");
+    if (cached) {
+      _apptCache = cached.data;
+      if (cached.age > APPT_TTL_MS) fetchApptData(true); // เก่าเกินไปแล้ว รีเฟรชเงียบๆ เบื้องหลัง ไม่รอผล (ไม่ await)
+      return _apptCache;
+    }
+  }
+
   _apptInFlight = apiGet({action:"getApptData"}).then(d => {
-    if (d.success !== false) _apptCache = d; // getApptData ไม่ส่ง success:false มาปกติ แต่กันไว้เผื่อ
+    if (d.success !== false) { _apptCache = d; lsCacheSet("appt", d); } // getApptData ไม่ส่ง success:false มาปกติ แต่กันไว้เผื่อ
     _apptInFlight = null;
     return d;
   }).catch(e => {
@@ -859,7 +897,7 @@ async function fetchApptData(force=false) {
 
   return _apptInFlight;
 }
-function invalidateApptCache() { _apptCache = null; }
+function invalidateApptCache() { _apptCache = null; lsCacheClear("appt"); }
 
 function invalidateCache(name) {
   if (name) delete _cache[name];
@@ -950,13 +988,34 @@ async function apiGet(params) {
 }
 
 // ===== PATIENTS =====
+const PATIENTS_TTL_MS = 60000; // ค่าเดียวกับ PATIENTS_TTL ใน server.py — สำเนาเก่าเกินนี้ถือว่าต้องรีเฟรช
+let _patientsInFlight = null; // กันยิง getPatients ซ้ำถ้ามีคนเรียก loadPatients() แบบไม่ force พร้อมกันสองจุด
+                               // ก่อนที่ _patientsLoaded จะถูกตั้งเป็น true (เผื่อมีจุดเรียกใหม่เพิ่มในอนาคต)
+
 async function loadPatients(force=false) {
   if (!force && _patientsLoaded && patients.length) return true;
+  // ยังไม่เคยโหลดในตัวแปร JS เลย (เพิ่งเปิดหน้า/เพิ่ง reload) — ลองอ่านจาก localStorage ก่อน ถ้ามีจะได้ใช้ได้
+  // ทันทีโดยไม่ต้องรอ GAS เลย (เร็วกว่าของเดิมมาก โดยเฉพาะตอน GAS ตอบช้า) แล้วค่อยรีเฟรชจริงถ้าเก่าเกิน TTL
+  if (!force && !_patientsLoaded) {
+    const cached = lsCacheGet("patients");
+    if (cached && cached.data.length) {
+      patients = cached.data;
+      _patientsLoaded = true;
+      const c = document.getElementById("cfg-count");
+      if (c) c.textContent = patients.length+" คน (จากสำเนาเดิม)";
+      if (cached.age <= PATIENTS_TTL_MS) return true; // ยังไม่เก่า พอแล้ว ไม่ต้องรีเฟรชตอนนี้
+      loadPatients(true).then(ok => { if (ok) renderPtList(); }); // เก่าเกินไปแล้ว รีเฟรชเงียบๆ เบื้องหลัง ไม่รอผล
+      return true;
+    }
+    if (_patientsInFlight) return _patientsInFlight; // มีคนกำลังโหลดอยู่แล้วพอดี (ไม่มี cache ให้ใช้ก่อน) — รอผลเดียวกัน
+  }
+  const p = (async () => {
   try {
     const r = await apiGet({action:"getPatients"});
     if (r.success) {
       patients = r.patients;
       _patientsLoaded = true;
+      lsCacheSet("patients", patients);
       const c = document.getElementById("cfg-count");
       if (c) c.textContent = patients.length+" คน";
       const cc = document.getElementById("cfg-conn");
@@ -971,7 +1030,12 @@ async function loadPatients(force=false) {
     const cc = document.getElementById("cfg-conn");
     if (cc) cc.textContent = e.message;
     return false;
+  } finally {
+    _patientsInFlight = null;
   }
+  })();
+  if (!force) _patientsInFlight = p;
+  return p;
 }
 
 // ===== HOME TABS =====
@@ -1402,11 +1466,13 @@ async function renderEntry() {
       </div>` : "";
 
     // ฟอร์มตั้ง/แก้ Plan — ซ่อนไว้เป็นค่าเริ่มต้นถ้ามี Plan อยู่แล้ว (กด "แก้ไข" ถึงจะโชว์) โชว์ตรงๆ ถ้ายังไม่เคยตั้งเลย
-    // ไม่มีปุ่มบันทึกแยกแล้ว — บันทึกรวมไปกับปุ่ม "บันทึกข้อมูลทั้งหมด" ที่การ์ดลงข้อมูลด้านล่าง
+    // มีปุ่มบันทึกแยกของตัวเอง (submitPlanOnly) — เดิมบันทึกรวมไปกับปุ่ม "บันทึกข้อมูลทั้งหมด" เท่านั้น
+    // ตอนนี้ staff บันทึกเป้าหมายอย่างเดียวได้โดยไม่ต้องกรอก/บันทึกน้ำหนักไปพร้อมกัน
     const planForm = !patientMode ? `
       <div class="card" id="plan-form-card" style="${hasGoal?'display:none':''}">
         <div class="ctitle">ตั้งเป้าหมาย</div>
         <div class="fg"><label>เป้าหมาย (kg)</label><input type="number" id="pl-gw" step="0.1" min="0" value="${d.goalWeight||""}"></div>
+        <button class="btn btn-out" onclick="submitPlanOnly()" style="margin-top:6px">💾 บันทึกเป้าหมาย</button>
       </div>
       <div class="card" id="patientinfo-form-card" style="${hasPersonalInfo?'display:none':''}">
         <div class="ctitle">ข้อมูลส่วนตัว</div>
@@ -1658,7 +1724,7 @@ async function submitEntry() {
     const chosenDr = V("en-dr");
     if (chosenDr) localStorage.setItem("wt_v4_lastdr", chosenDr);
     invalidateCache(currentName);
-    _lbCache = {}; // ข้อมูลน้ำหนักเปลี่ยน อันดับในหน้าสถิติอาจเปลี่ยนตาม ล้างแคชทิ้งให้โหลดใหม่
+    _lbCache = {}; lsCacheClear("leaderboard"); // ข้อมูลน้ำหนักเปลี่ยน อันดับในหน้าสถิติอาจเปลี่ยนตาม ล้างแคชทิ้งให้โหลดใหม่
     Object.keys(_pstatCache).forEach(k => { if (k.startsWith(currentName+"|")) delete _pstatCache[k]; });
     // ล้าง draft จากเครื่องชั่ง — แค่ข้อมูลชั่วคราว ไม่ใช่ข้อมูลจริงของคนไข้ ล้มเหลวได้โดยไม่ต้องแจ้งเตือน
     if (!patientMode) { try { await api({action:"clearDraftScaleReading", name:currentName}); } catch(e) {} }
@@ -1679,9 +1745,44 @@ function togglePlanEdit() {
   if (planCard) planCard.style.display = planCard.style.display === "none" ? "block" : "none";
 }
 
+async function submitPlanOnly() {
+  const gw = V("pl-gw");
+  if (!gw) { toast("กรอกเป้าหมายก่อน","err"); return; }
+  if (parseFloat(gw) < 0) { toast('ค่า "เป้าหมายน้ำหนัก" ต้องไม่ติดลบ',"err"); return; }
+  showSaveOverlay("กำลังบันทึก...");
+  try {
+    const r = await api({action:"savePlan", name:currentName, goalWeight:gw});
+    if (r.success) {
+      invalidateCache(currentName);
+      renderEntry(); // เรียกซ้ำ — คำนวณ _entryHadCompleteSetup ใหม่จากข้อมูลที่อัปเดตแล้ว ไม่บังคับกรอกเป้าหมายซ้ำตอนกด "บันทึกข้อมูลทั้งหมด" ทีหลัง
+      showSaveDoneOverlay("✅ บันทึกเป้าหมายแล้ว");
+    } else { hideSaveOverlay(); toast("❌ "+r.message,"err"); }
+  } catch(e) { hideSaveOverlay(); toast("❌ บันทึกไม่ได้: "+e.message,"err"); }
+}
+
 function togglePersonalInfoEdit() {
   const infoCard = document.getElementById("patientinfo-form-card");
   if (infoCard) infoCard.style.display = infoCard.style.display === "none" ? "block" : "none";
+}
+
+function togglePatientGoalEdit() {
+  const form = document.getElementById("patient-goal-form");
+  if (form) form.style.display = form.style.display === "none" ? "block" : "none";
+}
+
+async function submitPatientGoal() {
+  const gw = V("pgc-gw");
+  if (!gw) { toast("กรอกเป้าหมายก่อน","err"); return; }
+  if (parseFloat(gw) < 0) { toast('ค่า "เป้าหมายน้ำหนัก" ต้องไม่ติดลบ',"err"); return; }
+  showSaveOverlay("กำลังบันทึก...");
+  try {
+    const r = await api({action:"savePlan", name:currentName, goalWeight:gw});
+    if (r.success) {
+      invalidateCache(currentName);
+      renderFact();
+      showSaveDoneOverlay("✅ บันทึกเป้าหมายแล้ว");
+    } else { hideSaveOverlay(); toast("❌ "+r.message,"err"); }
+  } catch(e) { hideSaveOverlay(); toast("❌ บันทึกไม่ได้: "+e.message,"err"); }
 }
 
 // ===== FACT =====
@@ -1719,11 +1820,17 @@ async function renderFact() {
           <div class="sv sn">${d.currentWeight||"-"}<span class="su">kg</span></div></div>
         <div class="sc"><div class="slb">ลดไปแล้ว</div>
           <div class="sv ${(d.totalLost||0)>=0?'sg':'sb'}">${(d.totalLost||0)>=0?"-":"+"}${Math.abs(d.totalLost||0).toFixed(1)}<span class="su">kg</span></div></div>
-        <div class="sc"><div class="slb">เป้าหมาย</div>
-          <div class="sv sn">${d.goalWeight||"-"}<span class="su">kg</span></div></div>
+        <div class="sc" ${patientMode?'onclick="togglePatientGoalEdit()" style="cursor:pointer"':""}>
+          <div class="slb">เป้าหมาย</div>
+          <div class="sv sn">${d.goalWeight||"-"}<span class="su">kg</span>${patientMode?' <span style="font-size:12px">✏️</span>':""}</div></div>
         <div class="sc"><div class="slb">เหลืออีก</div>
           <div class="sv sb">${Math.max(d.remaining||0,0).toFixed(1)}<span class="su">kg</span></div></div>
       </div>
+      ${patientMode ? `
+      <div class="card" id="patient-goal-form" style="display:none">
+        <div class="fg"><label>เป้าหมายใหม่ (kg)</label><input type="number" id="pgc-gw" step="0.1" min="0" value="${d.goalWeight||""}"></div>
+        <button class="btn btn-pk" onclick="submitPatientGoal()">💾 บันทึกเป้าหมาย</button>
+      </div>` : ""}
       <div class="card">
         <div class="plb"><span>ความคืบหน้า</span><span><b>${pct}%</b></span></div>
         <div class="pbg"><div class="pfl" style="width:${pct}%"></div></div>
@@ -1731,6 +1838,13 @@ async function renderFact() {
           <span>${d.startWeight} kg</span><span>เป้า ${d.goalWeight} kg</span>
         </div>
       </div>`;
+
+    // แก้เป้าหมายด้วยตัวเอง — เฉพาะโหมดคนไข้เท่านั้น (staff มีฟอร์มของตัวเองอยู่แล้วที่แท็บ "ลงข้อมูล")
+    // ใช้กล่อง "เป้าหมาย" ในกริดสถิติด้านบน (ที่แสดงตัวเลขอยู่แล้ว) เป็นตัวกดเปิดฟอร์มโดยตรง ไม่สร้างการ์ดใหม่
+    // มาซ้ำ (เดิมเคยทำเป็นการ์ดแยก แต่ตัวเลขเป้าหมายแสดงอยู่แล้วทั้งใน stat box นี้และแถบความคืบหน้าด้านล่าง
+    // การมีการ์ดที่ 3 บอกค่าเดียวกันซ้ำอีกจึงฟุ่มเฟือยเกินจำเป็น) แก้ได้ตลอดเวลาไม่จำกัดจำนวนครั้ง มีปุ่มบันทึก
+    // แยกเป็นของตัวเอง ไม่เกี่ยวกับการบันทึกน้ำหนัก (คนไข้ไม่มีฟอร์มบันทึกน้ำหนักเองเลยอยู่แล้ว — logForm ด้านล่าง
+    // ก็ถูกซ่อนไว้เหมือนกันด้วยเงื่อนไข patientMode เดียวกันนี้)
 
     const logForm = !patientMode ? `
       <div class="card">
@@ -1867,7 +1981,7 @@ async function submitFact() {
     if (r.success){
       set("fc-w","");set("fc-ds","2.5");set("fc-bg","1500");set("fc-nt","");
       invalidateCache(currentName);
-      _lbCache = {}; // ข้อมูลน้ำหนักเปลี่ยน อันดับในหน้าสถิติอาจเปลี่ยนตาม ล้างแคชทิ้งให้โหลดใหม่
+      _lbCache = {}; lsCacheClear("leaderboard"); // ข้อมูลน้ำหนักเปลี่ยน อันดับในหน้าสถิติอาจเปลี่ยนตาม ล้างแคชทิ้งให้โหลดใหม่
       Object.keys(_pstatCache).forEach(k => { if (k.startsWith(currentName+"|")) delete _pstatCache[k]; });
       renderFact();
       showSaveDoneOverlay("✅ อัปเดตข้อมูลแล้ว");
@@ -1902,7 +2016,7 @@ async function submitEdit(row) {
       doctor:V("ed-dr"),budget:V("ed-bg"),note:V("ed-nt")});
     if(r.success){
       toast(" แก้ไขสำเร็จ","ok");closeModal();invalidateCache(currentName);
-      _lbCache = {}; // ข้อมูลน้ำหนักอาจเปลี่ยน อันดับในหน้าสถิติอาจเปลี่ยนตาม ล้างแคชทิ้งให้โหลดใหม่
+      _lbCache = {}; lsCacheClear("leaderboard"); // ข้อมูลน้ำหนักอาจเปลี่ยน อันดับในหน้าสถิติอาจเปลี่ยนตาม ล้างแคชทิ้งให้โหลดใหม่
       Object.keys(_pstatCache).forEach(k => { if (k.startsWith(currentName+"|")) delete _pstatCache[k]; });
       if(patientMode) renderFact(); else renderEntry();
     }
@@ -1970,7 +2084,7 @@ async function confirmDeleteWeightRow(row) {
       toast("✅ ลบข้อมูลสำเร็จ","ok");
       closeModal();
       invalidateCache(currentName);
-      _lbCache = {}; // ข้อมูลน้ำหนักเปลี่ยน อันดับในหน้าสถิติอาจเปลี่ยนตาม ล้างแคชทิ้งให้โหลดใหม่
+      _lbCache = {}; lsCacheClear("leaderboard"); // ข้อมูลน้ำหนักเปลี่ยน อันดับในหน้าสถิติอาจเปลี่ยนตาม ล้างแคชทิ้งให้โหลดใหม่
       Object.keys(_pstatCache).forEach(k => { if (k.startsWith(currentName+"|")) delete _pstatCache[k]; });
       if (patientMode) renderFact(); else renderEntry();
     } else { toast("❌ "+r.message,"err"); if(restore) restore(); }
@@ -3604,17 +3718,35 @@ const LB_PERIOD_BUTTON_LABEL = {
   year: "อันดับของน้ำหนักที่ลดได้ทั้งหมด"
 };
 let _lbCache = {}; // { period: leaderboardResult } — แคชแยกตามช่วงเวลา กดสลับกลับไปช่วงเดิมไม่ต้องโหลดใหม่
+let _lbInFlight = null; // Promise ของ getAllLeaderboards ที่กำลังทำงานอยู่ — กันยิงซ้ำถ้า preload เบื้องหลังกับ
+                         // ผู้ใช้กดแท็บเองพร้อมกันพอดีตอนแคชยังว่างทั้งคู่ (เหมือน _apptInFlight ของ fetchApptData)
+const LB_TTL_MS = 30000; // สั้นกว่ารายชื่อ/นัดหมาย เพราะอันดับเปลี่ยนได้ทุกครั้งที่มีใครถูกบันทึกน้ำหนักใหม่
 
 async function renderLeaderboard() {
   const v = document.getElementById("stat-v");
-  v.innerHTML = loading();
+  let hadCache = Object.keys(_lbCache).length > 0;
+  if (!hadCache) {
+    // ยังไม่มี cache ในตัวแปร JS เลย — ลองอ่านจาก localStorage ก่อน ได้ผลทันทีไม่ต้องรอ GAS
+    const cached = lsCacheGet("leaderboard");
+    if (cached) {
+      _lbCache = cached.data;
+      hadCache = true;
+      if (cached.age > LB_TTL_MS) { _lbCache = {}; hadCache = false; } // เก่าเกินไปแล้ว ทิ้งไปโหลดใหม่จริงแทน (ไม่ใช่แค่รีเฟรชเบื้องหลัง
+                                                                         // เหมือน 2 จุดข้างบน เพราะอันดับเก่าเกิน 30 วิ อาจทำให้เข้าใจผิดว่าใครชนะ)
+    }
+  }
+  if (!hadCache) v.innerHTML = loading(); // มีแคชอยู่แล้ว (เช่น preload เบื้องหลังตอนเปิดหน้า) ไม่ต้องกระพริบจอเป็น loading
   try {
     // ถ้ายังไม่เคยโหลดเลย (แคชว่างเปล่าทั้งหมด) โหลดทั้ง 4 ช่วงเวลาพร้อมกันในคำขอเดียว
     // ประหยัดกว่ายิงทีละช่วงตอนกดสลับ เพราะ Google Apps Script มี fixed overhead สูงต่อ 1 คำขอ
-    if (Object.keys(_lbCache).length === 0) {
-      const all = await apiGet({action:"getAllLeaderboards"});
+    if (!hadCache) {
+      if (!_lbInFlight) {
+        _lbInFlight = apiGet({action:"getAllLeaderboards"}).finally(() => { _lbInFlight = null; });
+      }
+      const all = await _lbInFlight;
       if (!all.success) { v.innerHTML = err(all.message); return; }
       Object.keys(all.periods).forEach(period => { _lbCache[period] = all.periods[period]; });
+      lsCacheSet("leaderboard", _lbCache);
     }
     const d = _lbCache[_lbPeriod];
     if (!d.success) { v.innerHTML = err(d.message); return; }
@@ -3655,13 +3787,46 @@ function switchLbPeriod(period) {
   renderLeaderboard();
 }
 
-async function renderRecentWeighIns() {
-  const v = document.getElementById("recent-v");
-  v.innerHTML = loading();
-  try {
-    const d = await apiGet({action:"getRecentWeighIns"});
-    if (!d.success) { v.innerHTML = err(d.message); return; }
+let _recentInFlight = null; // Promise ของ getRecentWeighIns ที่กำลังทำงานอยู่ — กันยิงซ้ำถ้า preload เบื้องหลัง
+                             // กับผู้ใช้กดแท็บเองพร้อมกันพอดี (เฉพาะตอน force=false — force=true ต้องยิงคำขอใหม่เสมอ)
+const RECENT_TTL_MS = 30000; // สั้นเหมือน leaderboard เพราะเป็นข้อมูลชั่งน้ำหนักที่เพิ่งเกิดขึ้น เปลี่ยนได้บ่อย
 
+async function renderRecentWeighIns(force=false) {
+  const v = document.getElementById("recent-v");
+  if (!force && _recentCache) { renderRecentWeighInsFrom(_recentCache); return; }
+  let hadSomethingToShow = false;
+  if (!force && !_recentCache) {
+    // ยังไม่มี cache ในตัวแปร JS เลย — ลองอ่านจาก localStorage ก่อน ได้ผลทันทีไม่ต้องรอ GAS
+    const cached = lsCacheGet("recent");
+    if (cached) {
+      hadSomethingToShow = true;
+      renderRecentWeighInsFrom(cached.data); // โชว์ไว้ก่อนเสมอ (แม้เก่าเกิน TTL ก็ยังดีกว่าจอว่างเปล่า/loading เฉยๆ)
+      if (cached.age <= RECENT_TTL_MS) { _recentCache = cached.data; return; } // ยังไม่เก่า พอแล้ว ไม่ต้องโหลดใหม่
+    }
+  }
+  if (!hadSomethingToShow) v.innerHTML = loading(); // ไม่มีอะไรให้โชว์เลยจริงๆ (ครั้งแรกสุด ไม่มี cache ใดๆ) ถึงจะขึ้น spinner
+  try {
+    if (!force && _recentInFlight) {
+      const d = await _recentInFlight;
+      if (!d.success) { if (!_recentCache) v.innerHTML = err(d.message); return; }
+      _recentCache = d;
+      renderRecentWeighInsFrom(d);
+      return;
+    }
+    const p = apiGet({action:"getRecentWeighIns"}).finally(() => { if (_recentInFlight === p) _recentInFlight = null; });
+    if (!force) _recentInFlight = p;
+    const d = await p;
+    if (!d.success) { if (!_recentCache) v.innerHTML = err(d.message); return; }
+    _recentCache = d;
+    lsCacheSet("recent", d);
+    renderRecentWeighInsFrom(d);
+  } catch(e) { if (!_recentCache) v.innerHTML = err(e.message); }
+}
+
+function renderRecentWeighInsFrom(d) {
+  const v = document.getElementById("recent-v");
+  if (!v) return;
+  try {
     const list = d.recent || [];
     const rows = list.length ? list.map(r => {
       const safeName = r.name.replace(/'/g,"\\'");
@@ -3822,7 +3987,7 @@ function switchPstatPeriod(period) {
 
 async function renderApptHome() {
   const v = document.getElementById("apts-home-v");
-  if (v) { v.innerHTML = loading(); await _renderApptStaffInto(v); }
+  if (v) { if (!_apptCache) v.innerHTML = loading(); await _renderApptStaffInto(v); }
 }
 
 async function renderApptStaff() {
