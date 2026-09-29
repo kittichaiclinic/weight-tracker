@@ -2694,16 +2694,13 @@ const PROTEIN_FOODS = [
   ]},
 ];
 
-let _customFoods = []; // อาหารที่ staff เพิ่มเอง โหลดจาก Google Sheets (CustomFoods) — ดึงครั้งเดียวตอนเปิดหน้า "แนะนำ"
-let _customFoodsLoaded = false; // true หลังโหลดสำเร็จครั้งแรก — ไม่ต้องยิง request ซ้ำทุกครั้งที่สลับแท็บอีก
-                                  // (cache ไว้ตลอดการเปิดแอปครั้งนี้ ถ้ามีคนเพิ่มอาหารใหม่ระหว่างนั้น ต้อง
-                                  // ปิด-เปิดแอปใหม่ถึงจะเห็น — ยอมรับข้อแลกเปลี่ยนนี้เพื่อความเร็ว)
+let _customFoods = []; // อาหารที่ staff เพิ่มเอง — ฟีเจอร์นี้พักการพัฒนาแล้ว ไม่มีทางเติมค่าเข้ามาอีก คงเป็น [] เสมอ
+                        // (เก็บตัวแปรนี้ไว้เฉยๆ เพื่อไม่ต้องแก้ getAllFoodGroups() ด้านล่างที่ merge กับมันอยู่)
 let _pfQuantities = {}; // { foodId: qty } — เก็บจำนวนที่กรอกไว้แยกจาก DOM โดยเฉพาะ เพราะ filterFoodTable()
                          // เขียนทับ innerHTML ทั้งก้อนทุกครั้งที่ค้นหา ถ้าอ่านค่าจาก input element ตรงๆ
                          // จำนวนที่กรอกไว้ของแถวที่ถูกกรองซ่อนแล้วโผล่กลับมาจะรีเซ็ตเป็น 0 อย่างไม่ตั้งใจ
 
-// รวมอาหารมาตรฐาน (PROTEIN_FOODS) กับอาหารที่ staff เพิ่มเอง (_customFoods) เป็นกลุ่มเดียวกัน
-// จัดกลุ่มอาหารที่เพิ่มเองตามหมวดที่ staff ระบุไว้ตอนเพิ่ม (หรือ "อื่นๆ (เพิ่มเอง)" ถ้าไม่ได้ระบุ)
+// รวมอาหารมาตรฐาน (PROTEIN_FOODS) กับ _customFoods (ว่างเปล่าเสมอตอนนี้ — คงฟังก์ชันนี้ไว้เผื่ออนาคต)
 function getAllFoodGroups() {
   const groups = PROTEIN_FOODS.map(g => ({ cat: g.cat, items: [...g.items] }));
   _customFoods.forEach(f => {
@@ -2763,50 +2760,6 @@ function stepProteinQty(id, delta) {
   updateProteinPlanTotal();
 }
 
-// เปิด modal ให้ staff กรอกอาหารใหม่เอง (ชื่อ + หมวดหมู่ + โปรตีน + แคลอรี่) — เก็บถาวรใน Google Sheets
-// (CustomFoods) ทุกเครื่องที่เปิดแอปนี้จะเห็นอาหารที่เพิ่มเองเหมือนกันหมด
-function openAddFoodModal() {
-  const catOptions = [...new Set(PROTEIN_FOODS.map(g => g.cat))]; // หมวดที่มีอยู่แล้ว ให้เลือกง่ายๆ แทนพิมพ์เอง
-  showModal(`
-    <div class="modal-title">➕ เพิ่มรายการอาหารใหม่<span class="modal-x" onclick="closeModal()">✕</span></div>
-    <div class="fg"><label>ชื่ออาหาร (พร้อมหน่วย เช่น "1 ชิ้น", "1 ถ้วย")</label>
-      <input type="text" id="af-name" placeholder="เช่น อกไก่ย่าง 1 ชิ้น (~150 g)"></div>
-    <div class="fg"><label>หมวดหมู่</label>
-      <select id="af-cat">
-        ${catOptions.map(c => `<option value="${c}">${c}</option>`).join("")}
-        <option value="อื่นๆ (เพิ่มเอง)">อื่นๆ (เพิ่มเอง)</option>
-      </select>
-    </div>
-    <div class="r2">
-      <div class="fg"><label>โปรตีน (g)</label><input type="number" id="af-protein" step="0.1" min="0"></div>
-      <div class="fg"><label>แคลอรี่ (kcal)</label><input type="number" id="af-cal" step="1" min="0"></div>
-    </div>
-    <button class="btn btn-gr" onclick="submitAddFood()">✅ เพิ่มอาหารนี้</button>
-  `);
-}
-
-async function submitAddFood() {
-  const name = V("af-name").trim();
-  const cat = V("af-cat");
-  const protein = V("af-protein");
-  const cal = V("af-cal");
-  if (!name) { toast("กรอกชื่ออาหารก่อน","err"); return; }
-  if (protein === "" || cal === "") { toast("กรอกโปรตีนและแคลอรี่ให้ครบ","err"); return; }
-
-  const btn = event.currentTarget;
-  const restore = btnLoading(btn, "กำลังบันทึก...");
-  try {
-    const r = await api({action:"addCustomFood", name, cat, protein, cal});
-    if (r.success) {
-      toast("✅ เพิ่ม "+name+" สำเร็จ","ok");
-      closeModal();
-      _customFoods.push(r.food); // เพิ่มเข้ารายการทันทีโดยไม่ต้องดึงใหม่ทั้งหมด
-      const container = document.getElementById("pf-table-container");
-      if (container) container.innerHTML = proteinFoodTableHtml(V("pf-search"));
-    } else { toast("❌ "+r.message,"err"); if(restore) restore(); }
-  } catch(e) { toast("❌ เพิ่มไม่ได้: "+e.message,"err"); if(restore) restore(); }
-}
-
 // รวมยอดโปรตีน/แคลอรี่จากช่อง "จำนวน" ที่กรอกไว้ทุกแถว แล้วเทียบกับเป้าหมายรายวัน
 // (เก็บเป้าหมายไว้ใน window ตอน render การ์ดหลัก เพราะฟังก์ชันนี้ถูกเรียกจาก oninput แยกต่างหาก)
 function updateProteinPlanTotal() {
@@ -2847,10 +2800,15 @@ function updateProteinPlanTotal() {
 async function renderRecommend() {
   const v = document.getElementById("recommend-v");
   if (!currentName) { v.innerHTML = noPatient(); return; }
-  v.innerHTML = loading();
+  // ข้อมูลคนไข้ (น้ำหนัก/เพศ/อายุ/ส่วนสูง) กับข้อมูลเครื่องชั่ง (BMR) ถูก preload ไว้ด้วยกันแล้วตั้งแต่ตอนเลือก
+  // ชื่อคนไข้ (fetchPatientFullData ดึงทั้ง _cache และ _scaleCache มาพร้อมกันในคำขอเดียว) เพราะงั้นแทบทุกครั้ง
+  // ที่เข้าแท็บนี้ทั้งสอง cache จะพร้อมอยู่แล้วจริง อ่านตรงๆ แบบ synchronous ได้เลยไม่ต้องผ่าน await/network
+  // เหมือนเดิม — fallback ไปเรียก getPatientCached() (ซึ่งจะไปโหลดจริงถ้าจำเป็น) เฉพาะกรณีที่ยังไม่เคยโหลด
+  // คนไข้คนนี้มาก่อนเลยจริงๆ (เช่น เข้าแท็บนี้ก่อนที่ preload จะทันเริ่ม)
+  const hadCache = !!_cache[currentName];
+  if (!hadCache) v.innerHTML = loading();
   try {
-    // ใช้ cache ตัวเดียวกับหน้าอื่นๆ (preload มาแล้วจาก selectPt()) ไม่ยิง request ซ้ำ
-    const d = await getPatientCached(currentName);
+    const d = hadCache ? _cache[currentName] : await getPatientCached(currentName);
     if (!d.success) { v.innerHTML = err(d.message); return; }
 
     const weight = d.currentWeight;
@@ -2886,16 +2844,8 @@ async function renderRecommend() {
     // เก็บเป้าหมายไว้ให้ updateProteinPlanTotal() ใช้เทียบตอนกรอกจำนวนหน่วยอาหาร (เรียกจาก oninput แยกต่างหาก)
     window._recommendTargets = { proteinG, calLow, calHigh };
 
-    // โหลดอาหารที่ staff เพิ่มเองจาก Google Sheets — แค่ครั้งแรกที่เปิดแท็บนี้ในเซสชันนี้เท่านั้น
-    // (cache ไว้ตลอด ไม่ยิงซ้ำทุกครั้งที่สลับแท็บ — ถ้ามีคนเพิ่มอาหารใหม่ระหว่างนั้น ต้องปิด-เปิดแอปใหม่ถึงจะเห็น)
-    // ล้มเหลวได้โดยไม่กระทบการทำงานส่วนอื่น (แค่ไม่เห็นอาหารที่เพิ่มเอง ยังคงใช้ตารางมาตรฐานได้ปกติ)
-    if (!_customFoodsLoaded) {
-      try {
-        const cf = await apiGet({action:"getCustomFoods"});
-        _customFoods = cf.success ? (cf.foods || []) : [];
-        _customFoodsLoaded = true;
-      } catch(e) { _customFoods = []; }
-    }
+    // ไม่โหลดอาหารที่ staff เพิ่มเองอีกแล้ว (ฟีเจอร์นี้พักการพัฒนาไปแล้ว) — _customFoods คงเป็น [] เสมอ
+    // getAllFoodGroups() รวมกับ PROTEIN_FOODS (รายการมาตรฐานที่ฝังในไฟล์นี้อยู่แล้ว) อย่างปลอดภัยไม่ว่าจะว่างหรือไม่
     _pfQuantities = {}; // เริ่มนับใหม่ทุกครั้งที่เปิดแท็บนี้ (คนละคนไข้ ไม่ควรมีจำนวนค้างจากคนก่อนหน้า)
 
     v.innerHTML = `
@@ -2938,10 +2888,6 @@ async function renderRecommend() {
               background:var(--bg);border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.08)"></div>
             <div id="pf-search-wrap" style="display:none">
               <input type="text" inputmode="search" id="pf-search" placeholder="ค้นหาชื่ออาหาร..." oninput="filterFoodTable()" style="margin-bottom:10px">
-              ${!patientMode ? `
-              <button class="btn-out" style="width:100%;margin-bottom:10px;font-size:12.5px" onclick="openAddFoodModal()">
-                ➕ เพิ่มรายการอาหารใหม่
-              </button>` : ""}
             </div>
             <div id="pf-table-container" style="overflow-x:auto">${proteinFoodTableHtml()}</div>
             <div style="font-size:11px;color:var(--tx3);margin-top:8px">
