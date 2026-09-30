@@ -850,12 +850,33 @@ function gp(name, btn) {
 // ===== API =====
 // ── CACHE HELPERS ─────────────────────────────────────────
 let _patientDataInFlight = {}; // { name: Promise } — กัน getPatientCached ยิงซ้ำถ้ามี request เดิมกำลังทำงานอยู่
+let _cacheFetchedAt = {}; // { name: timestamp } — เวลาที่ _cache[name] ถูกเติมล่าสุด ใช้กับ PATIENT_DATA_TTL_MS ด้านล่าง
+const PATIENT_DATA_TTL_MS = 120000; // 2 นาที — เฉพาะโหมดคนไข้เท่านั้น (ดูเงื่อนไข patientMode ใน getPatientCached)
+                                     // ถ้าคนไข้เปิดหน้าตัวเองค้างไว้นาน (เช่น บุ๊กมาร์ก/QR code) แล้ว staff แก้ไขข้อมูล
+                                     // จากที่อื่น เดิมคนไข้จะไม่เห็นข้อมูลใหม่เลยจนกว่าจะปิด-เปิดหน้าใหม่ด้วยตัวเอง เพราะ
+                                     // _cache ไม่มี TTL และไม่มี polling ใดๆ ในไฟล์นี้ — ตั้งใจให้ trigger เฉพาะตอนคนไข้
+                                     // เข้ามาดู/สลับแท็บจริงๆ เท่านั้น (ไม่ใช่ setInterval ที่ยิงพื้นหลังเอง) เพื่อไม่ให้
+                                     // เกิด request เพิ่มขึ้นเลยถ้าเปิดค้างไว้เฉยๆ ไม่มีใครแตะหน้าจอ — ต่อให้คนไข้หลายสิบ
+                                     // คนเปิดพร้อมกันก็ไม่กระทบโหลดของระบบ ฝั่ง staff (patientMode=false) ไม่ถูกแตะเลย
+                                     // ยังคงไม่มี TTL เหมือนเดิมทุกประการ เพราะ staff เปลี่ยนคนไข้บ่อย การรีเฟรชเองจะ
+                                     // ทำให้ช้าลงโดยไม่จำเป็น
 async function getPatientCached(name, force=false) {
-  if (!force && _cache[name]) return _cache[name];
+  if (!force && _cache[name]) {
+    // เฉพาะโหมดคนไข้: ถ้าข้อมูลเก่าเกิน TTL ให้คืนของเก่าไปก่อนทันที (ไม่รอ) แล้วแอบรีเฟรชเงียบๆ เบื้องหลัง
+    // trigger ตอนนี้เท่านั้น (ตอนมีคนเรียกจริง) ไม่ใช่ setInterval — เปิดค้างไว้เฉยๆ ไม่มี request เพิ่มเลย
+    if (patientMode && !_patientDataInFlight[name] && (Date.now() - (_cacheFetchedAt[name]||0)) > PATIENT_DATA_TTL_MS) {
+      _patientDataInFlight[name] = apiGet({action:"getPatientData", name}).then(d => {
+        if (d.success) { _cache[name] = d; _cacheFetchedAt[name] = Date.now(); }
+        delete _patientDataInFlight[name];
+        return d;
+      }).catch(e => { delete _patientDataInFlight[name]; });
+    }
+    return _cache[name];
+  }
   if (!force && _patientDataInFlight[name]) return _patientDataInFlight[name]; // มีคำขอเดิมทำงานอยู่ รอตัวนั้นแทน
 
   const p = apiGet({action:"getPatientData", name}).then(d => {
-    if (d.success) _cache[name] = d;
+    if (d.success) { _cache[name] = d; _cacheFetchedAt[name] = Date.now(); }
     delete _patientDataInFlight[name];
     return d;
   }).catch(e => {
