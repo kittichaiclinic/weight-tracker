@@ -665,6 +665,13 @@ function lsCacheSet(key, data) {
 }
 function lsCacheClear(key) { try { localStorage.removeItem("wt_cache_" + key); } catch (e) {} }
 
+// มีอะไรให้โชว์ทันทีไหม (ไม่ต้องขึ้น loading spinner) — เช็คทั้ง _cache ในหน่วยความจำ (สลับแท็บ/เคยโหลดในเซสชันนี้
+// แล้ว) และ localStorage snapshot (เพิ่งเปิดหน้า/reload แต่เคยดูคนไข้คนนี้มาก่อนหน้านี้) เฉพาะโหมดคนไข้เท่านั้น
+// ที่เช็ค localStorage เพราะ staff ไม่มีการเก็บ snapshot แบบนี้ไว้ (ดู getPatientCached)
+function hasPatientSnapshot(name) {
+  return !!_cache[name] || (patientMode && !!lsCacheGet("patientFact_"+name));
+}
+
 let _patientsLoaded = false; // cache รายชื่อ
 let patients = [], patientMode = false;
 let currentName = "";
@@ -860,13 +867,28 @@ const PATIENT_DATA_TTL_MS = 120000; // 2 นาที — เฉพาะโห�
                                      // คนเปิดพร้อมกันก็ไม่กระทบโหลดของระบบ ฝั่ง staff (patientMode=false) ไม่ถูกแตะเลย
                                      // ยังคงไม่มี TTL เหมือนเดิมทุกประการ เพราะ staff เปลี่ยนคนไข้บ่อย การรีเฟรชเองจะ
                                      // ทำให้ช้าลงโดยไม่จำเป็น
+// re-render หน้าเดิมซ้ำถ้ายังเปิดอยู่จริง (เช็คจาก DOM .page.active ที่มีอยู่แล้ว ไม่ต้องเพิ่มตัวแปรใหม่มาเก็บ
+// state ซ้ำ) — ใช้หลังรีเฟรชเบื้องหลังเสร็จ (ทั้ง TTL path และ localStorage-snapshot path ด้านล่าง) เพราะ
+// แค่อัปเดต _cache เฉยๆ ไม่มีทางทำให้ DOM ที่วาดไปแล้วเปลี่ยนตามเอง ต้องสั่ง render ซ้ำตรงๆ
+const PATIENT_TAB_RENDER = { fact: renderFact, sym: renderSym, meas: renderMeas };
+function rerenderIfPatientTabVisible(pageId) {
+  const page = document.getElementById("pg-"+pageId);
+  if (page && page.classList.contains("active") && PATIENT_TAB_RENDER[pageId]) PATIENT_TAB_RENDER[pageId]();
+}
+function rerenderVisiblePatientTab() {
+  Object.keys(PATIENT_TAB_RENDER).forEach(rerenderIfPatientTabVisible);
+}
+
 async function getPatientCached(name, force=false) {
   if (!force && _cache[name]) {
     // เฉพาะโหมดคนไข้: ถ้าข้อมูลเก่าเกิน TTL ให้คืนของเก่าไปก่อนทันที (ไม่รอ) แล้วแอบรีเฟรชเงียบๆ เบื้องหลัง
     // trigger ตอนนี้เท่านั้น (ตอนมีคนเรียกจริง) ไม่ใช่ setInterval — เปิดค้างไว้เฉยๆ ไม่มี request เพิ่มเลย
     if (patientMode && !_patientDataInFlight[name] && (Date.now() - (_cacheFetchedAt[name]||0)) > PATIENT_DATA_TTL_MS) {
       _patientDataInFlight[name] = apiGet({action:"getPatientData", name}).then(d => {
-        if (d.success) { _cache[name] = d; _cacheFetchedAt[name] = Date.now(); }
+        if (d.success) {
+          _cache[name] = d; _cacheFetchedAt[name] = Date.now(); lsCacheSet("patientFact_"+name, d);
+          rerenderVisiblePatientTab(); // ข้อมูลใหม่มาแล้ว วาดหน้าจอซ้ำให้เห็นทันที ไม่ต้องรอ interaction ถัดไป
+        }
         delete _patientDataInFlight[name];
         return d;
       }).catch(e => { delete _patientDataInFlight[name]; });
@@ -875,8 +897,21 @@ async function getPatientCached(name, force=false) {
   }
   if (!force && _patientDataInFlight[name]) return _patientDataInFlight[name]; // มีคำขอเดิมทำงานอยู่ รอตัวนั้นแทน
 
+  // ยังไม่มีอะไรในหน่วยความจำเลย (เพิ่งเปิดหน้า/เพิ่ง reload) — เฉพาะโหมดคนไข้: ลองอ่านจาก localStorage ก่อน
+  // เพื่อแสดงผลได้ทันทีไม่ต้องรอ network เลย (key ผูกกับชื่อคนไข้เสมอ กันไม่ให้ข้อมูลของคนไข้คนหนึ่งไปปน
+  // กับอีกคนถ้าเครื่อง/เบราว์เซอร์เดียวกันเคยเปิดลิงก์คนไข้หลายคนมาก่อน) ไม่ทำกับ staff เพราะ staff เปลี่ยน
+  // คนไข้บ่อยมาก การมี snapshot เก่าของคนที่เพิ่งดูไปจะยิ่งสร้างความสับสนมากกว่าช่วย
+  let usedSnapshot = false;
+  if (!force && patientMode) {
+    const snap = lsCacheGet("patientFact_"+name);
+    if (snap) { _cache[name] = snap.data; usedSnapshot = true; }
+  }
+
   const p = apiGet({action:"getPatientData", name}).then(d => {
-    if (d.success) { _cache[name] = d; _cacheFetchedAt[name] = Date.now(); }
+    if (d.success) {
+      _cache[name] = d; _cacheFetchedAt[name] = Date.now(); if (patientMode) lsCacheSet("patientFact_"+name, d);
+      if (usedSnapshot) rerenderVisiblePatientTab(); // เพิ่งโชว์ snapshot เก่าไปตอน return ข้างล่าง พอได้ของจริงมาแล้ว วาดซ้ำ
+    }
     delete _patientDataInFlight[name];
     return d;
   }).catch(e => {
@@ -885,6 +920,11 @@ async function getPatientCached(name, force=false) {
   });
 
   if (!force) _patientDataInFlight[name] = p; // force=true ไม่เก็บไว้ในคิว in-flight เพราะตั้งใจจะโหลดใหม่เสมอ
+
+  // มี snapshot จาก localStorage ให้ใช้แล้ว — คืนค่าทันทีไม่ต้องรอ network เลย (p ยังทำงานต่อเบื้องหลังเพื่อ
+  // รีเฟรชเป็นข้อมูลจริง เหมือน pattern เดียวกับ TTL path ด้านบน) ถ้าไม่มี snapshot ต้องรอ p ตามปกติ
+  // เพราะยังไม่มีอะไรให้แสดงเลย
+  if (usedSnapshot) { p.catch(()=>{}); return _cache[name]; }
   return p;
 }
 
@@ -921,8 +961,8 @@ async function fetchApptData(force=false) {
 function invalidateApptCache() { _apptCache = null; lsCacheClear("appt"); }
 
 function invalidateCache(name) {
-  if (name) delete _cache[name];
-  else _cache = {};
+  if (name) { delete _cache[name]; lsCacheClear("patientFact_"+name); }
+  else { _cache = {}; } // ล้างทั้งหมด (ไม่ระบุชื่อ) ไม่ได้ใช้จริงในไฟล์นี้ตอนนี้ แต่เก็บพฤติกรรมเดิมไว้เผื่ออนาคตเรียกใช้
 }
 
 // ดึงข้อมูลคนไข้+ยา+เครื่องชั่งพร้อมกันในคำขอเดียว (getPatientFullData) แล้วแจกใส่แคชทั้ง 4 ตัว
@@ -1810,7 +1850,7 @@ async function submitPatientGoal() {
 async function renderFact() {
   const v = document.getElementById("fact-v");
   if (!currentName) { v.innerHTML=noPatient(); return; }
-  if (!_cache[currentName]) v.innerHTML = loading();
+  if (!hasPatientSnapshot(currentName)) v.innerHTML = loading();
   try {
     const d = await getPatientCached(currentName);
     if (!d.success) { v.innerHTML=err(d.message); return; }
@@ -2206,7 +2246,7 @@ async function confirmDeleteMassRow(row) {
 async function renderSym() {
   const v = document.getElementById("sym-v");
   if (!currentName){v.innerHTML=noPatient();return;}
-  if (!_cache[currentName]) v.innerHTML=loading();
+  if (!hasPatientSnapshot(currentName)) v.innerHTML=loading();
   try {
     const d = await getPatientCached(currentName);
     const records = (d.records||[]).slice().reverse();
@@ -2327,7 +2367,7 @@ async function submitSym() {
 async function renderMeas() {
   const v = document.getElementById("meas-v");
   if (!currentName){v.innerHTML=noPatient();return;}
-  if (!_cache[currentName]) v.innerHTML=loading();
+  if (!hasPatientSnapshot(currentName)) v.innerHTML=loading();
   try {
     const d = await getPatientCached(currentName);
     const logForm = !patientMode ? `
