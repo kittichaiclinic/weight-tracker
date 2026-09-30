@@ -3878,10 +3878,10 @@ let _pstatCache = {}; // { "name|period": result } — แคชแยกตา�
 async function renderPatientStat() {
   const v = document.getElementById("pstat-v");
   if (!currentName) { v.innerHTML = noPatient(); return; }
-  v.innerHTML = loading();
+  // ถ้ายังไม่เคยโหลดของคนนี้เลย (ไม่มี key ไหนของคนนี้ในแคช) โหลดทั้ง 4 ช่วงเวลาพร้อมกันในคำขอเดียว
+  const hasAnyCached = Object.keys(_pstatCache).some(k => k.startsWith(currentName+"|"));
+  if (!hasAnyCached) v.innerHTML = loading(); // มีแคชอยู่แล้ว (กลับมาดูคนไข้คนเดิม) ไม่ต้องกระพริบจอเป็น loading
   try {
-    // ถ้ายังไม่เคยโหลดของคนนี้เลย (ไม่มี key ไหนของคนนี้ในแคช) โหลดทั้ง 4 ช่วงเวลาพร้อมกันในคำขอเดียว
-    const hasAnyCached = Object.keys(_pstatCache).some(k => k.startsWith(currentName+"|"));
     if (!hasAnyCached) {
       const all = await apiGet({action:"getAllLeaderboards", onlyName:currentName});
       if (!all.success) { v.innerHTML = err(all.message); return; }
@@ -3939,7 +3939,7 @@ async function renderApptHome() {
 async function renderApptStaff() {
   const v = document.getElementById("apts-v");
   if (!v) return;
-  v.innerHTML = loading();
+  if (!_apptCache) v.innerHTML = loading(); // มีแคชอยู่แล้ว (preload หรือเพิ่งดูแท็บนัดหมายที่อื่นมา) ไม่ต้องกระพริบจอเป็น loading
   await _renderApptStaffInto(v);
 }
 
