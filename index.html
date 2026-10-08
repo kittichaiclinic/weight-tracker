@@ -2116,9 +2116,9 @@ async function fillNextApptEstimate(d) {
   };
   const dayCards = dates.map(x => `
     <div style="flex:1;min-width:0;text-align:center;overflow-wrap:break-word">
-      <div style="font-size:11.5px;color:var(--tx2)">${shortThDate(x.date)}</div>
-      <div style="font-size:12px;font-weight:700;color:var(--rose-dp);margin:2px 0">+${x.daysFromLast} วันจากครั้งล่าสุด</div>
-      ${x.hoursText ? `<div style="font-size:10.5px;color:var(--tx3)">${x.hoursText}</div>` : ""}
+      <div style="font-size:${dates.length === 2 ? 16 : 20}px;font-weight:800;color:var(--rose-dp);line-height:1.25">${shortThDate(x.date)}</div>
+      ${x.hoursText ? `<div style="font-size:12px;color:var(--tx2);margin-top:2px">${x.hoursText}</div>` : ""}
+      <div style="font-size:10.5px;color:var(--tx3);margin-top:2px">+${x.daysFromLast} วันจากครั้งล่าสุด</div>
     </div>`).join(dates.length === 2 ? '<div style="width:1px;background:var(--bd);margin:2px 6px;flex-shrink:0"></div>' : '');
 
   el.innerHTML = `
