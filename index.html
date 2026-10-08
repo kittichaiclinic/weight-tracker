@@ -513,6 +513,10 @@ details[open] .detail-arrow{transform:rotate(90deg)}
       <div class="ctitle">GAS URL</div>
       <div class="fg"><label>🔗 Web App URL</label>
         <input type="url" id="cfg-url" placeholder="https://script.google.com/macros/s/.../exec"></div>
+      <div class="fg"><label>🔑 Staff API Key</label>
+        <input type="text" id="cfg-key" placeholder="ตั้งค่าใน Apps Script → Script Properties → STAFF_API_KEY">
+        <div style="font-size:11px;color:var(--tx2);margin-top:3px">ต้องตรงกับค่าที่ตั้งไว้ฝั่ง Google Apps Script ถึงจะโหลดรายชื่อผู้ป่วยได้</div>
+      </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-pk btn-sm" onclick="saveUrl()" style="flex:1">💾 บันทึก</button>
         <button class="btn btn-pu btn-sm" onclick="testConn()" style="flex:1">🔌 ทดสอบ</button>
@@ -586,6 +590,9 @@ const BOOKING_URL = "https://script.google.com/macros/s/AKfycbwM1ewmQgBjwOwA-eBG
 const TIME_SLOTS_WEEKDAY = ["17:00","17:30","18:00","18:30","19:00","19:30","20:00","20:30"];
 const TIME_SLOTS_WEEKEND = ["09:00","09:30","10:00","10:30","11:00","11:30","13:00","13:30","14:00","14:30","15:00","15:30"];
 let gasUrl = localStorage.getItem(UK) || DEFAULT_URL;
+const SK = "wt_v4_staffkey"; // key คนละตัวกับ UK (URL) — เก็บ staff API key ที่ใช้เรียก action ระดับคลินิกเท่านั้น
+                              // (ตอนนี้มีแค่ getPatients) ไม่เคยฝังค่าจริงในไฟล์นี้เลย ตั้งค่าผ่านแท็บตั้งค่าเอง
+let staffKey = localStorage.getItem(SK) || "";
 let _cache = {};           // cache ข้อมูลผู้ป่วย { name: data }
 let _bodyCache = {};       // cache รูป body composition { name: images }
 let _scaleCache = {};      // cache ข้อมูล New Body Composition { name: records }
@@ -672,6 +679,36 @@ function hasPatientSnapshot(name) {
   return !!_cache[name] || (patientMode && !!lsCacheGet("patientFact_"+name));
 }
 
+const BOOKING_SCHEDULE_TTL_MS = 300000; // 5 นาที — เวลาทำการเปลี่ยนไม่บ่อย ไม่ต้องรีเฟรชถี่เท่าข้อมูลคนไข้
+
+// ดึงตารางเวลาทำการจริงจากระบบจองคิว (kittichaiclinic/clinic-booking — คนละ GAS deployment จาก gasUrl ของ
+// Weight Tracker เอง) เดิม BOOKING_URL/_bookingSchedule ถูกประกาศไว้รอแล้วแต่ไม่เคยมีโค้ด fetch จริงเลย ทำให้
+// ทั้งหน้า "เลือกเวลา" เดิมและการคำนวณวันนัดใหม่ใช้ได้แค่ค่า fallback คงที่ที่ hardcode ไว้ตอนประกาศตัวแปร
+// ไม่ใช่เวลาทำการจริงที่ staff ไปตั้งไว้ในระบบจองคิว — รูปแบบข้อมูลที่ getSchedule คืนมาตรงกับโครงสร้างที่
+// _bookingSchedule ต้องการอยู่แล้วเป๊ะ (daysOpen/openDates/closedDates) ไม่ต้องแปลงรูปแบบใดๆ เพิ่ม
+async function fetchBookingSchedule() {
+  const cached = lsCacheGet("bookingSchedule");
+  if (cached) {
+    _bookingSchedule = cached.data;
+    if (cached.age <= BOOKING_SCHEDULE_TTL_MS) return; // ยังไม่เก่า ใช้ได้เลย ไม่ต้องยิงคำขอ
+  }
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    const r = await fetch(BOOKING_URL + "?action=getSchedule", {signal: controller.signal});
+    clearTimeout(timer);
+    const d = await r.json();
+    if (d.success) {
+      _bookingSchedule = { daysOpen: d.daysOpen || {}, openDates: d.openDates || {}, closedDates: d.closedDates || [] };
+      lsCacheSet("bookingSchedule", _bookingSchedule);
+    }
+    // success:false หรือ fetch ล้มเหลว — ถ้ามี cached (แม้เก่า) ก็ใช้ไปก่อนแล้วจากด้านบน ไม่ต้องทำอะไรเพิ่ม
+    // ถ้าไม่มี cached เลย _bookingSchedule ยังคงเป็นค่า fallback ที่ประกาศไว้ตอนต้น ไม่ใช่ undefined/พัง
+  } catch (e) {
+    // เน็ตหลุด/timeout — เงียบไว้ ใช้ fallback หรือ cached ที่มีอยู่ต่อไป ไม่บล็อกการทำงานส่วนอื่นเพราะเรื่องนี้
+  }
+}
+
 let _patientsLoaded = false; // cache รายชื่อ
 let patients = [], patientMode = false;
 let currentName = "";
@@ -679,6 +716,8 @@ let wChart = null, mChart = null;
 
 // ===== INIT =====
 window.onload = async () => {
+  window._scheduleReady = fetchBookingSchedule(); // ยิงตั้งแต่ต้น ไม่ await ตรงนี้ (จะดีเลย์การโหลดหน้าทั้งหมดโดยไม่จำเป็น)
+                                                     // ใครต้องการตารางจริงแน่ๆ (renderAppt, การ์ดวันนัดในภาพรวม) ไป await เอง
   const p = new URLSearchParams(location.search);
   let pn = p.get("patient");
   const pid = p.get("patientId"); // ลิงก์ที่สร้างจาก Patient ID (คนไข้ใหม่) — ต้องแปลงเป็นชื่อปัจจุบันก่อน
@@ -740,6 +779,8 @@ window.onload = async () => {
     document.querySelector(".main").style.paddingBottom = "20px";
     const u = document.getElementById("cfg-url");
     if (u && gasUrl) u.value = gasUrl;
+    const k = document.getElementById("cfg-key");
+    if (k && staffKey) k.value = staffKey;
     const today = new Date().toISOString().split("T")[0];
     ["ad-sd"].forEach(id=>{const e=document.getElementById(id);if(e)e.value=today;});
     if (gasUrl) {
@@ -1072,7 +1113,7 @@ async function loadPatients(force=false) {
   }
   const p = (async () => {
   try {
-    const r = await apiGet({action:"getPatients"});
+    const r = await apiGet({action:"getPatients", key:staffKey});
     if (r.success) {
       patients = r.patients;
       _patientsLoaded = true;
@@ -1085,6 +1126,12 @@ async function loadPatients(force=false) {
     } else {
       const cc = document.getElementById("cfg-conn");
       if (cc) cc.textContent = r.message;
+      // key ผิด/ไม่มี — เด้ง modal บังคับกรอกแทนที่จะปล่อยให้ระบบใช้งานไม่ได้เฉยๆ (ข้อความเดิมใน cfg-conn
+      // มองไม่เห็นด้วยซ้ำถ้าไม่ได้เปิดแท็บตั้งค่าอยู่) ไม่เด้งซ้อนถ้า modal เปิดค้างอยู่แล้ว (จาก submitStaffKeyPrompt
+      // ที่เรียก loadPatients(true) ซ้ำแล้วยังผิดอยู่ — error นั้นแสดงใน modal เดิมผ่าน pk-err แทน ไม่ต้องเปิดซ้ำ)
+      if (r.message === "ไม่มีสิทธิ์เข้าถึง" && document.getElementById("modal").style.display !== "flex") {
+        promptForStaffKey(r.message);
+      }
       return false;
     }
   } catch(e) {
@@ -1128,6 +1175,8 @@ function hTab(t) {
   if (t==="cfg") {
     const u = document.getElementById("cfg-url");
     if (u && gasUrl) u.value = gasUrl;
+    const k = document.getElementById("cfg-key");
+    if (k && staffKey) k.value = staffKey;
   }
 }
 
@@ -1201,12 +1250,16 @@ function renderOnePtCard(p) {
     : `${base}?patient=${encodeURIComponent(p.name)}`;
   const bid = "cb_"+p.name.replace(/\s/g,"_");
   const safeName = escapeHtml(p.name);
+  const nameJs = escapeHtml(p.name.replace(/'/g,"\\'"));
+  const isDisabled = p.linkDisabled === true;
+  const lastActiveTxt = p.lastActiveDate ? "Active ล่าสุด: "+p.lastActiveDate : "ยังไม่เคย active เลย";
   return `<div class="pt-card">
-      <div class="pt-top" onclick="selectPt('${escapeHtml(p.name.replace(/'/g,"\\'"))}')">
+      <div class="pt-top" onclick="selectPt('${nameJs}')">
         <div class="pt-av">${escapeHtml(p.name.charAt(0))}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${safeName}</div>
+          <div style="font-size:15px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${safeName}${isDisabled?' <span style="font-size:10.5px;font-weight:700;color:var(--rd);background:#f5e9ec;padding:1px 7px;border-radius:99px;vertical-align:middle">ปิดใช้งานแล้ว</span>':""}</div>
           <div style="font-size:12px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.startWeight} → ${p.goalWeight} kg · เริ่ม ${p.startDate}</div>
+          <div style="font-size:11.5px;color:${p.lastActiveDate?"var(--tx3)":"var(--rd)"};margin-top:1px">${lastActiveTxt}</div>
         </div>
         <span style="font-size:22px;color:var(--tx3)">›</span>
       </div>
@@ -1216,12 +1269,30 @@ function renderOnePtCard(p) {
           <button id="${bid}" class="btn-sm" style="background:var(--bl2);color:var(--pu);border:1px solid var(--bl-btn)"
             onclick="copyLink('${link}','${bid}')">📋 คัดลอก</button>
           <button class="btn-sm" style="background:var(--gr2);color:var(--gr-tx);border:1px solid var(--gr)"
-            onclick="editPtNameModal('${escapeHtml(p.name.replace(/'/g,"\\'"))}')">✏️ แก้ไข</button>
+            onclick="editPtNameModal('${nameJs}')">✏️ แก้ไข</button>
+          ${isDisabled
+            ? `<button class="btn-sm" style="background:var(--gr2);color:var(--gr-tx);border:1px solid var(--gr)" onclick="toggleLinkDisabled('${nameJs}',false,this)">🔓 เปิดลิงก์</button>`
+            : `<button class="btn-sm" style="background:#fdf0e3;color:#b5650a;border:1px solid #f0d4b0" onclick="toggleLinkDisabled('${nameJs}',true,this)">🔒 ปิดลิงก์</button>`}
           <button class="btn-sm" style="background:#f5e9ec;color:var(--rd);border:1px solid #dfc0c8"
-            onclick="confirmDeletePt('${escapeHtml(p.name.replace(/'/g,"\\'"))}')">🗑 ลบ</button>
+            onclick="confirmDeletePt('${nameJs}')">🗑 ลบ</button>
         </div>
       </div>
     </div>`;
+}
+
+// เปิด/ปิดลิงก์ของผู้ป่วยด้วยมือจากการ์ดในรายชื่อ — ตัวปุ่มเองไม่ต้อง re-render การ์ดทั้งใบ (รออัปเดต patients[]
+// ในหน่วยความจำแล้วโหลดรายชื่อใหม่แทน ให้วันที่/badge ขึ้นถูกต้องตามจริงจากเซิร์ฟเวอร์ ไม่ใช่เดาเองฝั่ง client)
+async function toggleLinkDisabled(name, disabled, btn) {
+  const restore = btnLoading(btn, disabled ? "กำลังปิด..." : "กำลังเปิด...");
+  try {
+    const r = await api({action:"toggleLinkDisabled", name, disabled});
+    if (r.success) {
+      const idx = patients.findIndex(p => p.name === name);
+      if (idx !== -1) patients[idx].linkDisabled = disabled;
+      renderPtCards(patients);
+      toast(disabled ? "🔒 ปิดลิงก์ "+name+" แล้ว" : "🔓 เปิดลิงก์ "+name+" แล้ว", "ok");
+    } else { toast("❌ "+r.message,"err"); if (restore) restore(); }
+  } catch(e) { toast("❌ ทำรายการไม่สำเร็จ: "+e.message,"err"); if (restore) restore(); }
 }
 
 async function confirmDeletePt(name) {
@@ -1854,6 +1925,18 @@ async function renderFact() {
   try {
     const d = await getPatientCached(currentName);
     if (!d.success) { v.innerHTML=err(d.message); return; }
+    // ลิงก์ถูกปิด (manual หรือ auto หลังไม่ active เกิน 30 วัน) — บล็อกเฉพาะโหมดคนไข้ ไม่กระทบ staff ที่เข้าผ่าน
+    // ?staffPatient= เลย เพราะ staffPatient ไม่เคยตั้ง patientMode=true (ดู window.onload) ซ่อน nav ทั้งแถบด้วย
+    // ไม่ให้สลับไปแท็บอื่นได้ เหมือนกับกรณีลิงก์ผิด/คนไข้ถูกลบที่มีอยู่แล้ว (pidResolveFailed)
+    if (patientMode && d.linkDisabled) {
+      document.getElementById("nav").style.display = "none";
+      v.innerHTML = `<div class="card" style="text-align:center;padding:36px 20px">
+        <div style="font-size:40px;margin-bottom:14px">🔒</div>
+        <div style="font-weight:700;font-size:16px;margin-bottom:8px">ลิงก์นี้ถูกปิดใช้งานชั่วคราว</div>
+        <div style="color:var(--tx2);font-size:13.5px">กรุณาติดต่อคลินิกเพื่อขอเปิดใช้งานอีกครั้ง</div>
+      </div>`;
+      return;
+    }
     if (d.images) _bodyCache[currentName] = d.images; // images มาพร้อมกันกับข้อมูลคนไข้ ไม่ต้องยิง request แยก
 
     // รอ preload ข้อมูลเครื่องชั่งให้เสร็จก่อน (จำเป็นเพราะฟังก์ชันนี้มักถูกเรียกทันทีตอนเข้าหน้าคนไข้
@@ -1876,6 +1959,7 @@ async function renderFact() {
         <div class="bname">${escapeHtml(currentName)}</div>
         <div class="bsub">เริ่ม ${d.startDate}</div>
       </div>
+      <div id="next-appt-estimate"></div>
       <div class="sgrid">
         <div class="sc"><div class="slb">น้ำหนักปัจจุบัน</div>
           <div class="sv sn">${d.currentWeight||"-"}<span class="su">kg</span></div></div>
@@ -2001,7 +2085,47 @@ async function renderFact() {
       if (hasFat)    drawFactFatChart(nbRecs);
       if (hasMuscle) drawFactMuscleChart(nbRecs);
     }, 80);
+    fillNextApptEstimate(d); // ไม่ await — ตารางเวลาอาจยังโหลดไม่เสร็จ (fetch ได้นานถึง 15 วิ) ไม่ควรดีเลย์
+                              // การแสดงตัวเลขหลักที่ไม่เกี่ยวกับตารางเวลาเลยรอมันก่อน เติมเข้า placeholder ทีหลังเอง
   } catch(e) { v.innerHTML=err(e.message); }
+}
+
+// เติมการ์ด "วันนัดครั้งถัดไป (โดยประมาณ)" เข้า placeholder ใต้ชื่อผู้ป่วย — แยกเป็นฟังก์ชันของตัวเองเพราะต้องรอ
+// window._scheduleReady (fetch ไปหาระบบจองคิวจริง) ซึ่งช้ากว่าการโหลดข้อมูลคนไข้ปกติมาก ถ้าไม่มีข้อมูลสัดส่วน/
+// มวลเลย หรือตารางเวลาโหลดไม่สำเร็จ placeholder จะว่างเปล่าเงียบๆ ไม่ใช่ error — การ์ดนี้เป็นของเสริม ไม่ใช่
+// ข้อมูลสำคัญที่ขาดไม่ได้ ถ้า currentName เปลี่ยนไปแล้วระหว่างรอ (สลับคนไข้เร็วมาก) จะไม่เติมอะไรเข้าไปเลย กัน
+// ข้อมูลของคนก่อนหน้าไปโผล่ผิดหน้า
+async function fillNextApptEstimate(d) {
+  const nameAtCallTime = currentName;
+  const lastMeasDate = getLastMeasurementDate(d);
+  if (!lastMeasDate) return; // ไม่เคยวัดสัดส่วน/มวลเลย ไม่มีอะไรให้ประมาณ
+  try { if (window._scheduleReady) await window._scheduleReady; } catch(e) {}
+  if (currentName !== nameAtCallTime) return; // สลับคนไข้ไปแล้วระหว่างรอ ไม่เติมข้อมูลผิดคน
+
+  const el = document.getElementById("next-appt-estimate");
+  if (!el) return; // สลับแท็บออกไปแล้วระหว่างรอ element หายไปจาก DOM
+
+  const dates = estimateNextApptDates(lastMeasDate);
+  if (!dates.length) { el.innerHTML = ""; return; }
+
+  // รูปแบบวันที่สั้น (ไม่มีคำว่า "วัน...ที่"/ปี) เพราะพื้นที่แคบมากตอนแสดง 2 วันพร้อมกันบนจอมือถือ ใช้ thDate()
+  // เต็มรูปแบบไม่ได้ (ยาวเกินจนล้นคอลัมน์ — ยืนยันจากการทดสอบจริงที่ตัวอักษรล้นขอบจอ 420px)
+  const shortThDate = ds => {
+    const d = new Date(ds);
+    return d.toLocaleDateString("th-TH", {timeZone:"Asia/Bangkok", weekday:"short", day:"numeric", month:"short"});
+  };
+  const dayCards = dates.map(x => `
+    <div style="flex:1;min-width:0;text-align:center;overflow-wrap:break-word">
+      <div style="font-size:11.5px;color:var(--tx2)">${shortThDate(x.date)}</div>
+      <div style="font-size:12px;font-weight:700;color:var(--rose-dp);margin:2px 0">+${x.daysFromLast} วันจากครั้งล่าสุด</div>
+      ${x.hoursText ? `<div style="font-size:10.5px;color:var(--tx3)">${x.hoursText}</div>` : ""}
+    </div>`).join(dates.length === 2 ? '<div style="width:1px;background:var(--bd);margin:2px 6px;flex-shrink:0"></div>' : '');
+
+  el.innerHTML = `
+    <div class="card" style="padding:12px 14px;margin-bottom:12px">
+      <div style="font-size:11.5px;color:var(--tx2);margin-bottom:6px">📅 วันนัดครั้งถัดไป (โดยประมาณ)</div>
+      <div style="display:flex;align-items:stretch;gap:4px">${dayCards}</div>
+    </div>`;
 }
 
 function makeLineChart(ctx, label, data, labels, color, goalLine) {
@@ -3297,10 +3421,44 @@ function expandMcList() {
 
 
 // ===== SETTINGS =====
+// เด้ง modal บังคับกรอก staff key เมื่อ getPatients ถูกปฏิเสธเพราะ key ผิด/ไม่มี — ไม่มีปุ่มปิด/ยกเลิกเลย
+// (ต่างจาก modal อื่นในไฟล์นี้ทั้งหมดที่มีปุ่มยกเลิก) เพราะต้องการบังคับให้กรอกให้ถูกก่อนถึงจะใช้งานต่อได้จริง
+function promptForStaffKey(errMsg) {
+  showModal(`
+    <div class="modal-title">🔒 ต้องใส่ Staff API Key</div>
+    <div style="font-size:13px;color:var(--tx2);margin-bottom:14px">${errMsg ? escapeHtml(errMsg) : "ไม่มีสิทธิ์เข้าถึงรายชื่อผู้ป่วย"} — กรอก key ที่ถูกต้องเพื่อใช้งานต่อ</div>
+    <div class="fg"><label>Staff API Key</label>
+      <input type="text" id="pk-key" placeholder="กรอก key ที่ได้รับจากคลินิก" value="${escapeHtml(staffKey)}"></div>
+    <div id="pk-err" style="color:var(--rd);font-size:12.5px;margin-bottom:8px;display:none"></div>
+    <button class="btn btn-pk" onclick="submitStaffKeyPrompt()" style="width:100%">🔓 บันทึกและลองใหม่</button>
+  `);
+}
+
+async function submitStaffKeyPrompt() {
+  const k = V("pk-key").trim();
+  const errEl = document.getElementById("pk-err");
+  if (!k) { errEl.textContent = "กรอก key ก่อน"; errEl.style.display = "block"; return; }
+  staffKey = k; localStorage.setItem(SK, k);
+  errEl.style.display = "none";
+  const btn = event.currentTarget;
+  const restore = btnLoading(btn, "กำลังตรวจสอบ...");
+  const ok = await loadPatients(true);
+  if (ok) {
+    closeModal();
+    renderPtList();
+    toast("✅ เชื่อมต่อสำเร็จ","ok");
+  } else {
+    if (restore) restore();
+    errEl.textContent = "key ยังไม่ถูกต้อง ลองใหม่อีกครั้ง";
+    errEl.style.display = "block";
+  }
+}
+
 function saveUrl(){
   const url=V("cfg-url").trim();
   if(!url){toast(" ใส่ URL ก่อน","err");return;}
   gasUrl=url;localStorage.setItem(UK,url);
+  staffKey=V("cfg-key").trim();localStorage.setItem(SK,staffKey); // ว่างได้ (ยังไม่ตั้งค่าก็บันทึก URL ได้ปกติ)
   toast(" บันทึกสำเร็จ","ok");
   loadPatients(true).then(renderPtList);
 }
@@ -3308,7 +3466,7 @@ async function testConn(){
   if(!gasUrl){toast(" ใส่ URL ก่อน","err");return;}
   toast("🔌 กำลังทดสอบ...");
   try {
-    const r=await apiGet({action:"getPatients"});
+    const r=await apiGet({action:"getPatients", key:staffKey});
     if(r.success){
       patients=r.patients;
       document.getElementById("cfg-count").textContent=patients.length+" คน";
@@ -3501,6 +3659,70 @@ function dateStr(d) {
   return d.toLocaleDateString("sv-SE", {timeZone:"Asia/Bangkok"});
 }
 
+// แปลงวันที่เป็นข้อความเวลาทำการ เช่น "17:00-21:00 น." — คำนวณจาก slot จริงของ getSlots() (ไม่เขียน logic คำนวณ
+// เวลาเปิด-ปิดแยกต่างหาก) กันไม่ให้ข้อความที่แสดงเพี้ยนไปจากเวลาที่ใช้จองจริง ถ้ามีการแก้ getSlots() ในอนาคต
+// ข้อความนี้จะปรับตามเองโดยอัตโนมัติ ไม่ต้องแก้คู่กัน — คืน null ถ้าวันนั้นไม่มี slot เลย (วันปิด)
+function getOperatingHoursText(ds, overrides) {
+  const slots = getSlots(ds, overrides);
+  if (!slots.length) return null;
+  const [lastH, lastM] = slots[slots.length - 1].split(":").map(Number);
+  let endMin = lastH * 60 + lastM + CLINIC_CONFIG.slotMin;
+  const endStr = String(Math.floor(endMin / 60) % 24).padStart(2, "0") + ":" + String(endMin % 60).padStart(2, "0");
+  return slots[0] + "-" + endStr + " น.";
+}
+
+// คำนวณ "วันนัดครั้งถัดไป (โดยประมาณ)" — นับจากวันที่วัดสัดส่วน/วัดมวลล่าสุด +7 วัน ถ้าวันนั้นตรงกับวันปิด
+// พอดี ให้หาทั้งวันเปิดก่อนหน้าที่ใกล้ที่สุดและวันเปิดถัดไปที่ใกล้ที่สุด (ไม่ใช่แค่ทิศทางเดียว) คืน array ของ
+// {date, daysFromLast, hoursText} 1 หรือ 2 รายการ หรือ [] ถ้าหาวันเปิดไม่เจอเลยภายใน 14 วัน (ไม่ควรเกิดขึ้นจริง
+// แต่กันไว้ไม่ให้วนลูปไม่รู้จบถ้าข้อมูลตารางเวลาผิดปกติ)
+function estimateNextApptDates(lastDateStr) {
+  const lastD = new Date(lastDateStr + "T12:00:00"); // เที่ยงวัน กัน timezone เลื่อนวันผิดตอนบวกวัน
+  const targetD = new Date(lastD); targetD.setDate(targetD.getDate() + 7);
+  const targetDs = dateStr(targetD);
+
+  if (isDayOpen(targetDs, {})) {
+    const hoursText = getOperatingHoursText(targetDs, {});
+    return [{ date: targetDs, daysFromLast: 7, hoursText }];
+  }
+
+  // วันที่ +7 ปิดพอดี — หาวันเปิดก่อนหน้า (ถอยหลัง) และวันเปิดถัดไป (เดินหน้า) จากวันนั้น แยกกันคนละทิศทาง
+  const results = [];
+  for (let back = 1; back <= 14; back++) {
+    const d = new Date(targetD); d.setDate(d.getDate() - back);
+    const ds = dateStr(d);
+    if (isDayOpen(ds, {})) {
+      results.push({ date: ds, daysFromLast: 7 - back, hoursText: getOperatingHoursText(ds, {}) });
+      break;
+    }
+  }
+  for (let fwd = 1; fwd <= 14; fwd++) {
+    const d = new Date(targetD); d.setDate(d.getDate() + fwd);
+    const ds = dateStr(d);
+    if (isDayOpen(ds, {})) {
+      results.push({ date: ds, daysFromLast: 7 + fwd, hoursText: getOperatingHoursText(ds, {}) });
+      break;
+    }
+  }
+  return results.sort((a, b) => a.date.localeCompare(b.date)); // เรียงวันก่อน-หลังเสมอ ไม่ว่าจะเจอทิศไหนก่อน
+}
+
+// หาวันที่วัดสัดส่วน/วัดมวลล่าสุด (คนละความหมายกับ lastActiveDate ที่รวมน้ำหนักด้วย — ที่นี่ตั้งใจนับแค่
+// สัดส่วน+มวลตามที่ขอ) สัดส่วนมาจาก d.records (มี chest/waist/.../thighL อย่างน้อย 1 ค่า), มวลมาจาก _scaleCache
+// เฉพาะเครื่อง FG2015ULB เท่านั้น (ไม่นับ fatMass/muscleMass ที่กรอกมือ — ยึดตามขอบเขตเดียวกับ isActivityUpdate
+// ฝั่ง Code.gs ที่ตกลงกันไว้ตอนทำฟีเจอร์ lastActiveDate) คืน null ถ้าไม่เคยมีทั้งสองแบบเลย
+function getLastMeasurementDate(d) {
+  const measFields = ["chest","waist","hip","armR","armL","thighR","thighL"];
+  const measDates = (d.records || [])
+    .filter(r => measFields.some(f => r[f] !== undefined && r[f] !== null && r[f] !== ""))
+    .map(r => r.date);
+  const scaleDates = (_scaleCache[currentName] || [])
+    .filter(r => r.device === "FG2015ULB")
+    .map(r => r.date);
+  const all = [...measDates, ...scaleDates].filter(Boolean);
+  if (!all.length) return null;
+  return all.reduce((max, d) => d > max ? d : max);
+}
+
 // ===== หน้าผู้ป่วย — นัดหมาย =====
 async function renderAppt() {
   const v = document.getElementById("appt-v");
@@ -3511,7 +3733,8 @@ async function renderAppt() {
   try {
     const d = await fetchApptData();
     const appts = d.appts || [];
-    const overrides = d.overrides || {};
+    // ปฏิทินเปิด/ปิด/เวลาทำการ อิงจากตารางของแอพจองคิวอย่างเดียว (_bookingSchedule) — ไม่ใช้ override เดิมของ Weight Tracker
+    const overrides = {};
     const todayStr0 = today();
     const myAppt = appts.find(a => a.name === currentName && a.date >= todayStr0);
 
