@@ -2117,18 +2117,45 @@ async function fillNextApptEstimate(d) {
     const d = new Date(ds);
     return d.toLocaleDateString("th-TH", {timeZone:"Asia/Bangkok", weekday:"short", day:"numeric", month:"short"});
   };
+  // ถ้าวันนี้เลยวันนัดโดยประมาณที่ไกลที่สุดมาแล้ว → ไม่โชว์วันที่ผ่านไปแล้ว แจ้งว่าเกินวันนัด walk in ได้ตามเวลาทำการ
+  const farthest = dates.reduce((m, x) => x.date > m ? x.date : m, dates[0].date);
+  const overdue = today() > farthest;
+  const goBtn = `<button type="button" class="btn-out" onclick="goToApptPage()" style="width:100%;margin-top:10px;font-size:12.5px;padding:8px 10px">🕒 ดูเวลาทำการ</button>`;
+
+  if (overdue) {
+    el.innerHTML = `
+      <div class="card" style="padding:12px 14px;margin-bottom:12px">
+        <div style="font-size:11.5px;color:var(--tx2);margin-bottom:6px">📅 วันนัดครั้งถัดไป (โดยประมาณ)</div>
+        <div style="text-align:center;padding:2px 0">
+          <div style="font-size:18px;font-weight:800;color:var(--rose-dp);line-height:1.3">เกินวันนัดแล้ว</div>
+          <div style="font-size:13px;color:var(--tx2);margin-top:4px">สามารถ walk in ตามเวลาทำการของคลินิก</div>
+          <div style="font-size:10.5px;color:var(--tx3);margin-top:4px">(วันนัดโดยประมาณล่าสุดคือ ${shortThDate(farthest)})</div>
+        </div>
+        ${goBtn}
+      </div>`;
+    return;
+  }
+
   const dayCards = dates.map(x => `
     <div style="flex:1;min-width:0;text-align:center;overflow-wrap:break-word">
       <div style="font-size:${dates.length === 2 ? 16 : 20}px;font-weight:800;color:var(--rose-dp);line-height:1.25">${shortThDate(x.date)}</div>
       ${x.hoursText ? `<div style="font-size:12px;color:var(--tx2);margin-top:2px">${x.hoursText}</div>` : ""}
       <div style="font-size:10.5px;color:var(--tx3);margin-top:2px">+${x.daysFromLast} วันจากครั้งล่าสุด</div>
-    </div>`).join(dates.length === 2 ? '<div style="width:1px;background:var(--bd);margin:2px 6px;flex-shrink:0"></div>' : '');
+    </div>`).join(dates.length === 2 ? '<div style="display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0 4px;font-size:13px;font-weight:700;color:var(--tx3)">หรือ</div>' : '');
 
   el.innerHTML = `
     <div class="card" style="padding:12px 14px;margin-bottom:12px">
       <div style="font-size:11.5px;color:var(--tx2);margin-bottom:6px">📅 วันนัดครั้งถัดไป (โดยประมาณ)</div>
       <div style="display:flex;align-items:stretch;gap:4px">${dayCards}</div>
+      ${goBtn}
     </div>`;
+}
+
+// ปุ่ม "ดูเวลาทำการ" บนการ์ดวันนัด → ไปแท็บ "เลือกเวลา" (ปฏิทินเวลาทำการจากระบบจองคิว) เหมือนกดเมนูล่างเอง
+function goToApptPage() {
+  const btn = document.querySelector('.nav button[onclick*="gp(\'appt\'"]');
+  gp('appt', btn);
+  window.scrollTo(0, 0);
 }
 
 function makeLineChart(ctx, label, data, labels, color, goalLine) {
@@ -3684,12 +3711,18 @@ function getOperatingHoursText(ds, overrides) {
 // พอดี ให้หาทั้งวันเปิดก่อนหน้าที่ใกล้ที่สุดและวันเปิดถัดไปที่ใกล้ที่สุด (ไม่ใช่แค่ทิศทางเดียว) คืน array ของ
 // {date, daysFromLast, hoursText} 1 หรือ 2 รายการ หรือ [] ถ้าหาวันเปิดไม่เจอเลยภายใน 14 วัน (ไม่ควรเกิดขึ้นจริง
 // แต่กันไว้ไม่ให้วนลูปไม่รู้จบถ้าข้อมูลตารางเวลาผิดปกติ)
+// วันนี้คลินิกเปิดจริงไหม — ต้องทั้ง "ตารางจองคิวบอกว่าเปิด" และ "มีช่องเวลา (slot) ให้จองจริง" เช่น วันศุกร์ที่ปิดประจำ
+// แม้ daysOpen จากระบบจองคิวจะเป็น true ก็ไม่มี slot → ถือว่าปิด (ตรงกับที่ปฏิทินหน้าเลือกเวลาตัดสิน)
+function isClinicOpenOn(ds) {
+  return isDayOpen(ds, {}) && getSlots(ds, {}).length > 0;
+}
+
 function estimateNextApptDates(lastDateStr) {
   const lastD = new Date(lastDateStr + "T12:00:00"); // เที่ยงวัน กัน timezone เลื่อนวันผิดตอนบวกวัน
   const targetD = new Date(lastD); targetD.setDate(targetD.getDate() + 7);
   const targetDs = dateStr(targetD);
 
-  if (isDayOpen(targetDs, {})) {
+  if (isClinicOpenOn(targetDs)) {
     const hoursText = getOperatingHoursText(targetDs, {});
     return [{ date: targetDs, daysFromLast: 7, hoursText }];
   }
@@ -3699,7 +3732,7 @@ function estimateNextApptDates(lastDateStr) {
   for (let back = 1; back <= 14; back++) {
     const d = new Date(targetD); d.setDate(d.getDate() - back);
     const ds = dateStr(d);
-    if (isDayOpen(ds, {})) {
+    if (isClinicOpenOn(ds)) {
       results.push({ date: ds, daysFromLast: 7 - back, hoursText: getOperatingHoursText(ds, {}) });
       break;
     }
@@ -3707,7 +3740,7 @@ function estimateNextApptDates(lastDateStr) {
   for (let fwd = 1; fwd <= 14; fwd++) {
     const d = new Date(targetD); d.setDate(d.getDate() + fwd);
     const ds = dateStr(d);
-    if (isDayOpen(ds, {})) {
+    if (isClinicOpenOn(ds)) {
       results.push({ date: ds, daysFromLast: 7 + fwd, hoursText: getOperatingHoursText(ds, {}) });
       break;
     }
