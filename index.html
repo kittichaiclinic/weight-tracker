@@ -374,6 +374,14 @@ textarea{resize:vertical;min-height:56px}
   -webkit-backdrop-filter:blur(4px);z-index:900;display:none;align-items:center;justify-content:center;
   flex-direction:column;gap:16px;padding:20px;text-align:center}
 .save-ov-text{font-size:19px;font-weight:700;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.3)}
+/* Overlay "กำลังโหลด" (หน้าคนไข้) — สไตล์เดียวกับ overlay โหลดรายชื่อของหน้าเครื่องชั่ง: เบลอเต็มจอสีอ่อน + วงแหวนหมุน */
+.load-ov{position:fixed;inset:0;background:rgba(249,247,247,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  z-index:900;display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;padding:20px;text-align:center}
+.load-ov.show{display:flex}
+.load-ov .spin{width:52px;height:52px;border-width:5px}
+.load-ov-text{font-size:16px;font-weight:700;color:var(--rose-dp)}
+.load-ov-done{font-size:26px;font-weight:700;color:var(--gr-tx);animation:loadOvPop .25s ease-out}
+@keyframes loadOvPop{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
 .save-ov .spin{width:36px;height:36px;border-width:4px}
 .modal{background:var(--cd);border-radius:16px;padding:21px 17px 25px;
   width:100%;max-width:400px;max-height:90vh;overflow-y:auto;
@@ -577,6 +585,12 @@ details[open] .detail-arrow{transform:rotate(90deg)}
 <div class="save-ov" id="save-ov">
   <div class="spin"></div>
   <div class="save-ov-text" id="save-ov-text">กำลังบันทึก...</div>
+</div>
+
+<!-- LOAD OVERLAY — เบลอทั้งจอระหว่างโหลดข้อมูลหน้าคนไข้ (โหมดคนไข้เท่านั้น) -->
+<div class="load-ov" id="load-ov">
+  <div class="spin" id="load-ov-spin"></div>
+  <div class="load-ov-text" id="load-ov-text">กำลังโหลดข้อมูล...</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -885,17 +899,19 @@ function gp(name, btn) {
   document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
   document.getElementById("pg-"+name).classList.add("active");
   if (btn) btn.classList.add("active");
-  if (name==="fact") renderFact();
-  else if (name==="sym") renderSym();
-  else if (name==="meas") renderMeas();
-  else if (name==="body") renderBody();
-  else if (name==="newbody") renderNewBody();
-  else if (name==="recommend") renderRecommend();
-  else if (name==="stat") renderPatientStat();
-  else if (name==="entry") renderEntry();
-  else if (name==="appt") renderAppt();
-  else if (name==="apts") renderApptStaff();
+  let renderPromise = null;
+  if (name==="fact") renderPromise = renderFact();
+  else if (name==="sym") renderPromise = renderSym();
+  else if (name==="meas") renderPromise = renderMeas();
+  else if (name==="body") renderPromise = renderBody();
+  else if (name==="newbody") renderPromise = renderNewBody();
+  else if (name==="recommend") renderPromise = renderRecommend();
+  else if (name==="stat") renderPromise = renderPatientStat();
+  else if (name==="entry") renderPromise = renderEntry();
+  else if (name==="appt") renderPromise = renderAppt();
+  else if (name==="apts") renderPromise = renderApptStaff();
   else if (name==="home") { if(patientMode) renderPatientHome(); else backHome(); }
+  if (patientMode) withLoadOverlay(renderPromise);
 }
 
 // ===== API =====
@@ -3523,6 +3539,44 @@ function showModal(html){
 function closeModal(){document.getElementById("modal").style.display="none";}
 
 // เบลอทั้งจอ คลิกอะไรไม่ได้ ระหว่างบันทึก/สร้างข้อมูล — ใช้ร่วมกันทั้ง submitEntry และ submitAdd
+// ── Overlay "กำลังโหลด" สำหรับหน้าคนไข้ ──
+// ครอบทุกแท็บของโหมดคนไข้ (รวมการเปิดหน้าครั้งแรก) แต่จะโผล่เฉพาะเมื่อโหลดนานเกิน LOAD_OV_DELAY_MS — ถ้ามีข้อมูลใน
+// แคช/snapshot แล้วจอขึ้นทันที จะไม่มี overlay วาบขึ้นมารบกวน (ต่างจาก overlay ฝั่งเครื่องชั่งที่โชว์ทุกครั้ง)
+const LOAD_OV_DELAY_MS = 300;
+const LOAD_OV_MAX_MS = 35000;      // กันค้าง: เกินนี้ปิดเอง (api() ยกเลิกคำขอที่ 30 วิอยู่แล้ว)
+let _loadOvSeq = 0, _loadOvFirstDone = false, _loadOvMaxTimer = null;
+function showLoadOverlay(text) {
+  const ov = document.getElementById("load-ov"); if (!ov) return;
+  document.getElementById("load-ov-spin").style.display = "block";
+  document.getElementById("load-ov-text").textContent = text || "กำลังโหลดข้อมูล...";
+  ov.classList.add("show");
+  clearTimeout(_loadOvMaxTimer);
+  _loadOvMaxTimer = setTimeout(hideLoadOverlay, LOAD_OV_MAX_MS);
+}
+function hideLoadOverlay() {
+  clearTimeout(_loadOvMaxTimer);
+  const ov = document.getElementById("load-ov"); if (ov) ov.classList.remove("show");
+}
+function withLoadOverlay(p) {
+  if (!p || typeof p.then !== "function") return; // render แบบ sync ไม่มีอะไรให้รอ
+  const my = ++_loadOvSeq; // สลับแท็บเร็วๆ: มีแค่ครั้งล่าสุดที่เป็นเจ้าของ overlay
+  let shown = false;
+  const timer = setTimeout(() => { if (my === _loadOvSeq) { shown = true; showLoadOverlay("กำลังโหลดข้อมูล..."); } }, LOAD_OV_DELAY_MS);
+  const fin = () => {
+    clearTimeout(timer);
+    if (my !== _loadOvSeq) return;     // มีการสลับแท็บใหม่แล้ว ให้ตัวใหม่จัดการต่อ
+    if (shown && !_loadOvFirstDone) {  // ครั้งแรกที่เปิดหน้า: โชว์ ✅ สั้นๆ เหมือนหน้าเครื่องชั่ง
+      _loadOvFirstDone = true;
+      document.getElementById("load-ov-spin").style.display = "none";
+      document.getElementById("load-ov-text").innerHTML = '<span class="load-ov-done">✅ พร้อมแล้ว</span>';
+      clearTimeout(_loadOvMaxTimer);
+      setTimeout(() => { if (my === _loadOvSeq) hideLoadOverlay(); }, 700);
+    } else hideLoadOverlay();
+    _loadOvFirstDone = true;
+  };
+  p.then(fin, fin);
+}
+
 function showSaveOverlay(text){
   const el = document.getElementById("save-ov-text");
   if (el) el.textContent = text || "กำลังบันทึก...";
