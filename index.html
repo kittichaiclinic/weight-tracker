@@ -679,7 +679,8 @@ function hasPatientSnapshot(name) {
   return !!_cache[name] || (patientMode && !!lsCacheGet("patientFact_"+name));
 }
 
-const BOOKING_SCHEDULE_TTL_MS = 300000; // 5 นาที — เวลาทำการเปลี่ยนไม่บ่อย ไม่ต้องรีเฟรชถี่เท่าข้อมูลคนไข้
+const BOOKING_SCHEDULE_TTL_MS = 30000; // 30 วิ — staff ตั้งวันปิดในระบบจองคิวแล้วควรเห็นผลเกือบทันที (เดิม 5 นาที)
+let _bookingScheduleInfo = { state: 'fallback', at: 0 }; // live = เพิ่งดึงสำเร็จ | cached = ใช้ของเก่า | fallback = ดึงไม่ได้เลย // 5 นาที — เวลาทำการเปลี่ยนไม่บ่อย ไม่ต้องรีเฟรชถี่เท่าข้อมูลคนไข้
 
 // ดึงตารางเวลาทำการจริงจากระบบจองคิว (kittichaiclinic/clinic-booking — คนละ GAS deployment จาก gasUrl ของ
 // Weight Tracker เอง) เดิม BOOKING_URL/_bookingSchedule ถูกประกาศไว้รอแล้วแต่ไม่เคยมีโค้ด fetch จริงเลย ทำให้
@@ -690,7 +691,8 @@ async function fetchBookingSchedule() {
   const cached = lsCacheGet("bookingSchedule");
   if (cached) {
     _bookingSchedule = cached.data;
-    if (cached.age <= BOOKING_SCHEDULE_TTL_MS) return; // ยังไม่เก่า ใช้ได้เลย ไม่ต้องยิงคำขอ
+    _bookingScheduleInfo = { state: 'cached', at: Date.now() - cached.age };
+    if (cached.age <= BOOKING_SCHEDULE_TTL_MS) { _bookingScheduleInfo.state = 'live'; return; } // ยังไม่เก่า ใช้ได้เลย ไม่ต้องยิงคำขอ
   }
   try {
     const controller = new AbortController();
@@ -701,6 +703,7 @@ async function fetchBookingSchedule() {
     if (d.success) {
       _bookingSchedule = { daysOpen: d.daysOpen || {}, openDates: d.openDates || {}, closedDates: d.closedDates || [] };
       lsCacheSet("bookingSchedule", _bookingSchedule);
+      _bookingScheduleInfo = { state: 'live', at: Date.now() };
     }
     // success:false หรือ fetch ล้มเหลว — ถ้ามี cached (แม้เก่า) ก็ใช้ไปก่อนแล้วจากด้านบน ไม่ต้องทำอะไรเพิ่ม
     // ถ้าไม่มี cached เลย _bookingSchedule ยังคงเป็นค่า fallback ที่ประกาศไว้ตอนต้น ไม่ใช่ undefined/พัง
@@ -2099,7 +2102,7 @@ async function fillNextApptEstimate(d) {
   const nameAtCallTime = currentName;
   const lastMeasDate = getLastMeasurementDate(d);
   if (!lastMeasDate) return; // ไม่เคยวัดสัดส่วน/มวลเลย ไม่มีอะไรให้ประมาณ
-  try { if (window._scheduleReady) await window._scheduleReady; } catch(e) {}
+  try { window._scheduleReady = fetchBookingSchedule(); await window._scheduleReady; } catch(e) {}
   if (currentName !== nameAtCallTime) return; // สลับคนไข้ไปแล้วระหว่างรอ ไม่เติมข้อมูลผิดคน
 
   const el = document.getElementById("next-appt-estimate");
@@ -3600,6 +3603,12 @@ const CLINIC_CONFIG = {
 };
 
 let apptCalDate = new Date(); apptCalDate.setDate(1); // เดือนที่แสดงในปฏิทิน
+let apptCalTouched = false;   // true เมื่อ staff/คนไข้กดเปลี่ยนเดือนเอง — หยุดเลื่อนเดือนตามวันที่เลือกอัตโนมัติ
+function apptCalNav(delta) {
+  apptCalTouched = true;
+  apptCalDate = new Date(apptCalDate.getFullYear(), apptCalDate.getMonth() + delta, 1);
+  renderAppt();
+}
 let apptSelDate = null;       // วันที่เลือก
 
 // สร้าง time slots ของวัน
@@ -3729,7 +3738,7 @@ async function renderAppt() {
   if (!currentName) { v.innerHTML = noPatient(); return; }
   if (!_apptCache) v.innerHTML = loading();
   // รอ booking schedule โหลดเสร็จก่อน
-  if (window._scheduleReady) await window._scheduleReady;
+  try { window._scheduleReady = fetchBookingSchedule(); await window._scheduleReady; } catch(e) {}
   try {
     const d = await fetchApptData();
     const appts = d.appts || [];
@@ -3793,56 +3802,82 @@ async function renderAppt() {
       else apptSelDate = allDays.find(x=>x.isOpen && x.booked < x.total)?.ds || allDays.find(x=>x.isOpen)?.ds || allDays[0].ds;
     }
 
-    // สร้าง day selector tabs
+    // ── ปฏิทินรายเดือน อิงตารางเปิด/ปิด/เวลาทำการจากระบบจองคิว (_bookingSchedule) ──
     const thDays = ["อา","จ","อ","พ","พฤ","ศ","ส"];
-    const thMonths = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
-    let dayTabItems = "";
-    const todayDRef = new Date(todayStr);
-    allDays.forEach(({ds, d, isOpen, booked, total}) => {
+    const pad2 = n => String(n).padStart(2, "0");
+    const mkDs = (y, m, dd) => `${y}-${pad2(m + 1)}-${pad2(dd)}`;
+    const compactHours = ds => {
+      const t = getOperatingHoursText(ds, {});
+      if (!t) return "";
+      return t.replace(" น.", "").split("-").map(x => x.replace(/^0/, "").replace(":00", "")).join("-");
+    };
+    // วันนัดโดยประมาณของคนไข้คนนี้ (ถ้ามีข้อมูลวัดสัดส่วน/มวลแล้ว) — ไฮไลต์ในปฏิทินให้เห็นว่าควรเลือกช่วงไหน
+    const estDays = {};
+    try {
+      let dd0 = _cache[currentName];
+      if (!dd0) dd0 = await getPatientCached(currentName); // ปกติโหลดไว้แล้วตั้งแต่เปิดชื่อคนไข้ (preload) — เผื่อกรณีเปิดหน้านี้ตรงๆ
+      const lm = dd0 && dd0.success !== false && getLastMeasurementDate(dd0);
+      if (lm) estimateNextApptDates(lm).forEach(x => { estDays[x.date] = x.daysFromLast; });
+    } catch (e) {}
+
+    const bookableDs = {}; allDays.forEach(x => { bookableDs[x.ds] = x; });
+    if (!apptCalTouched) apptCalDate = new Date(Number(apptSelDate.slice(0,4)), Number(apptSelDate.slice(5,7)) - 1, 1);
+    const calY = apptCalDate.getFullYear(), calM = apptCalDate.getMonth();
+    const curMonthIdx = todayD.getFullYear() * 12 + todayD.getMonth();
+    const calIdx = calY * 12 + calM;
+    const canPrev = calIdx > curMonthIdx, canNext = calIdx < curMonthIdx + 2; // ดูล่วงหน้าได้ 2 เดือน
+    const monthLabel = new Date(calY, calM, 1).toLocaleDateString("th-TH", { month: "long", year: "numeric" });
+    const firstDow = new Date(calY, calM, 1).getDay();
+    const daysInMonth = new Date(calY, calM + 1, 0).getDate();
+
+    let cells = "";
+    for (let i = 0; i < firstDow; i++) cells += `<div></div>`;
+    for (let dn = 1; dn <= daysInMonth; dn++) {
+      const ds = mkDs(calY, calM, dn);
+      const info = bookableDs[ds];                 // มีเฉพาะวันที่จองได้ (พรุ่งนี้ ถึง +14 วัน)
+      const isPast = ds <= todayStr;                // วันนี้และก่อนหน้า จองไม่ได้
+      const schedOpen = isDayOpen(ds, {}) && getSlots(ds, {}).length > 0;
+      const hrs = schedOpen ? compactHours(ds) : "";
       const isSel = ds === apptSelDate;
-      const isFull = isOpen && booked >= total;
-      const isClosed = !isOpen;
-      const dow = thDays[d.getDay()];
-      const dayNum = d.getDate();
-      const mon = thMonths[d.getMonth()];
-      const diffDays = Math.round((d - todayDRef) / 86400000);
-      const diffLabel = diffDays === 1 ? "พรุ่งนี้" : `+${diffDays} วัน`;
+      const isEst = estDays[ds] !== undefined;
+      const canPick = !!info && info.isOpen;
+      const isFull = !!info && info.isOpen && info.booked >= info.total;
 
-      let bg, color, border, diffColor, dot, click;
-      if (isSel) {
-        bg = "var(--rose-btn)"; color = "#fff"; border = "var(--rose-btn)";
-        diffColor = "#fff";
-        dot = isClosed ? `<span style="font-size:9px">🔒</span>`
-            : isFull ? `<span style="font-size:9px">🔴</span>`
-            : `<span style="font-size:9px;color:#fff">●${total-booked}</span>`;
-      } else if (isClosed) {
-        bg = "var(--bg)"; color = "var(--tx3)"; border = "var(--bd)";
-        diffColor = "var(--tx3)";
-        dot = `<span style="font-size:9px;color:#ccc">ปิด</span>`;
-      } else if (isFull) {
-        bg = "#f5e9ec"; color = "var(--tx2)"; border = "#dfc0c8";
-        diffColor = "var(--rd)";
-        dot = `<span style="font-size:9px;color:var(--rd)">เต็ม</span>`;
-      } else {
-        bg = "#fff"; color = "var(--tx)"; border = "var(--bd)";
-        diffColor = "var(--rose-dp)";
-        dot = `<span style="font-size:9px;color:var(--gr-tx)">●${total-booked}</span>`;
-      }
-      click = isClosed ? '' : `onclick="selApptDay2('${ds}')"`;
+      let bg = "#fff", color = "var(--tx)", border = "var(--bd)", sub = "", opacity = 1;
+      if (!schedOpen) { bg = "var(--bg)"; color = "var(--tx3)"; sub = `<span style="font-size:9px">ปิด</span>`; }
+      else if (isFull) { bg = "#f5e9ec"; sub = `<span style="font-size:9px;color:var(--rd)">เต็ม</span>`; }
+      else if (info) sub = `<span style="font-size:9px;color:var(--gr-tx)">ว่าง ${info.total - info.booked}</span>`;
+      if (isPast || (!info && schedOpen)) opacity = .5;   // ผ่านไปแล้ว/ไกลเกิน 14 วัน — ดูได้แต่จองไม่ได้
+      if (isSel) { bg = "var(--rose-btn)"; color = "#fff"; border = "var(--rose-btn)"; sub = sub.replace(/color:[^;"]*/g, "color:#fff"); opacity = 1; }
+      const ring = isEst && !isSel ? "box-shadow:0 0 0 2px var(--rose-dp) inset;" : "";
+      const isToday = ds === todayStr;
+      const click = canPick && !isFull ? `onclick="selApptDay2('${ds}')"` : (canPick ? `onclick="selApptDay2('${ds}')"` : "");
 
-      dayTabItems += `<div ${click}
-        style="text-align:center;padding:8px 4px;border-radius:12px;
-          border:1.5px solid ${border};background:${bg};color:${color};
-          cursor:${isClosed?"not-allowed":"pointer"};transition:all .15s;${isClosed?"opacity:.5":""}">
-        <div style="font-size:9px;font-weight:700;color:${diffColor};margin-bottom:1px">${diffLabel}</div>
-        <div style="font-size:10px;opacity:.8">${dow}</div>
-        <div style="font-size:15px;font-weight:700;line-height:1.2">${dayNum}</div>
-        <div style="font-size:9px;opacity:.7">${mon}</div>
-        <div style="margin-top:2px">${dot}</div>
+      cells += `<div ${click} style="text-align:center;padding:5px 1px 4px;border-radius:10px;min-height:56px;
+          border:1.5px solid ${border};background:${bg};color:${color};opacity:${opacity};${ring}
+          cursor:${canPick ? "pointer" : "default"};overflow:hidden">
+        <div style="font-size:15px;font-weight:${isToday ? 800 : 700};line-height:1.2;${isToday ? "text-decoration:underline;" : ""}">${dn}</div>
+        <div style="font-size:9px;opacity:.85;white-space:nowrap">${hrs}</div>
+        <div>${sub}</div>
+        ${isEst ? `<div style="font-size:8.5px;font-weight:700;color:${isSel ? "#fff" : "var(--rose-dp)"}">+${estDays[ds]}วัน</div>` : ""}
       </div>`;
-    });
-    // จัด grid 7 คอลัมน์ (สูงสุด 2 แถว = 14 วัน)
-    const dayTabs = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:14px">${dayTabItems}</div>`;
+    }
+    const srcInfo = _bookingScheduleInfo.state === 'fallback'
+      ? `<span style="color:var(--rd)">⚠️ ดึงตารางจากระบบจองคิวไม่ได้ — กำลังใช้ตารางสำรอง</span>`
+      : `ตารางเวลาทำการจากระบบจองคิว${_bookingScheduleInfo.at ? " · อัปเดต " + new Date(_bookingScheduleInfo.at).toLocaleTimeString("th-TH", {hour:"2-digit", minute:"2-digit", timeZone:"Asia/Bangkok"}) + " น." : ""}`;
+    const dayTabs = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <button type="button" ${canPrev ? "" : "disabled"} onclick="apptCalNav(-1)" style="border:0;background:none;font-size:20px;padding:2px 10px;color:${canPrev ? "var(--tx)" : "var(--tx3)"};opacity:${canPrev ? 1 : .4}">‹</button>
+        <div style="font-size:14px;font-weight:700">${monthLabel}</div>
+        <button type="button" ${canNext ? "" : "disabled"} onclick="apptCalNav(1)" style="border:0;background:none;font-size:20px;padding:2px 10px;color:${canNext ? "var(--tx)" : "var(--tx3)"};opacity:${canNext ? 1 : .4}">›</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
+        ${thDays.map(x => `<div style="text-align:center;font-size:10.5px;color:var(--tx3);font-weight:700">${x}</div>`).join("")}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px">${cells}</div>
+      <div style="font-size:10.5px;color:var(--tx3);margin-bottom:14px;line-height:1.5">
+        ตัวเลขใต้วัน = เวลาทำการ (ชม.) · <span style="box-shadow:0 0 0 2px var(--rose-dp) inset;border-radius:4px;padding:0 4px">กรอบสี</span> = วันนัดโดยประมาณ<br>${srcInfo}
+      </div>`;
 
     // สร้าง slot list ของวันที่เลือก
     const selDayData = allDays.find(x=>x.ds===apptSelDate);
