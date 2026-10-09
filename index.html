@@ -701,12 +701,20 @@ let _bookingScheduleInfo = { state: 'fallback', at: 0 }; // live = เพิ่�
 // ทั้งหน้า "เลือกเวลา" เดิมและการคำนวณวันนัดใหม่ใช้ได้แค่ค่า fallback คงที่ที่ hardcode ไว้ตอนประกาศตัวแปร
 // ไม่ใช่เวลาทำการจริงที่ staff ไปตั้งไว้ในระบบจองคิว — รูปแบบข้อมูลที่ getSchedule คืนมาตรงกับโครงสร้างที่
 // _bookingSchedule ต้องการอยู่แล้วเป๊ะ (daysOpen/openDates/closedDates) ไม่ต้องแปลงรูปแบบใดๆ เพิ่ม
-async function fetchBookingSchedule() {
+let _schedInFlight = null; // กันยิงซ้ำ: onload / การ์ดวันนัด / แท็บเลือกเวลา เรียกพร้อมกันได้ แต่ยิงจริงแค่ครั้งเดียว
+// คืน true ถ้าตารางที่ได้ "ต่างจากที่ใช้อยู่" (ผู้เรียกใช้ตัดสินใจวาดซ้ำเฉพาะตอนต่างจริง)
+function fetchBookingSchedule() {
+  if (_schedInFlight) return _schedInFlight;
+  _schedInFlight = _fetchBookingSchedule().finally(() => { _schedInFlight = null; });
+  return _schedInFlight;
+}
+async function _fetchBookingSchedule() {
+  const before = JSON.stringify(_bookingSchedule);
   const cached = lsCacheGet("bookingSchedule");
   if (cached) {
     _bookingSchedule = cached.data;
     _bookingScheduleInfo = { state: 'cached', at: Date.now() - cached.age };
-    if (cached.age <= BOOKING_SCHEDULE_TTL_MS) { _bookingScheduleInfo.state = 'live'; return; } // ยังไม่เก่า ใช้ได้เลย ไม่ต้องยิงคำขอ
+    if (cached.age <= BOOKING_SCHEDULE_TTL_MS) { _bookingScheduleInfo.state = 'live'; return false; } // ยังไม่เก่า ใช้ได้เลย ไม่ต้องยิงคำขอ
   }
   try {
     const controller = new AbortController();
@@ -718,12 +726,14 @@ async function fetchBookingSchedule() {
       _bookingSchedule = { daysOpen: d.daysOpen || {}, openDates: d.openDates || {}, closedDates: d.closedDates || [] };
       lsCacheSet("bookingSchedule", _bookingSchedule);
       _bookingScheduleInfo = { state: 'live', at: Date.now() };
+      return JSON.stringify(_bookingSchedule) !== before;
     }
     // success:false หรือ fetch ล้มเหลว — ถ้ามี cached (แม้เก่า) ก็ใช้ไปก่อนแล้วจากด้านบน ไม่ต้องทำอะไรเพิ่ม
     // ถ้าไม่มี cached เลย _bookingSchedule ยังคงเป็นค่า fallback ที่ประกาศไว้ตอนต้น ไม่ใช่ undefined/พัง
   } catch (e) {
     // เน็ตหลุด/timeout — เงียบไว้ ใช้ fallback หรือ cached ที่มีอยู่ต่อไป ไม่บล็อกการทำงานส่วนอื่นเพราะเรื่องนี้
   }
+  return false;
 }
 
 let _patientsLoaded = false; // cache รายชื่อ
@@ -746,11 +756,30 @@ window.onload = async () => {
 
   let pidResolveFailed = false;
   if (pid && !pn && gasUrl) {
-    try {
-      const r = await apiGet({action:"resolvePatientId", patientId:pid});
-      if (r.success && r.name) pn = r.name; // แปลง ID เป็นชื่อล่าสุดสำเร็จ — ใช้ flow เดียวกับ ?patient= ต่อได้เลย
-      else pidResolveFailed = true;
-    } catch(e) { pidResolveFailed = true; }
+    // แปลง ID → ชื่อ "พร้อมข้อมูลคนไข้+เครื่องชั่ง" ในคำขอเดียว (เดิม resolvePatientId รอบหนึ่ง แล้วค่อยขอข้อมูลอีก 2 รอบ)
+    // เคยเปิดลิงก์นี้มาแล้ว → จำชื่อไว้ในเครื่อง ข้ามการรอไปเริ่มวาดจาก snapshot ได้เลย ส่วนคำขอจริงวิ่งตามหลัง
+    const req = apiGet({action:"getPatientFullData", patientId:pid});
+    const hit = lsCacheGet("pid_"+pid);
+    if (hit && hit.data) {
+      pn = hit.data;
+      const guess = pn;
+      _fullDataInFlight[guess] = req.then(r => {
+        delete _fullDataInFlight[guess];
+        if (!r.success) { lsCacheClear("pid_"+pid); lsCacheClear("patientFact_"+guess); location.reload(); return r; } // ลบแล้ว/ID ผิด
+        if (r.name && r.name !== guess) { lsCacheSet("pid_"+pid, r.name); location.reload(); return r; } // เปลี่ยนชื่อ → โหลดใหม่ด้วยชื่อล่าสุด
+        applyFullData(guess, r);
+        return r;
+      }).catch(e => { delete _fullDataInFlight[guess]; throw e; });
+      _fullDataInFlight[guess].catch(()=>{});
+    } else {
+      try {
+        const r = await req;
+        if (r.success && r.name) {
+          pn = r.name; lsCacheSet("pid_"+pid, pn);
+          patientMode = true; applyFullData(pn, r); // ใส่แคชก่อนเข้า flow เดียวกับ ?patient= ด้านล่าง
+        } else pidResolveFailed = true;
+      } catch(e) { pidResolveFailed = true; }
+    }
   }
 
   if (pn) {
@@ -767,16 +796,15 @@ window.onload = async () => {
       _navigatingFromPopstate = true; // กัน gp() pushState ซ้ำ — เพิ่ง replaceState ไปแล้วบรรทัดบน (ตั้งค่าเริ่มต้นของหน้า ไม่ใช่การ navigate จริงที่ควรสร้าง entry ใหม่)
       gp("fact", document.querySelector('.nav button[onclick*="fact"]'));
       _navigatingFromPopstate = wasNavigating;
-      // preload ข้อมูลเครื่องชั่งเบื้องหลัง ไม่ต้องรอ — ให้สลับแท็บทีหลังเร็วขึ้นเหมือนฝั่ง staff
+      // (ไม่ต้อง preload เครื่องชั่งแยกอีกแล้ว — renderFact ขอข้อมูลคนไข้+เครื่องชั่งมาในคำขอเดียว)
+      /* ตัดออก: preload getScaleData แยก
+
       // getBodyCompImages ไม่ต้องเรียกแยกแล้ว เพราะ renderFact() (เรียกจาก gp("fact") ข้างบน)
       // จะได้ images มาพร้อมกับข้อมูลคนไข้อยู่แล้ว แล้วเก็บลง _bodyCache ให้เองในตัว
       // เก็บ Promise ไว้ใน _fullDataInFlight (คนละ key จาก getPatientFullData เพราะเป็นคนละ endpoint)
       // กัน renderNewBody ยิงซ้ำถ้าถูกเปิดก่อน preload นี้จะเสร็จ
       const scaleKey = currentName + "__scale";
-      _fullDataInFlight[scaleKey] = apiGet({action:"getScaleData", name:currentName}).then(scaleData => {
-        if (scaleData.success) _scaleCache[currentName] = scaleData.records || [];
-        delete _fullDataInFlight[scaleKey];
-      }).catch(()=>{ delete _fullDataInFlight[scaleKey]; });
+      */
     }
     else { hTab("cfg"); toast(" กรุณาตั้งค่า URL ก่อน","err"); }
   } else if (pidResolveFailed) {
@@ -944,13 +972,12 @@ async function getPatientCached(name, force=false) {
     // เฉพาะโหมดคนไข้: ถ้าข้อมูลเก่าเกิน TTL ให้คืนของเก่าไปก่อนทันที (ไม่รอ) แล้วแอบรีเฟรชเงียบๆ เบื้องหลัง
     // trigger ตอนนี้เท่านั้น (ตอนมีคนเรียกจริง) ไม่ใช่ setInterval — เปิดค้างไว้เฉยๆ ไม่มี request เพิ่มเลย
     if (patientMode && !_patientDataInFlight[name] && (Date.now() - (_cacheFetchedAt[name]||0)) > PATIENT_DATA_TTL_MS) {
-      _patientDataInFlight[name] = apiGet({action:"getPatientData", name}).then(d => {
-        if (d.success) {
-          _cache[name] = d; _cacheFetchedAt[name] = Date.now(); lsCacheSet("patientFact_"+name, d);
+      _patientDataInFlight[name] = fetchPatientFullData(name, true).then(r => {
+        if (r.success && r.patient && r.patient.success) {
           rerenderVisiblePatientTab(); // ข้อมูลใหม่มาแล้ว วาดหน้าจอซ้ำให้เห็นทันที ไม่ต้องรอ interaction ถัดไป
         }
         delete _patientDataInFlight[name];
-        return d;
+        return r.patient;
       }).catch(e => { delete _patientDataInFlight[name]; });
     }
     return _cache[name];
@@ -967,7 +994,12 @@ async function getPatientCached(name, force=false) {
     if (snap) { _cache[name] = snap.data; usedSnapshot = true; }
   }
 
-  const p = apiGet({action:"getPatientData", name}).then(d => {
+  // โหมดคนไข้: ขอ "ข้อมูลคนไข้+เครื่องชั่ง" ในคำขอเดียว (เดิมยิง getPatientData + getScaleData แยก 2 รอบ — GAS มี
+  // overhead 2-4 วินาทีต่อคำขอ) staff ยังใช้ getPatientData เดิมเพราะโหลดแท็บอื่นผ่าน fetchPatientFullData อยู่แล้ว
+  const reqP = patientMode
+    ? fetchPatientFullData(name, true).then(r => (r.success && r.patient) ? r.patient : {success:false, message:r.message||"โหลดข้อมูลไม่สำเร็จ"})
+    : apiGet({action:"getPatientData", name});
+  const p = reqP.then(d => {
     if (d.success) {
       _cache[name] = d; _cacheFetchedAt[name] = Date.now(); if (patientMode) lsCacheSet("patientFact_"+name, d);
       if (usedSnapshot) rerenderVisiblePatientTab(); // เพิ่งโชว์ snapshot เก่าไปตอน return ข้างล่าง พอได้ของจริงมาแล้ว วาดซ้ำ
@@ -1028,6 +1060,15 @@ function invalidateCache(name) {
 // ดึงข้อมูลคนไข้+ยา+เครื่องชั่งพร้อมกันในคำขอเดียว (getPatientFullData) แล้วแจกใส่แคชทั้ง 4 ตัว
 // ถ้ามี request ของคนคนนี้กำลังทำงานอยู่แล้ว (จาก preload ที่ยังไม่เสร็จ) จะรอ Promise ตัวเดิมแทนที่จะยิงซ้ำ
 // — แก้ race condition ที่ผู้ใช้กดแท็บอื่นเร็วเกินกว่า preload จะเสร็จ
+function applyFullData(name, r) {
+  const pd = (r && r.success && r.patient) ? r.patient : null;
+  const sd = (r && r.success && r.scale) ? r.scale : null;
+  if (pd && pd.success) {
+    _cache[name] = pd; _cacheFetchedAt[name] = Date.now(); _bodyCache[name] = pd.images || [];
+    if (patientMode) lsCacheSet("patientFact_"+name, pd);
+  }
+  if (sd && sd.success) _scaleCache[name] = sd.records || [];
+}
 function fetchPatientFullData(name, force=false) {
   if (!force && _cache[name] && _scaleCache[name] !== undefined && _bodyCache[name] !== undefined) {
     // มีครบทุกแคชแล้ว ไม่ต้องโหลดใหม่
@@ -1040,11 +1081,7 @@ function fetchPatientFullData(name, force=false) {
   if (_fullDataInFlight[name]) return _fullDataInFlight[name]; // มีคำขอกำลังทำงานอยู่แล้ว รอตัวเดิม
 
   const p = apiGet({action:"getPatientFullData", name}).then(r => {
-    const patientData = (r.success && r.patient) ? r.patient : {success:false};
-    const scaleData     = (r.success && r.scale) ? r.scale : {success:false};
-
-    if (patientData.success) { _cache[name] = patientData; _bodyCache[name] = patientData.images || []; }
-    if (scaleData.success)   _scaleCache[name] = scaleData.records || [];
+    applyFullData(name, r);
 
     delete _fullDataInFlight[name]; // เสร็จแล้ว เอาออกจากรายการที่กำลังทำงาน
     return r;
@@ -1964,10 +2001,7 @@ async function renderFact() {
     // คนไข้ใช้ scaleKey แยกต่างหาก (เริ่มไว้ใน window.onload), staff ได้ scale data มาพร้อมกับข้อมูล
     // คนไข้ในคำขอเดียว (fetchPatientFullData ใช้ key เป็นชื่อตรงๆ ไม่ใช่ scaleKey)
     if (_scaleCache[currentName] === undefined) {
-      const scaleKey = currentName + "__scale";
-      if (patientMode && _fullDataInFlight[scaleKey]) {
-        try { await _fullDataInFlight[scaleKey]; } catch(e) {}
-      } else if (!patientMode && _fullDataInFlight[currentName]) {
+      if (_fullDataInFlight[currentName]) {
         try { await _fullDataInFlight[currentName]; } catch(e) {}
       }
     }
@@ -2118,7 +2152,10 @@ async function fillNextApptEstimate(d) {
   const nameAtCallTime = currentName;
   const lastMeasDate = getLastMeasurementDate(d);
   if (!lastMeasDate) return; // ไม่เคยวัดสัดส่วน/มวลเลย ไม่มีอะไรให้ประมาณ
-  try { window._scheduleReady = fetchBookingSchedule(); await window._scheduleReady; } catch(e) {}
+  // มีตารางเก่าในเครื่องอยู่แล้ว → วาดทันทีไม่ต้องรอ network แล้วรีเฟรชเบื้องหลัง วาดซ้ำเฉพาะตอนตารางเปลี่ยนจริง
+  const schedP = fetchBookingSchedule(); window._scheduleReady = schedP;
+  if (_bookingScheduleInfo.state === 'fallback') { try { await schedP; } catch(e) {} }
+  else schedP.then(ch => { if (ch && currentName === nameAtCallTime) fillNextApptEstimate(d); }).catch(()=>{});
   if (currentName !== nameAtCallTime) return; // สลับคนไข้ไปแล้วระหว่างรอ ไม่เติมข้อมูลผิดคน
 
   const el = document.getElementById("next-appt-estimate");
@@ -3144,15 +3181,8 @@ async function renderNewBody() {
       v.innerHTML = loading();
 
       // รอ preload ที่กำลังทำงานอยู่แทนที่จะยิงซ้ำ — ต้องรอตัวที่ถูกต้องตาม mode
-      const scaleKey = currentName + "__scale";
-      if (patientMode && _fullDataInFlight[scaleKey]) {
-        await _fullDataInFlight[scaleKey];
-      } else if (!patientMode) {
-        await fetchPatientFullData(currentName);
-      } else {
-        const r = await apiGet({action: "getScaleData", name: currentName});
-        _scaleCache[currentName] = r.success ? (r.records || []) : [];
-      }
+      await fetchPatientFullData(currentName); // ถ้ามีคำขอเดิมค้างอยู่จะรอตัวนั้น ไม่ยิงซ้ำ (ใช้ได้ทั้ง staff/คนไข้)
+      if (_scaleCache[currentName] === undefined) _scaleCache[currentName] = [];
     }
 
     // เอาเฉพาะที่มาจากเครื่อง FG2015ULB — ไม่เชื่อมกับ S400 อีกต่อไป
@@ -3824,8 +3854,10 @@ async function renderAppt() {
   const v = document.getElementById("appt-v");
   if (!currentName) { v.innerHTML = noPatient(); return; }
   if (!_apptCache) v.innerHTML = loading();
-  // รอ booking schedule โหลดเสร็จก่อน
-  try { window._scheduleReady = fetchBookingSchedule(); await window._scheduleReady; } catch(e) {}
+  // booking schedule: มีของเก่าในเครื่องก็วาดเลย แล้วรีเฟรชเบื้องหลัง (วาดซ้ำเฉพาะตอนตารางเปลี่ยนจริง) — ไม่มีเลยถึงรอ
+  const schedP = fetchBookingSchedule(); window._scheduleReady = schedP;
+  if (_bookingScheduleInfo.state === 'fallback') { try { await schedP; } catch(e) {} }
+  else schedP.then(ch => { const pg = document.getElementById("pg-appt"); if (ch && pg && pg.classList.contains("active")) renderAppt(); }).catch(()=>{});
   try {
     const d = await fetchApptData();
     const appts = d.appts || [];
