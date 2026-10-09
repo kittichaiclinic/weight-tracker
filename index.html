@@ -3978,14 +3978,6 @@ async function renderAppt() {
       return;
     }
 
-    // เลือกวันแรกที่มีช่องว่าง
-    if (!apptSelDate || !allDays.find(x=>x.ds===apptSelDate)) {
-      // default = วันที่ 7 ถ้าเปิด ถ้าไม่เปิดหาวันเปิดใกล้สุดรอบ day 7
-      const day7 = allDays[6];
-      if (day7 && day7.isOpen) apptSelDate = day7.ds;
-      else apptSelDate = allDays.find(x=>x.isOpen && x.booked < x.total)?.ds || allDays.find(x=>x.isOpen)?.ds || allDays[0].ds;
-    }
-
     // ── ปฏิทินรายเดือน อิงตารางเปิด/ปิด/เวลาทำการจากระบบจองคิว (_bookingSchedule) ──
     const thDays = ["อา","จ","อ","พ","พฤ","ศ","ส"];
     const pad2 = n => String(n).padStart(2, "0");
@@ -4005,6 +3997,18 @@ async function renderAppt() {
     } catch (e) {}
 
     const bookableDs = {}; allDays.forEach(x => { bookableDs[x.ds] = x; });
+
+    // วันที่เลือกเริ่มต้น: ให้ตรงกับ "วันนัดโดยประมาณ" (กรอบสี) เสมอถ้าจองได้ — เดิมเลือกวันที่ 7 นับจากวันนี้ ซึ่งไม่ใช่
+    // วันเดียวกับวันนัดโดยประมาณ (นับจากวันวัดล่าสุด) ทำให้สีน้ำเงินกับกรอบสีอยู่คนละวันและสับสน
+    if (!apptSelDate || !allDays.find(x=>x.ds===apptSelDate)) {
+      const estPick = allDays.find(x => estDays[x.ds] !== undefined && x.isOpen && x.booked < x.total);
+      if (estPick) apptSelDate = estPick.ds;
+      else {
+        const day7 = allDays[6]; // ไม่มีวันนัดโดยประมาณที่จองได้ → ใช้วันที่ 7 ถ้าเปิด ไม่งั้นวันเปิดใกล้สุด
+        if (day7 && day7.isOpen) apptSelDate = day7.ds;
+        else apptSelDate = allDays.find(x=>x.isOpen && x.booked < x.total)?.ds || allDays.find(x=>x.isOpen)?.ds || allDays[0].ds;
+      }
+    }
     if (!apptCalTouched) apptCalDate = new Date(Number(apptSelDate.slice(0,4)), Number(apptSelDate.slice(5,7)) - 1, 1);
     const calY = apptCalDate.getFullYear(), calM = apptCalDate.getMonth();
     const curMonthIdx = todayD.getFullYear() * 12 + todayD.getMonth();
@@ -4033,7 +4037,8 @@ async function renderAppt() {
       else if (info) sub = `<span style="font-size:11px;font-weight:600;color:var(--gr-tx)">ว่าง ${info.total - info.booked}</span>`;
       if (isPast || (!info && schedOpen)) opacity = .5;   // ผ่านไปแล้ว/ไกลเกิน 14 วัน — ดูได้แต่จองไม่ได้
       if (isSel) { bg = "var(--rose-btn)"; color = "#fff"; border = "var(--rose-btn)"; sub = sub.replace(/color:[^;"]*/g, "color:#fff"); opacity = 1; }
-      const ring = isEst && !isSel ? "box-shadow:0 0 0 2px var(--rose-dp) inset;" : "";
+      // วันนัดโดยประมาณมีกรอบเสมอ — ถ้าถูกเลือกอยู่ (พื้นน้ำเงิน) ให้เป็นกรอบขาวด้านในซ้อนกรอบกรมท่าด้านนอก ยังเห็นว่าเป็นวันเดียวกับที่ระบบแนะนำ
+      const ring = isEst ? (isSel ? "box-shadow:0 0 0 2px #fff inset,0 0 0 2px var(--rose-dp);" : "box-shadow:0 0 0 2px var(--rose-dp) inset;") : "";
       const isToday = ds === todayStr;
       const click = canPick && !isFull ? `onclick="selApptDay2('${ds}')"` : (canPick ? `onclick="selApptDay2('${ds}')"` : "");
 
