@@ -1255,6 +1255,7 @@ function renderPtList() {
     </div>
     <div style="font-size:12px;color:var(--tx2);margin-bottom:10px">
       ผู้ป่วยทั้งหมด <span style="color:var(--pk3);font-weight:700">${patients.length}</span> คน
+      <button class="btn-sm" style="margin-left:8px;background:#fdf0e3;color:#b5650a;border:1px solid #f0d4b0" onclick="openDisableInactive(this)">🔒 ปิดลิงก์ผู้ไม่ active 30 วัน</button>
     </div>
     <div id="pt-cards"></div>`;
   renderPtCards(patients);
@@ -1347,6 +1348,41 @@ async function toggleLinkDisabled(name, disabled, btn) {
       if (idx !== -1) patients[idx].linkDisabled = disabled;
       renderPtCards(patients);
       toast(disabled ? "🔒 ปิดลิงก์ "+name+" แล้ว" : "🔓 เปิดลิงก์ "+name+" แล้ว", "ok");
+    } else { toast("❌ "+r.message,"err"); if (restore) restore(); }
+  } catch(e) { toast("❌ ทำรายการไม่สำเร็จ: "+e.message,"err"); if (restore) restore(); }
+}
+
+
+// ปิดลิงก์ผู้ไม่ active ≥30 วันด้วยมือ: ขอรายชื่อจากเซิร์ฟเวอร์ก่อน (ไม่แก้ชีต) → ให้ยืนยัน → ส่งรายชื่อเดิมกลับไปปิด
+let _inactiveNames = [];
+async function openDisableInactive(btn) {
+  const restore = btnLoading(btn, "กำลังตรวจ...");
+  try {
+    const r = await api({action:"disableInactiveLinks", days:30, dryRun:true});
+    if (restore) restore();
+    if (!r.success) { toast("❌ "+(r.message||"ตรวจไม่สำเร็จ"),"err"); return; }
+    if (!r.count) { toast("✅ ไม่มีผู้ป่วยที่ต้องปิดลิงก์","ok"); return; }
+    _inactiveNames = r.list.map(x => x.name);
+    const rows = r.list.map(x => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd);font-size:13px">
+      <span>${escapeHtml(x.name)}</span><span style="color:var(--tx2);flex-shrink:0">${x.lastActive ? escapeHtml(x.lastActive) : "ไม่เคย active"}</span></div>`).join("");
+    showModal(`
+      <div class="modal-title">🔒 ปิดลิงก์ผู้ไม่ active<span class="modal-x" onclick="closeModal()">✕</span></div>
+      <div style="font-size:13px;color:var(--tx2);margin-bottom:8px">จะปิดลิงก์ <b>${r.count}</b> คน (ไม่มีการวัดเกิน 30 วัน) — เปิดคืนรายคนได้ภายหลัง</div>
+      <div style="max-height:45vh;overflow:auto;margin-bottom:14px">${rows}</div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="btn-out" onclick="closeModal()">ยกเลิก</button>
+        <button class="btn" id="di-go" onclick="doDisableInactive(this)">🔒 ยืนยันปิด ${r.count} คน</button>
+      </div>`);
+  } catch(e) { if (restore) restore(); toast("❌ ทำรายการไม่สำเร็จ: "+e.message,"err"); }
+}
+async function doDisableInactive(btn) {
+  const restore = btnLoading(btn, "กำลังปิด...");
+  try {
+    const r = await api({action:"disableInactiveLinks", days:30, names:_inactiveNames});
+    if (r.success) {
+      closeModal();
+      toast("🔒 ปิดลิงก์ "+r.disabledCount+" คนแล้ว","ok");
+      loadPatients(true).then(renderPtList);
     } else { toast("❌ "+r.message,"err"); if (restore) restore(); }
   } catch(e) { toast("❌ ทำรายการไม่สำเร็จ: "+e.message,"err"); if (restore) restore(); }
 }
@@ -3388,7 +3424,7 @@ async function submitAdd() {
   }
   showSaveOverlay("กำลังสร้างผู้ป่วยใหม่...");
   try {
-    const r = await api({action:"addPatient", name});
+    const r = await api({action:"addPatient", name, cnNo:(_pickedMcInfo && _pickedMcInfo.cnNo) || ""}); // cnNo = เลขผู้ป่วยจาก Medicloud (ถ้าเลือกมาจากรายชื่อ)
     if (r.success) {
       // ถ้าเลือกมาจาก Medicloud และดึงเพศ/อายุ/ส่วนสูงมาได้ ให้บันทึกต่อทันที
       let infoFailed = false;
