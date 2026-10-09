@@ -20,7 +20,7 @@
 
   /* ══ พาเลตต์ใหม่: ขาวอมชมพูอ่อน #F9F7F7 / ฟ้าอ่อนเทา #DBE2EF / น้ำเงินกลาง #3F72AF / น้ำเงินเข้ม #112D4E ══ */
   /* ตัวอักษร: น้ำเงินเข้มเกือบดำ อ่านง่ายบนพื้นอ่อนทุกจุด */
-  --ink:#112d4e;--tx:#1c3a5e;--tx2:#6b7f97;--tx3:#aebdd0;
+  --ink:#112d4e;--tx:#1c3a5e;--tx2:#566b86;--tx3:#8497ae;
 
   /* น้ำเงินกลาง #3F72AF = สีหลัก (ปุ่ม, แท็บ, กราฟน้ำหนัก) */
   --rose:#3f72af;--rose-lt:#dbe2ef;--rose-dp:#112d4e;--rose-btn:#3f72af;
@@ -466,6 +466,25 @@ textarea{resize:vertical;min-height:56px}
   padding:11px 12px;margin-bottom:12px;font-size:12px;color:#2e4a6b;line-height:1.5}
 details summary::-webkit-details-marker{display:none}
 details[open] .detail-arrow{transform:rotate(90deg)}
+
+/* ── ไอคอนเส้น (แทนอีโมจิ — แปลงอัตโนมัติด้วย iconize ท้ายไฟล์) ── */
+.ico{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.2em;flex-shrink:0;line-height:0}
+.ico svg{width:100%;height:100%;display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.nav button .ni .ico{width:23px;height:23px;vertical-align:top}
+.nav button{font-size:11.5px}
+.nav button .ni{margin-bottom:3px}
+.more-row{display:flex;align-items:center;gap:14px;width:100%;padding:13px 6px;border:none;background:none;
+  border-bottom:1px solid var(--bd);font-family:var(--sans);font-size:15px;color:var(--tx);cursor:pointer;text-align:left}
+.more-row:last-child{border-bottom:none}
+.more-row .ico{width:24px;height:24px;color:var(--rose)}
+.more-row small{display:block;font-size:12px;color:var(--tx2);margin-top:1px}
+.more-row:active{background:var(--rose-lt)}
+.toast .ico{margin-right:6px;vertical-align:-.25em}
+@media (max-width:699px){
+  .htabs{display:flex;width:100%}
+  .htab{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 2px 9px;font-size:12px}
+  .htab .ico{width:21px;height:21px}
+}
 </style>
 </head>
 <body>
@@ -892,27 +911,36 @@ function buildNav(patient) {
       nav.innerHTML = `
         <button onclick="gp('entry',this)"><span class="ni">📝</span>ลงข้อมูล</button>
         <button onclick="gp('sym',this)"><span class="ni">📞</span>ติดตาม</button>
-        <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
-        <button onclick="gp('newbody',this)"><span class="ni">⚖️</span>New Body Composition</button>
+        <button onclick="gp('body',this)"><span class="ni">💪</span>มวลไขมัน</button>
+        <button onclick="gp('newbody',this)"><span class="ni">⚖️</span>ผลชั่ง</button>
         <button onclick="gp('recommend',this)"><span class="ni">🍽️</span>แนะนำ</button>
-        <button onclick="gp('appt',this)"><span class="ni">📅</span>เลือกเวลา</button>
-        <button onclick="backHome()"><span class="ni">↩️</span>กลับแท็บล่าสุด</button>`;
+        <button onclick="gp('appt',this)"><span class="ni">📅</span>นัดหมาย</button>
+        <button onclick="backHome()"><span class="ni">↩️</span>กลับ</button>`;
     } else {
-      // Patient nav — ไม่มี Plan
+      // Patient nav — 5 ปุ่มหลัก ที่เหลือรวมอยู่ใน "เพิ่มเติม" (ดู openMoreMenu)
       nav.innerHTML = `
         <button class="active" onclick="gp('fact',this)"><span class="ni">⚖️</span>ภาพรวม</button>
         <button onclick="gp('sym',this)"><span class="ni">📞</span>ติดตาม</button>
         <button onclick="gp('meas',this)"><span class="ni">📏</span>สัดส่วน</button>
-        <button onclick="gp('body',this)"><span class="ni">💪</span>Body Composition</button>
-        <button onclick="gp('newbody',this)"><span class="ni">⚖️</span>New Body Composition</button>
-        <button onclick="gp('recommend',this)"><span class="ni">🍽️</span>แนะนำ</button>
-        <button onclick="gp('stat',this)"><span class="ni">🏆</span>สถิติ</button>
-        <button onclick="gp('appt',this)"><span class="ni">📅</span>เลือกเวลา</button>`;
+        <button onclick="gp('appt',this)"><span class="ni">📅</span>นัดหมาย</button>
+        <button id="nav-more" onclick="openMoreMenu()"><span class="ni">🗂</span>เพิ่มเติม</button>`;
     }
   } else {
     nav.style.display = "none";
     nav.innerHTML = "";
   }
+}
+
+// แท็บที่ซ่อนอยู่ใน "เพิ่มเติม" ของหน้าคนไข้
+const MORE_TABS = [
+  {key:"body",      ico:"💪", label:"มวลไขมัน / กล้ามเนื้อ", sub:"บันทึกและกราฟจากการวัดที่คลินิก"},
+  {key:"newbody",   ico:"⚖️", label:"ผลชั่งจากเครื่อง",       sub:"ผลวิเคราะห์ส่วนประกอบร่างกาย"},
+  {key:"recommend", ico:"🍽️", label:"แนะนำอาหาร",             sub:"คำแนะนำการกินตามเป้าหมาย"},
+  {key:"stat",      ico:"🏆", label:"สถิติ",                  sub:"อันดับและความก้าวหน้า"}
+];
+function openMoreMenu() {
+  showModal(`<div class="modal-title">เมนูเพิ่มเติม<span class="modal-x" onclick="closeModal()">✕</span></div>` +
+    MORE_TABS.map(t => `<button class="more-row" onclick="closeModal();gp('${t.key}')"><span class="ico-wrap">${t.ico}</span><span>${t.label}<small>${t.sub}</small></span></button>`).join(""));
 }
 
 function gp(name, btn) {
@@ -927,6 +955,7 @@ function gp(name, btn) {
   document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
   document.getElementById("pg-"+name).classList.add("active");
   if (btn) btn.classList.add("active");
+  else if (patientMode && MORE_TABS.some(t => t.key === name)) { const mb = document.getElementById("nav-more"); if (mb) mb.classList.add("active"); }
   let renderPromise = null;
   if (name==="fact") renderPromise = renderFact();
   else if (name==="sym") renderPromise = renderSym();
@@ -1251,11 +1280,11 @@ function renderPtList() {
           oninput="filterPtList(this.value)"
           autocomplete="off">
       </div>
-      <button class="btn-out" onclick="loadPatients(true).then(renderPtList)" style="flex-shrink:0">🔄</button>
+      <button class="btn-out" onclick="loadPatients(true).then(renderPtList)" style="flex-shrink:0;white-space:nowrap" title="รีเฟรชรายชื่อ">🔄 รีเฟรช</button>
     </div>
-    <div style="font-size:12px;color:var(--tx2);margin-bottom:10px">
-      ผู้ป่วยทั้งหมด <span style="color:var(--pk3);font-weight:700">${patients.length}</span> คน
-      <button class="btn-sm" style="margin-left:8px;background:#fdf0e3;color:#b5650a;border:1px solid #f0d4b0" onclick="openDisableInactive(this)">🔒 ปิดลิงก์ผู้ไม่ active 30 วัน</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
+      <div style="font-size:13px;color:var(--tx2)">ผู้ป่วยทั้งหมด <span style="color:var(--pk3);font-weight:700">${patients.length}</span> คน</div>
+      <button class="btn-sm" style="white-space:nowrap;background:transparent;color:var(--tx2);border:1px solid var(--bd)" onclick="openDisableInactive(this)" title="ปิดลิงก์ผู้ที่ไม่มีการวัดเกิน 30 วัน">🔒 ปิดลิงก์ที่ไม่ active</button>
     </div>
     <div id="pt-cards"></div>`;
   renderPtCards(patients);
@@ -3999,22 +4028,21 @@ async function renderAppt() {
       const isFull = !!info && info.isOpen && info.booked >= info.total;
 
       let bg = "#fff", color = "var(--tx)", border = "var(--bd)", sub = "", opacity = 1;
-      if (!schedOpen) { bg = "var(--bg)"; color = "var(--tx3)"; sub = `<span style="font-size:9px">ปิด</span>`; }
-      else if (isFull) { bg = "#f5e9ec"; sub = `<span style="font-size:9px;color:var(--rd)">เต็ม</span>`; }
-      else if (info) sub = `<span style="font-size:9px;color:var(--gr-tx)">ว่าง ${info.total - info.booked}</span>`;
+      if (!schedOpen) { bg = "var(--bg)"; color = "var(--tx3)"; sub = `<span style="font-size:11px">ปิด</span>`; }
+      else if (isFull) { bg = "#f5e9ec"; sub = `<span style="font-size:11px;font-weight:600;color:var(--rd)">เต็ม</span>`; }
+      else if (info) sub = `<span style="font-size:11px;font-weight:600;color:var(--gr-tx)">ว่าง ${info.total - info.booked}</span>`;
       if (isPast || (!info && schedOpen)) opacity = .5;   // ผ่านไปแล้ว/ไกลเกิน 14 วัน — ดูได้แต่จองไม่ได้
       if (isSel) { bg = "var(--rose-btn)"; color = "#fff"; border = "var(--rose-btn)"; sub = sub.replace(/color:[^;"]*/g, "color:#fff"); opacity = 1; }
       const ring = isEst && !isSel ? "box-shadow:0 0 0 2px var(--rose-dp) inset;" : "";
       const isToday = ds === todayStr;
       const click = canPick && !isFull ? `onclick="selApptDay2('${ds}')"` : (canPick ? `onclick="selApptDay2('${ds}')"` : "");
 
-      cells += `<div ${click} style="text-align:center;padding:5px 1px 4px;border-radius:10px;min-height:56px;
+      cells += `<div ${click} style="text-align:center;padding:5px 1px 4px;border-radius:10px;min-height:54px;
           border:1.5px solid ${border};background:${bg};color:${color};opacity:${opacity};${ring}
           cursor:${canPick ? "pointer" : "default"};overflow:hidden">
-        <div style="font-size:15px;font-weight:${isToday ? 800 : 700};line-height:1.2;${isToday ? "text-decoration:underline;" : ""}">${dn}</div>
-        <div style="font-size:9px;opacity:.85;white-space:nowrap">${hrs}</div>
+        <div style="font-size:17px;font-weight:${isToday ? 800 : 700};line-height:1.25;${isToday ? "text-decoration:underline;" : ""}">${dn}</div>
         <div>${sub}</div>
-        ${isEst ? `<div style="font-size:8.5px;font-weight:700;color:${isSel ? "#fff" : "var(--rose-dp)"}">+${estDays[ds]}วัน</div>` : ""}
+        ${isEst ? `<div style="font-size:10.5px;font-weight:700;color:${isSel ? "#fff" : "var(--rose-dp)"}">+${estDays[ds]}วัน</div>` : ""}
       </div>`;
     }
     const srcInfo = _bookingScheduleInfo.state === 'fallback'
@@ -4027,11 +4055,11 @@ async function renderAppt() {
         <button type="button" ${canNext ? "" : "disabled"} onclick="apptCalNav(1)" style="border:0;background:none;font-size:20px;padding:2px 10px;color:${canNext ? "var(--tx)" : "var(--tx3)"};opacity:${canNext ? 1 : .4}">›</button>
       </div>
       <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
-        ${thDays.map(x => `<div style="text-align:center;font-size:10.5px;color:var(--tx3);font-weight:700">${x}</div>`).join("")}
+        ${thDays.map(x => `<div style="text-align:center;font-size:12px;color:var(--tx2);font-weight:700">${x}</div>`).join("")}
       </div>
       <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px">${cells}</div>
-      <div style="font-size:10.5px;color:var(--tx3);margin-bottom:14px;line-height:1.5">
-        ตัวเลขใต้วัน = เวลาทำการ (ชม.) · <span style="box-shadow:0 0 0 2px var(--rose-dp) inset;border-radius:4px;padding:0 4px">กรอบสี</span> = วันนัดโดยประมาณ<br>${srcInfo}
+      <div style="font-size:12px;color:var(--tx2);margin-bottom:14px;line-height:1.6">
+        ตัวเลขใต้วัน = จำนวนคิวว่าง · <span style="box-shadow:0 0 0 2px var(--rose-dp) inset;border-radius:4px;padding:0 4px">กรอบสี</span> = วันนัดโดยประมาณ<br>${srcInfo}
       </div>`;
 
     // สร้าง slot list ของวันที่เลือก
@@ -4619,6 +4647,112 @@ function dateToIso(d){
   return p.length===3?`${p[2].length===4?p[2]:"25"+p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`:d;
 }
 
+</script>
+<script>
+/* ── iconize: แปลงอีโมจิทุกตัวในหน้า (รวมที่สร้างทีหลังด้วย innerHTML/textContent) เป็นไอคอนเส้น SVG ชุดเดียวกัน ──
+   ไม่ต้องแก้สตริงในโค้ดเดิม; ดูแลโดย MutationObserver ที่ทำงานก่อนเบราว์เซอร์วาดหน้าจอ จึงไม่มีอีโมจิวาบขึ้นมา */
+(function(){
+  const P = d => `<path d="${d}"/>`;
+  const ICONS = {
+    '❌':'<circle cx="12" cy="12" r="10"/>'+P('m15 9-6 6M9 9l6 6'),
+    '✅':'<circle cx="12" cy="12" r="10"/>'+P('m8 12.5 3 3 5-6'),
+    '⚠':P('m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3M12 9v4M12 17h.01'),
+    '🗑':P('M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6'),
+    '💾':P('M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8'),
+    '🔒':'<rect x="3" y="11" width="18" height="11" rx="2"/>'+P('M7 11V7a5 5 0 0 1 10 0v4'),
+    '🔓':'<rect x="3" y="11" width="18" height="11" rx="2"/>'+P('M7 11V7a5 5 0 0 1 9.9-1'),
+    '✏':P('M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z'),
+    '📅':'<rect x="3" y="4" width="18" height="18" rx="2"/>'+P('M16 2v4M8 2v4M3 10h18'),
+    '⚖':'<rect x="3" y="3" width="18" height="18" rx="4"/>'+P('M8 9a6 5 0 0 1 8 0M12 9l1.8-2.6'),
+    '📷':P('M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z')+'<circle cx="12" cy="13" r="3"/>',
+    '📏':P('M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0zM14.5 12.5l2-2M11.5 9.5l2-2M8.5 6.5l2-2M17.5 15.5l2-2'),
+    '🍽':P('M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7'),
+    '🏆':P('M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0z'),
+    '🔄':P('M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5'),
+    '👤':P('M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2')+'<circle cx="12" cy="7" r="4"/>',
+    '👥':P('M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75')+'<circle cx="9" cy="7" r="4"/>',
+    '🔌':P('M12 22v-5M9 8V2M15 8V2M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8z'),
+    '📞':P('M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z'),
+    '💪':P('M22 12h-4l-3 9L9 3l-3 9H2'),
+    '💊':P('m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7zM8.5 8.5l7 7'),
+    '😊':'<circle cx="12" cy="12" r="10"/>'+P('M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01'),
+    '📤':P('M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12'),
+    '➕':P('M5 12h14M12 5v14'),
+    '🕐':'<circle cx="12" cy="12" r="10"/>'+P('M12 6v6l4 2'),
+    '🕒':'<circle cx="12" cy="12" r="10"/>'+P('M12 6v6l4 2'),
+    '⚙':P('M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6'),
+    '🔗':P('M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'),
+    '🔑':P('m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4'),
+    '📝':P('M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5zM14 2v6h6M16 13H8M16 17H8M10 9H8'),
+    '↩':P('M3 7v6h6M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13'),
+    '🔍':'<circle cx="11" cy="11" r="8"/>'+P('m21 21-4.3-4.3'),
+    '📋':'<rect x="8" y="2" width="8" height="4" rx="1"/>'+P('M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2'),
+    '📱':'<rect x="5" y="2" width="14" height="20" rx="2"/>'+P('M12 18h.01'),
+    '🏥':'<rect x="4" y="2" width="16" height="20" rx="2"/>'+P('M9 22v-4h6v4M12 6v6M9 9h6'),
+    '💬':P('M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'),
+    '🎤':P('M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2M12 19v3'),
+    '🗂':'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',
+    '🥇':'<circle cx="12" cy="15" r="6" fill="#e0b84a" stroke="#a8861a"/>'+P('M8.5 3 12 9l3.5-6'),
+    '🥈':'<circle cx="12" cy="15" r="6" fill="#c9d1da" stroke="#7d8996"/>'+P('M8.5 3 12 9l3.5-6'),
+    '🥉':'<circle cx="12" cy="15" r="6" fill="#d19a6a" stroke="#97632f"/>'+P('M8.5 3 12 9l3.5-6')
+  };
+  const keys = Object.keys(ICONS);
+  const RE = new RegExp('(' + keys.join('|') + ')\\ufe0f?|([0-9])\\ufe0f?\\u20e3', 'g');
+  const SKIP = {SCRIPT:1, STYLE:1, TEXTAREA:1, TITLE:1, OPTION:1, NOSCRIPT:1};
+  const quick = /[\u20e3\u2190-\u2BFF\u{1F000}-\u{1FAFF}]/u;
+
+  function mkIcon(k) {
+    const sp = document.createElement('span');
+    sp.className = 'ico'; sp.setAttribute('aria-hidden', 'true');
+    sp.innerHTML = '<svg viewBox="0 0 24 24" focusable="false">' + ICONS[k] + '</svg>';
+    return sp;
+  }
+  function fixText(tn) {
+    const t = tn.data;
+    if (!quick.test(t)) return;
+    RE.lastIndex = 0;
+    let m, last = 0, frag = null;
+    while ((m = RE.exec(t))) {
+      frag = frag || document.createDocumentFragment();
+      if (m.index > last) frag.appendChild(document.createTextNode(t.slice(last, m.index)));
+      if (m[2] !== undefined) frag.appendChild(document.createTextNode(m[2] + '.'));
+      else frag.appendChild(mkIcon(m[1]));
+      last = m.index + m[0].length;
+    }
+    if (!frag) return;
+    if (last < t.length) frag.appendChild(document.createTextNode(t.slice(last)));
+    tn.parentNode.replaceChild(frag, tn);
+  }
+  function fixAttrs(el) {
+    ['placeholder', 'title'].forEach(a => {
+      const v = el.getAttribute && el.getAttribute(a);
+      if (v && quick.test(v)) { RE.lastIndex = 0; el.setAttribute(a, v.replace(RE, '').replace(/\s{2,}/g, ' ').trim()); }
+    });
+  }
+  function walk(node) {
+    if (node.nodeType === 3) {
+      if (node.parentNode && !SKIP[node.parentNode.nodeName]) fixText(node);
+      return;
+    }
+    if (node.nodeType !== 1 || SKIP[node.nodeName]) return;
+    fixAttrs(node);
+    node.querySelectorAll && node.querySelectorAll('[placeholder],[title]').forEach(fixAttrs);
+    const tw = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
+      acceptNode: n => (n.parentNode && !SKIP[n.parentNode.nodeName] && quick.test(n.data)) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+    });
+    const list = []; let n;
+    while ((n = tw.nextNode())) list.push(n);
+    list.forEach(fixText);
+  }
+  window.iconize = walk;
+  walk(document.body);
+  new MutationObserver(muts => {
+    for (const m of muts) {
+      if (m.type === 'characterData') { if (m.target.parentNode && !SKIP[m.target.parentNode.nodeName]) fixText(m.target); }
+      else m.addedNodes.forEach(walk);
+    }
+  }).observe(document.body, {childList: true, subtree: true, characterData: true});
+})();
 </script>
 </body>
 </html>
