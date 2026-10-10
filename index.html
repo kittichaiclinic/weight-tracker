@@ -1746,7 +1746,7 @@ async function renderEntry() {
     v.innerHTML = planSummary + personalInfoSummary + planForm + `
       <div class="card">
         <div class="ctitle">ลงข้อมูล</div>
-        <div class="fg"><label>วันที่</label><input type="date" id="en-dt" value="${today()}"></div>
+        <div class="fg"><label>วันที่</label><input type="date" id="en-dt" value="${today()}" onchange="loadMcCharge()"></div>
 
         <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:14px 0 8px">⚖️ น้ำหนัก</div>
         <div id="en-draft-banner"></div>
@@ -1756,13 +1756,17 @@ async function renderEntry() {
           <div class="fg"><label>แพทย์</label>
             <select id="en-dr">
               <option value="">-- เลือกแพทย์ --</option>
-              <option value="หมอชมพู่" ${localStorage.getItem("wt_v4_lastdr")==="หมอชมพู่"?"selected":""}>พ.ญ.พนิดา (หมอชมพู่)</option>
-              <option value="หมอปาย" ${localStorage.getItem("wt_v4_lastdr")==="หมอปาย"?"selected":""}>นพ.กิตติชัย (หมอปาย)</option>
+              <option value="หมอชมพู่" selected>พ.ญ.พนิดา (หมอชมพู่)</option>
+              <option value="หมอปาย">นพ.กิตติชัย (หมอปาย)</option>
             </select>
           </div>
         </div>
         <div class="r2">
-          <div class="fg"><label>งบ (฿)</label><input type="number" id="en-bg" value="1500"></div>
+          <div class="fg"><label>งบ (฿)</label><input type="text" inputmode="numeric" pattern="[0-9]*" id="en-bg" value="1700" list="en-bg-list" autocomplete="off"
+            oninput="this.value=this.value.replace(/[^0-9]/g,'');this.dataset.touched='1'"
+            onfocus="this.dataset.v=this.value;this.value=''" onblur="if(!this.value)this.value=this.dataset.v||''">
+            <datalist id="en-bg-list"><option value="890"><option value="1700"><option value="6000"><option value="20900"></datalist>
+            <div id="en-bg-hint" style="font-size:11.5px;color:var(--tx2);margin-top:4px;min-height:14px"></div></div>
           <div class="fg"><label>หมายเหตุ</label><input type="text" id="en-nt" placeholder=""></div>
         </div>
 
@@ -1850,8 +1854,34 @@ async function renderEntry() {
     }, 80);
 
     // เช็คว่ามีน้ำหนักจากเครื่องชั่งรออยู่ไหม (กดบันทึกจากหน้าเชื่อมเครื่องชั่ง FG2015ULB) — เติมให้อัตโนมัติ
-    if (!patientMode) checkDraftScaleReading();
+    if (!patientMode) { checkDraftScaleReading(); loadMcCharge(); }
   } catch(e) { v.innerHTML = err(e.message); }
+}
+
+// เติมช่อง "งบ" จากราคายา Mounjaro/Wegovy ในใบชำระเงิน Medicloud ของวันที่เลือก (เฉพาะราคายา)
+// - เติมให้เฉพาะตอนพนักงานยังไม่ได้พิมพ์/เลือกเอง (dataset.touched) และไม่เคยเขียนทับค่าที่กรอกไว้
+// - คอร์สเหมา: ราคาที่ Medicloud ให้คือราคาคอร์สทั้งก้อน ไม่ใช่ราคาครั้งนี้ → แสดงเป็นข้อความอย่างเดียว ไม่เติมช่อง
+// - ดึงไม่ได้/ไม่พบ → เงียบ ใช้ค่าเริ่มต้น 1700 และกรอกเองได้เหมือนเดิม ไม่ขวางการลงข้อมูล
+let _mcChargeSeq = 0;
+async function loadMcCharge() {
+  const bg = document.getElementById("en-bg"), hint = document.getElementById("en-bg-hint");
+  if (!bg || !hint || !currentName) return;
+  const date = V("en-dt"); if (!date) return;
+  const seq = ++_mcChargeSeq, name = currentName;
+  hint.textContent = "กำลังดึงราคายาจาก Medicloud...";
+  try {
+    const pt = (patients || []).find(x => x.name === name) || {};
+    const r = await api({action:"getMedicloudCharge", name, cnNo: pt.cnNo || "", date, key: staffKey});
+    if (seq !== _mcChargeSeq || name !== currentName) return; // สลับคนไข้/เปลี่ยนวันระหว่างรอ
+    if (!r.success) { hint.textContent = ""; return; }
+    if (!r.found) { hint.textContent = "ไม่พบรายการ Mounjaro/Wegovy ของวันนี้ใน Medicloud"; return; }
+    const dn = r.drug === "wegovy" ? "Wegovy" : "Mounjaro";
+    const price = Math.round(r.price || 0), fmt = price.toLocaleString("en-US");
+    if (r.course) { hint.textContent = dn + ": คอร์สเหมา (ราคาคอร์ส " + fmt + " ฿) — ไม่ได้เติมงบให้"; return; }
+    if (!(price > 0)) { hint.textContent = ""; return; }
+    if (!bg.dataset.touched) { bg.value = String(price); hint.textContent = "จาก Medicloud: " + dn + " " + fmt + " ฿"; }
+    else hint.textContent = "Medicloud: " + dn + " " + fmt + " ฿ (ไม่ได้เปลี่ยนค่าที่กรอกไว้)";
+  } catch (e) { hint.textContent = ""; }
 }
 
 async function checkDraftScaleReading() {
