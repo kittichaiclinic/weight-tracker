@@ -4180,6 +4180,14 @@ let _lbInFlight = null; // Promise ของ getAllLeaderboards ที่กำ�
                          // ผู้ใช้กดแท็บเองพร้อมกันพอดีตอนแคชยังว่างทั้งคู่ (เหมือน _apptInFlight ของ fetchApptData)
 const LB_TTL_MS = 30000; // สั้นกว่ารายชื่อ/นัดหมาย เพราะอันดับเปลี่ยนได้ทุกครั้งที่มีใครถูกบันทึกน้ำหนักใหม่
 
+// แสดงน้ำหนักที่เปลี่ยน: ลด = "-x" (เขียว), เพิ่ม = "+x" (แดง), เท่าเดิม = "0" (เทา) — เดิมน้ำหนักเพิ่มแสดงเป็น "x" ไม่มีเครื่องหมาย อ่านเหมือนลด
+function fmtLost(lost) {
+  const a = Math.abs(lost);
+  if (lost > 0) return {txt: "-" + a, color: "var(--gr-tx)"};
+  if (lost < 0) return {txt: "+" + a, color: "var(--rd)"};
+  return {txt: "0", color: "var(--tx2)"};
+}
+
 async function renderLeaderboard() {
   const v = document.getElementById("stat-v");
   let hadCache = Object.keys(_lbCache).length > 0;
@@ -4215,7 +4223,8 @@ async function renderLeaderboard() {
 
     const list = d.leaderboard || [];
     const rows = list.length ? list.map((r, idx) => {
-      const rank = idx + 1;
+      const rank = r.rank || (idx + 1);  // r.rank จากเซิร์ฟเวอร์ (เสมอกัน = อันดับเดียวกัน); idx+1 กันกรณี cache เก่าไม่มี rank
+      const fl = fmtLost(r.lost);
       const medal = rank===1 ? "🥇" : rank===2 ? "🥈" : rank===3 ? "🥉" : `#${rank}`;
       return `
         <div class="pt-card" style="display:flex;align-items:center;gap:12px;padding:12px 15px;margin-bottom:9px">
@@ -4225,7 +4234,7 @@ async function renderLeaderboard() {
             <div style="font-size:11.5px;color:var(--tx2)">${r.fromDate} → ${r.toDate}</div>
           </div>
           <div style="text-align:right">
-            <div class="num" style="font-size:19px;font-weight:600;color:${r.lost>0?'var(--gr-tx)':'var(--tx2)'}">${r.lost>0?'-':''}${Math.abs(r.lost)}<span style="font-size:11px;font-weight:400;color:var(--tx2)"> kg</span></div>
+            <div class="num" style="font-size:19px;font-weight:600;color:${fl.color}">${fl.txt}<span style="font-size:11px;font-weight:400;color:var(--tx2)"> kg</span></div>
           </div>
         </div>`;
     }).join("") : `<div class="ld">ยังไม่มีข้อมูลเพียงพอในช่วง${LB_PERIOD_LABEL[_lbPeriod]}</div>`;
@@ -4420,8 +4429,8 @@ async function renderPatientStat() {
           <div style="font-size:13px;color:var(--tx2);margin-bottom:2px">อันดับของคุณใน${LB_PERIOD_LABEL[_pstatPeriod]}</div>
           <div class="num" style="font-size:22px;font-weight:600;margin-bottom:14px">${d.rank} <span style="font-size:13px;font-weight:400;color:var(--tx2)">จากทั้งหมด ${d.total} คน</span></div>
           <div class="sgrid" style="margin-bottom:0">
-            <div class="sc"><div class="slb">ลดไปแล้ว</div>
-              <div class="num sg" style="font-size:20px">${d.lost>0?'-':''}${Math.abs(d.lost)}<span class="su"> kg</span></div></div>
+            <div class="sc"><div class="slb">${d.lost < 0 ? "น้ำหนักเพิ่ม" : "ลดไปแล้ว"}</div>
+              <div class="num sg" style="font-size:20px;color:${fmtLost(d.lost).color}">${fmtLost(d.lost).txt}<span class="su"> kg</span></div></div>
             <div class="sc"><div class="slb">ช่วงที่วัด</div>
               <div style="font-size:12px;margin-top:4px">${d.fromDate}<br>→ ${d.toDate}</div></div>
           </div>
