@@ -4002,8 +4002,13 @@ async function renderAppt() {
     // วันเดียวกับวันนัดโดยประมาณ (นับจากวันวัดล่าสุด) ทำให้สีน้ำเงินกับกรอบสีอยู่คนละวันและสับสน
     if (!apptSelDate || !allDays.find(x=>x.ds===apptSelDate)) {
       const estPick = allDays.find(x => estDays[x.ds] !== undefined && x.isOpen && x.booked < x.total);
+      const estKeys = Object.keys(estDays);
+      // เลยวันนัดโดยประมาณมาแล้ว (ทุกวันที่ประมาณไว้เป็นวันนี้หรือก่อนหน้า) → เริ่มที่พรุ่งนี้ ถ้าพรุ่งนี้ปิด/เต็มก็ไปวันเปิดทำการถัดไป
+      const overdue = estKeys.length > 0 && estKeys.every(k => k <= todayStr);
       if (estPick) apptSelDate = estPick.ds;
-      else {
+      else if (overdue) {
+        apptSelDate = allDays.find(x => x.isOpen && x.booked < x.total)?.ds || allDays.find(x => x.isOpen)?.ds || allDays[0].ds;
+      } else {
         const day7 = allDays[6]; // ไม่มีวันนัดโดยประมาณที่จองได้ → ใช้วันที่ 7 ถ้าเปิด ไม่งั้นวันเปิดใกล้สุด
         if (day7 && day7.isOpen) apptSelDate = day7.ds;
         else apptSelDate = allDays.find(x=>x.isOpen && x.booked < x.total)?.ds || allDays.find(x=>x.isOpen)?.ds || allDays[0].ds;
