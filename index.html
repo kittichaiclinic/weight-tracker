@@ -920,7 +920,7 @@ function buildNav(patient) {
       // Patient nav — 5 ปุ่มหลัก ที่เหลือรวมอยู่ใน "เพิ่มเติม" (ดู openMoreMenu)
       nav.innerHTML = `
         <button class="active" onclick="gp('fact',this)"><span class="ni">⚖️</span>ภาพรวม</button>
-        <button onclick="gp('sym',this)"><span class="ni">📞</span>ติดตาม</button>
+        <button onclick="gp('newbody',this)"><span class="ni">⚖️</span>ผลชั่ง</button>
         <button onclick="gp('meas',this)"><span class="ni">📏</span>สัดส่วน</button>
         <button onclick="gp('appt',this)"><span class="ni">📅</span>นัดหมาย</button>
         <button id="nav-more" onclick="openMoreMenu()"><span class="ni">🗂</span>เพิ่มเติม</button>`;
@@ -933,10 +933,10 @@ function buildNav(patient) {
 
 // แท็บที่ซ่อนอยู่ใน "เพิ่มเติม" ของหน้าคนไข้
 const MORE_TABS = [
-  {key:"body",      ico:"💪", label:"มวลไขมัน / กล้ามเนื้อ", sub:"บันทึกและกราฟจากการวัดที่คลินิก"},
-  {key:"newbody",   ico:"⚖️", label:"ผลชั่งจากเครื่อง",       sub:"ผลวิเคราะห์ส่วนประกอบร่างกาย"},
-  {key:"recommend", ico:"🍽️", label:"แนะนำอาหาร",             sub:"คำแนะนำการกินตามเป้าหมาย"},
-  {key:"stat",      ico:"🏆", label:"สถิติ",                  sub:"อันดับและความก้าวหน้า"}
+  {key:"stat",      ico:"🏆", label:"สถิติ",                                  sub:"อันดับและความก้าวหน้า"},
+  {key:"sym",       ico:"📞", label:"ติดตาม",                                 sub:"อาการและการติดตามผล"},
+  {key:"recommend", ico:"🍽️", label:"แนะนำอาหาร",                             sub:"คำแนะนำการกินตามเป้าหมาย"},
+  {key:"body",      ico:"💪", label:"มวลไขมัน/กล้ามเนื้อรูปแบบเก่า",           sub:"บันทึกและกราฟจากการวัดที่คลินิก"}
 ];
 function openMoreMenu() {
   showModal(`<div class="modal-title">เมนูเพิ่มเติม<span class="modal-x" onclick="closeModal()">✕</span></div>` +
