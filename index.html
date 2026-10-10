@@ -1751,7 +1751,7 @@ async function renderEntry() {
         <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:14px 0 8px">⚖️ น้ำหนัก</div>
         <div id="en-draft-banner"></div>
         <div class="r3">
-          <div class="fg"><label>น้ำหนัก (kg)</label><input type="number" id="en-w" step="0.1" min="0"></div>
+          <div class="fg"><label>น้ำหนัก (kg)</label><input type="number" id="en-w" step="0.1" min="0" oninput="delete this.dataset.fallback"></div>
           <div class="fg"><label>โดส (mg)</label><input type="number" id="en-ds" step="0.5" value="2.5"></div>
           <div class="fg"><label>แพทย์</label>
             <select id="en-dr">
@@ -1893,13 +1893,27 @@ async function checkDraftScaleReading() {
     if (currentName !== nameAtCallTime) return; // สลับไปคนไข้คนอื่นแล้วระหว่างรอ — ทิ้งผลนี้ไป ไม่เขียนทับ
     if (r.success && r.found) {
       const wEl = document.getElementById("en-w");
-      if (wEl && !wEl.value) wEl.value = r.weight; // ไม่ทับถ้าคนพิมพ์เองไว้ก่อนแล้ว
+      if (wEl && (!wEl.value || wEl.dataset.fallback)) { wEl.value = r.weight; delete wEl.dataset.fallback; } // ไม่ทับถ้าคนพิมพ์เองไว้ก่อนแล้ว (แต่ทับค่า "น้ำหนักครั้งล่าสุด" ที่เติมให้อัตโนมัติได้)
       const bannerEl = document.getElementById("en-draft-banner");
       if (bannerEl) bannerEl.innerHTML = `<div style="font-size:12px;color:var(--gr-tx);background:var(--gr2);
         border-radius:8px;padding:7px 10px;margin-bottom:8px;font-weight:600">
         ⚖️ ดึงข้อมูลน้ำหนักแล้ว (${r.weight} kg จากเครื่องชั่ง ${r.capturedAt?("เมื่อ "+r.capturedAt):""})</div>`;
     }
   } catch(e) {} // เงียบไว้ ไม่ต้องรบกวนถ้าดึงไม่ได้ — ยังกรอกเองได้ตามปกติ
+  if (currentName === nameAtCallTime) applyLastWeightFallback(nameAtCallTime);
+}
+
+// ยังไม่มีน้ำหนักจากเครื่องชั่ง (server.py) และช่องยังว่าง → ใช้น้ำหนักครั้งล่าสุดของคนไข้เป็นค่าเริ่มต้น
+// ติดธง dataset.fallback ไว้ เพื่อให้ผลจากเครื่องชั่งที่มาทีหลังทับได้ และเมื่อพนักงานพิมพ์เองธงจะหายไป (oninput ที่ช่อง en-w)
+function applyLastWeightFallback(name) {
+  const wEl = document.getElementById("en-w"), banner = document.getElementById("en-draft-banner");
+  if (!wEl || !banner || wEl.value) return;
+  const recs = ((_cache[name] && _cache[name].records) || []).filter(x => x.weight !== null && x.weight !== undefined && x.weight !== "");
+  if (!recs.length) return;
+  const lw = recs[recs.length - 1];
+  wEl.value = lw.weight; wEl.dataset.fallback = "1";
+  banner.innerHTML = `<div style="font-size:12px;color:var(--tx2);background:var(--bl2);border-radius:8px;padding:7px 10px;margin-bottom:8px">
+    ใช้น้ำหนักครั้งล่าสุดเป็นค่าเริ่มต้น (${lw.weight} kg${lw.date ? " · " + escapeHtml(String(lw.date)) : ""}) — ยังไม่มีน้ำหนักจากเครื่องชั่ง แก้ไขได้</div>`;
 }
 
 let enChart=null, enFatChart=null, enMuscleChart=null;
