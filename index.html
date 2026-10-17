@@ -3152,7 +3152,7 @@ const MP_CATS = ["ไก่","ไข่","หมู","ปลา/กุ้ง","�
 const MP_CAT_LABEL = {"ถั่ว":"ถั่ว/เต้าหู้","แป้ง":"แป้ง/เส้น"};
 const MP_LTXT = {g:"กินได้ดี",y:"พอประมาณ",r:"นานๆ ครั้ง"};
 const MP_LORD = {g:0,y:1,r:2};
-let MP = { name:"", k:0, p:0, items:[], cat:null, last:null, toastT:null, clearT:0 };
+let MP = { name:"", k:0, p:0, items:[], cat:null, last:null, toastT:null };
 
 const mpFood = id => MP_FOODS.find(f => f.id === id);
 const mpFmt = n => Math.round(n).toLocaleString("th-TH");
@@ -3200,7 +3200,6 @@ function mpMarkup() {
     <div class="mp-pickhead" id="mp-pickhead"></div>
     <div class="mp-picks" id="mp-picks"></div>
     <div class="mp-planhead"><div class="mp-sec" style="margin:0">แผนอาหารที่จัด</div><button type="button" class="mp-ghost" id="mp-clear">เริ่มจัดใหม่</button></div>
-    <div class="mp-err" id="mp-clearask" hidden>กด "ยืนยันล้าง" อีกครั้งเพื่อลบทุกรายการ</div>
     <div class="mp-eaten" id="mp-eaten"></div>
     <button type="button" class="mp-save" id="mp-save">บันทึกเป็นรูป</button>
     <div class="mp-note">ตัวเลขเป็นค่าประมาณต่อหน่วยบริโภคทั่วไป — ถ้ามีโรคไตหรือโรคประจำตัว ให้ทำตามที่คุณหมอแนะนำ</div>
@@ -3268,7 +3267,7 @@ function mpAdd(id) {
 
 // เรียกหลัง renderRecommend ใส่ HTML แล้ว — ตั้งเป้าตามคนไข้คนนี้ + ผูก event
 function mpInit(name, targets) {
-  MP.name = name; MP.cat = null; MP.last = null; clearTimeout(MP.clearT); MP.clearT = 0;
+  MP.name = name; MP.cat = null; MP.last = null;
   MP.k = targets.calHigh; MP.p = targets.proteinG; // เพดานแคลอรี่ = BMR − 300 (ปลายบนของช่วงเป้า)
   mpLoad();
   const root = mpEl("mp-root"); if (!root) return;
@@ -3283,13 +3282,13 @@ function mpInit(name, targets) {
   };
   mpEl("mp-clear").onclick = () => {
     if (!MP.items.length) return;
-    if (!MP.clearT) {
-      MP.clearT = setTimeout(() => { MP.clearT = 0; const a = mpEl("mp-clearask"), b = mpEl("mp-clear"); if (a) a.hidden = true; if (b) b.textContent = "เริ่มจัดใหม่"; }, 3500);
-      mpEl("mp-clearask").hidden = false; mpEl("mp-clear").textContent = "ยืนยันล้าง"; return;
-    }
-    clearTimeout(MP.clearT); MP.clearT = 0;
-    mpEl("mp-clearask").hidden = true; mpEl("mp-clear").textContent = "เริ่มจัดใหม่";
-    MP.items = []; mpSave(); mpRender();
+    showModal(`
+      <div class="modal-title">เริ่มจัดใหม่<span class="modal-x" onclick="closeModal()">✕</span></div>
+      <div style="font-size:14px;color:var(--tx);margin:6px 0 16px;text-align:center">ลบทุกรายการปัจจุบันในแผนอาหาร?</div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="btn-out" onclick="closeModal()">ยกเลิก</button>
+        <button class="btn" onclick="mpClearAll()">ตกลง</button>
+      </div>`);
   };
   mpEl("mp-save").onclick = async () => {
     if (!MP.items.length) return;
@@ -3300,6 +3299,8 @@ function mpInit(name, targets) {
   };
   mpRender();
 }
+
+function mpClearAll() { closeModal(); MP.items = []; MP.last = null; mpSave(); mpRender(); }
 
 function mpShowShot(url) {
   let s = mpEl("mp-shot");
