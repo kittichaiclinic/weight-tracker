@@ -3406,42 +3406,27 @@ async function renderRecommend() {
 
 
     v.innerHTML = `
-      <div class="card">
-        <div class="ctitle">โปรตีนที่ควรทานต่อวัน</div>
-        <div style="text-align:center;padding:14px 0">
-          <div style="font-family:var(--serif);font-size:40px;font-weight:500;color:var(--pk3)">
-            ${proteinG}<span style="font-size:16px;font-weight:400;color:var(--tx2);margin-left:4px">g</span>
+      <div class="card" style="padding:12px 14px">
+        <div style="display:flex;gap:10px;text-align:center">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11.5px;color:var(--tx2)">โปรตีนต่อวัน</div>
+            <div style="font-family:var(--serif);font-size:26px;font-weight:500;color:var(--pk3);line-height:1.2">${proteinG}<span style="font-size:12px;font-weight:400;color:var(--tx2);margin-left:3px">g</span></div>
           </div>
-          <div style="font-size:12px;color:var(--tx2);margin-top:6px">
-            คำนวณจากน้ำหนักตัวล่าสุด ${weight} kg × 1.2 g/kg
+          <div style="width:1px;background:var(--bd)"></div>
+          <div style="flex:1.3;min-width:0">
+            <div style="font-size:11.5px;color:var(--tx2)">พลังงานต่อวัน (ลดน้ำหนัก)</div>
+            <div style="font-family:var(--serif);font-size:26px;font-weight:500;color:var(--pk3);line-height:1.2">${calLow.toLocaleString()}–${calHigh.toLocaleString()}<span style="font-size:12px;font-weight:400;color:var(--tx2);margin-left:3px">kcal</span></div>
           </div>
+        </div>
+        <div style="font-size:11px;color:var(--tx3);margin-top:8px;line-height:1.5;text-align:center">
+          โปรตีนจากน้ำหนัก ${weight} kg × 1.2 g/kg · พลังงาน = BMR ${bmr.toLocaleString()} kcal (${bmrSource}) − 300–500 kcal<br>
+          เป็นค่าประมาณเบื้องต้น ควรปรับตามกิจกรรมและโรคประจำตัวของผู้ป่วยแต่ละราย
         </div>
       </div>
 
-      <div class="card">
-        <div class="ctitle">พลังงานที่ควรได้ต่อวัน (เพื่อลดน้ำหนัก)</div>
-        <div style="text-align:center;padding:14px 0">
-          <div style="font-family:var(--serif);font-size:32px;font-weight:500;color:var(--pk3)">
-            ${calLow.toLocaleString()}–${calHigh.toLocaleString()}<span style="font-size:14px;font-weight:400;color:var(--tx2);margin-left:4px">kcal</span>
-          </div>
-          <div style="font-size:12px;color:var(--tx2);margin-top:6px">
-            BMR ${bmr.toLocaleString()} kcal (${bmrSource}) ลบ deficit 300–500 kcal/วัน
-          </div>
-        </div>
-        <div class="info-box" style="margin-top:8px">
-          ตัวเลขนี้เป็นค่าประมาณเบื้องต้น ควรปรับตามความเหมาะสมของผู้ป่วยแต่ละราย (กิจกรรมประจำวัน, โรคประจำตัว ฯลฯ)
-        </div>
-      </div>
-
-      <div class="card" style="position:relative">
-        <details id="pf-details">
-          <summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--rose-dp);
-            list-style:none;display:flex;align-items:center;gap:5px;padding:2px 0">
-            <span class="detail-arrow" style="transition:transform .15s;display:inline-block">▸</span>
-            ทดลองเลือกอาหาร
-          </summary>
-          <div style="margin-top:8px">${mpMarkup()}</div>
-        </details>
+      <div class="card" style="padding:12px 14px">
+        <div style="font-size:14px;font-weight:700;color:var(--rose-dp);margin-bottom:8px">ทดลองเลือกอาหาร</div>
+        ${mpMarkup()}
       </div>
     `;
     mpInit(currentName, window._recommendTargets);
