@@ -3160,7 +3160,7 @@ const MP_CATS = ["ไก่","ไข่","หมู","เนื้อวัว",
 const MP_CAT_LABEL = {"ถั่ว":"ถั่ว/เต้าหู้","แป้ง":"แป้ง/เส้น"};
 const MP_LTXT = {g:"กินได้ดี",y:"พอประมาณ",r:"นานๆ ครั้ง"};
 const MP_LORD = {g:0,y:1,r:2};
-let MP = { name:"", k:0, p:0, items:[], cat:null, last:null, toastT:null };
+let MP = { name:"", k:0, p:0, items:[], cat:null, last:null, toastT:null, rand:[] };
 
 const mpFood = id => MP_FOODS.find(f => f.id === id);
 const mpFmt = n => Math.round(n).toLocaleString("th-TH");
@@ -3251,11 +3251,17 @@ function mpRender() {
     overList = all.filter(f => f.k > budget).sort(sortFit);
     mpEl("mp-pickhead").innerHTML = `<span>เมนูที่มี${mpCatName(MP.cat)} อยู่ในงบ ${picks.length} อย่าง</span><button type="button" data-pc="${MP.cat}">ดูแบบแนะนำ</button>`;
   } else {
-    const pool = MP_FOODS.filter(f => f.k <= budget && f.k >= 60 && mpLight(f) !== "r")
-      .sort((a, b) => remP > 0 ? (b.p / b.k) - (a.p / a.k) : a.k - b.k);
-    const seen = new Set();
-    for (const f of pool) { if (seen.has(f.t[0])) continue; seen.add(f.t[0]); picks.push(f); if (picks.length === 3) break; }
-    mpEl("mp-pickhead").innerHTML = picks.length ? `<span>แนะนำสำหรับแคลอรี่ที่เหลือ</span>` : "";
+    // สุ่มเมนู 3 อย่างที่อยู่ในงบแคลอรี่ที่เหลือ (คนละวัตถุดิบหลัก) — คงชุดเดิมไว้จนกว่าจะกด "สุ่มใหม่"
+    // หรือจนกว่าเมนูในชุดจะเกินงบ (เช่น เพิ่งเพิ่มอาหารลงแผนจนงบเหลือน้อย)
+    const pool = MP_FOODS.filter(f => f.k <= budget && f.k >= 60 && f.p >= 3 && f.t[0] !== "ข้าว" && !(f.t[0] === "แป้ง" && f.p < 10) && mpLight(f) !== "r"); // ไม่สุ่มข้าวเปล่า/ขนมปังเปล่ามาเป็นเมนูแนะนำ
+    const keep = MP.rand.map(mpFood).filter(f => f && pool.includes(f));
+    const seen = new Set(keep.map(f => f.t[0]));
+    const rest = pool.filter(f => !keep.includes(f) && !seen.has(f.t[0]));
+    for (let i = rest.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [rest[i], rest[j]] = [rest[j], rest[i]]; }
+    const fresh = [...keep];
+    for (const f of rest) { if (fresh.length >= 3) break; if (fresh.some(x => x.t[0] === f.t[0])) continue; fresh.push(f); }
+    picks = fresh; MP.rand = picks.map(f => f.id);
+    mpEl("mp-pickhead").innerHTML = picks.length ? `<span>เมนูสุ่มให้ (ในงบแคลอรี่ที่เหลือ)</span><button type="button" data-shuffle="1">สุ่มใหม่</button>` : "";
   }
   mpEl("mp-picks").innerHTML = (picks.length ? picks.map(f => mpCard(f, false)).join("")
     : (MP.cat ? `<div class="mp-empty">เมนูที่มี${mpCatName(MP.cat)}เกินงบที่เหลือ ลองเลือกผัก เห็ด หรือไข่</div>` : '<div class="mp-empty">แคลอรี่ครบเป้าแล้ว ถ้ายังหิว ลองผักลวก แกงจืด หรือน้ำเปล่า</div>'))
@@ -3276,13 +3282,14 @@ function mpAdd(id) {
 
 // เรียกหลัง renderRecommend ใส่ HTML แล้ว — ตั้งเป้าตามคนไข้คนนี้ + ผูก event
 function mpInit(name, targets) {
-  MP.name = name; MP.cat = null; MP.last = null;
+  MP.name = name; MP.cat = null; MP.last = null; MP.rand = [];
   MP.k = targets.calHigh; MP.p = targets.proteinG; // เพดานแคลอรี่ = BMR − 300 (ปลายบนของช่วงเป้า)
   mpLoad();
   const root = mpEl("mp-root"); if (!root) return;
   root.addEventListener("click", e => {
     const a = e.target.closest("[data-add]"); if (a) { mpAdd(a.dataset.add); return; }
     const d = e.target.closest("[data-del]"); if (d) { MP.items.splice(+d.dataset.del, 1); mpSave(); mpRender(); return; }
+    if (e.target.closest("[data-shuffle]")) { MP.rand = []; mpRender(); return; }
     const c = e.target.closest("[data-pc]"); if (c) { MP.cat = MP.cat === c.dataset.pc ? null : c.dataset.pc; mpRender(); return; }
   });
   mpEl("mp-undo").onclick = () => {
