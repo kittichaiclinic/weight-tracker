@@ -1697,35 +1697,40 @@ async function renderPatientHome() {
           <span>${d.startWeight} kg</span><span>เป้า ${d.goalWeight} kg</span>
         </div>
       </div>
-      <div class="card">
-        <div class="ctitle">กราฟน้ำหนัก</div>
-        <div class="ch-wrap"><canvas id="wc"></canvas></div>
-      </div>`;
-    setTimeout(()=>drawWeightChart(d),80);
+      `;
   } catch(e) { pg.innerHTML=`<div class="ld"> โหลดไม่ได้</div>`; }
 }
 
-function drawWeightChart(d) {
-  const ctx = document.getElementById("wc"); if (!ctx) return;
-  if (wChart) wChart.destroy();
-  wChart = new Chart(ctx, {
-    type:"line",
-    data:{
-      labels: d.records.map(r=>r.date),
-      datasets:[
-        { label:"น้ำหนัก(kg)", data:d.records.map(r=>r.weight||null),
-          borderColor:"#377fbe",backgroundColor:"rgba(55,127,190,.1)",
-          borderWidth:2.5,pointBackgroundColor:"#377fbe",pointRadius:4,tension:.3,spanGaps:true },
-        { label:"เป้าหมาย", data:d.records.map(()=>d.goalWeight),
-          borderColor:"#549ad4",borderWidth:1.5,borderDash:[5,5],pointRadius:0 }
-      ]
-    },
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{position:"bottom",labels:{font:{family:"Noto Sans Thai",size:11},boxWidth:14}}},
+// กราฟน้ำหนักในหน้า "ผลชั่ง" (แทนกราฟน้ำหนักเดิมในหน้าภาพรวมที่มาจากน้ำหนักที่กรอกเอง) —
+// ใช้น้ำหนักที่วัดจากเครื่องชั่ง FG2015ULB โดยตรง (ค่าที่บันทึกพร้อมผล Body Composition ในแต่ละครั้ง)
+// + เส้นเป้าหมายประ (ถ้ามีข้อมูลเป้าหมายของคนไข้)
+let nbWeightChart = null;
+function nbWeightCardHtml(recs) {
+  if (!recs || !recs.length) return "";
+  return `<div class="card">
+        <div class="ctitle">กราฟน้ำหนัก <span style="font-size:11px;font-weight:400;color:var(--tx2)">(จากเครื่องชั่ง)</span></div>
+        <div class="ch-wrap"><canvas id="nb-weight-chart"></canvas></div>
+      </div>`;
+}
+function drawNbWeightChart(recs, pd) {
+  const ctx = document.getElementById("nb-weight-chart"); if (!ctx || !recs || !recs.length) return;
+  if (nbWeightChart) nbWeightChart.destroy();
+  const dup = {}; recs.forEach(r => { dup[r.date] = (dup[r.date] || 0) + 1; });
+  const labels = recs.map(r => dup[r.date] > 1 && r.time ? r.date + " " + r.time : r.date); // วันเดียวกันชั่งหลายครั้ง แยกด้วยเวลา
+  const vals = recs.map(r => parseFloat(r.weight));
+  const goal = pd && pd.goalWeight ? parseFloat(pd.goalWeight) : null;
+  const F = {family:"Noto Sans Thai"};
+  const datasets = [{ label:"น้ำหนัก (kg)", data:vals, borderColor:"#377fbe", backgroundColor:"rgba(55,127,190,.1)",
+    borderWidth:2.5, tension:.3, spanGaps:true, pointBackgroundColor:"#377fbe", pointRadius:4 }];
+  if (goal) datasets.push({ label:"เป้าหมาย", data:labels.map(() => goal), borderColor:"#549ad4", borderWidth:1.5, borderDash:[5,5], pointRadius:0 });
+  const lo = Math.min(...vals, goal || Infinity), hi = Math.max(...vals);
+  nbWeightChart = new Chart(ctx, {
+    type:"line", data:{labels, datasets},
+    options:{responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:"bottom", labels:{font:{...F,size:11}, boxWidth:14}}},
       scales:{
-        y:{suggestedMin:d.goalWeight-2,suggestedMax:d.startWeight+1,
-          ticks:{font:{family:"Noto Sans Thai",size:11}}},
-        x:{ticks:{font:{family:"Noto Sans Thai",size:10},maxRotation:45,maxTicksLimit:8}}
+        y:{suggestedMin:lo - 2, suggestedMax:hi + 1, ticks:{font:{...F,size:11}}},
+        x:{ticks:{font:{...F,size:10}, maxRotation:45, maxTicksLimit:8}}
       }}
   });
 }
@@ -3469,6 +3474,11 @@ async function renderNewBody() {
     const recs = (_scaleCache[currentName] || []).filter(r => r.device === "FG2015ULB")
       .slice().sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
 
+    // ข้อมูลคนไข้ (ใช้แค่ค่าเป้าหมายน้ำหนักสำหรับเส้นประในกราฟ) — ปกติโหลดมาพร้อมกันแล้ว ถ้ายังไม่มีลองดึงให้
+    let pd = _cache[currentName];
+    if (!pd) { try { pd = await getPatientCached(currentName); } catch(e) { pd = null; } }
+    if (pd && pd.success === false) pd = null;
+
     if (!recs.length) {
       window._nbRecs = []; // ล้างทิ้งกันค้างข้อมูลของคนไข้คนก่อนหน้า แม้ในทางปฏิบัติจะไม่มี dropdown ให้กดถึงจุดนี้อยู่แล้วก็ตาม
       v.innerHTML = `<div class="card"><div class="ld">ยังไม่มีข้อมูลจากเครื่องชั่ง FG2015ULB — ชั่งจากหน้าเชื่อมเครื่องชั่งก่อน</div></div>`;
@@ -3496,6 +3506,8 @@ async function renderNewBody() {
         <div class="weight-big" id="nb-weight-display">${rec.weight}<span class="weight-unit">kg</span></div>
         <div class="weight-delta" id="nb-weight-delta">${nbDeltaHtml(rec.weight, prevRec ? prevRec.weight : null)}</div>
       </div>
+
+      ${nbWeightCardHtml(recs)}
 
       <div class="card">
         <div class="ctitle">ผลวิเคราะห์ Body Composition</div>
@@ -3542,7 +3554,7 @@ async function renderNewBody() {
     // เก็บ recs ไว้ให้ onNbHistorySelect ใช้สลับได้โดยไม่ต้องโหลดใหม่
     window._nbRecs = recs;
 
-    setTimeout(() => { drawNbMuscleChart(recs); drawNbFatChart(recs); }, 80);
+    setTimeout(() => { drawNbWeightChart(recs, pd); drawNbMuscleChart(recs); drawNbFatChart(recs); }, 80);
   } catch(e) { v.innerHTML = err(e.message); }
   finally { delete _renderNewBodyInFlight[currentName]; }
 }
