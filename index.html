@@ -1980,7 +1980,31 @@ async function checkDraftScaleReading() {
         ⚖️ ดึงข้อมูลน้ำหนักแล้ว (${r.weight} kg จากเครื่องชั่ง ${r.capturedAt?("เมื่อ "+r.capturedAt):""})</div>`;
     }
   } catch(e) {} // เงียบไว้ ไม่ต้องรบกวนถ้าดึงไม่ได้ — ยังกรอกเองได้ตามปกติ
+  // ไม่มี draft (weight-only) — แต่ถ้าชั่งแบบเต็ม (มีผล Body Composition) ไปแล้ววันนี้ ผลอยู่ในชีตเครื่องชั่ง ไม่ใช่ draft
+  // ดึงข้อมูลเครื่องชั่งสดๆ (แคชอาจเก่าไม่มีครั้งที่เพิ่งชั่ง) แล้วใช้น้ำหนักจากเครื่องของวันนั้นเลย ก่อนจะถอยไปใช้น้ำหนักครั้งล่าสุด
+  if (currentName === nameAtCallTime && !(document.getElementById("en-draft-banner")||{}).innerHTML) {
+    try { await applyTodayScaleWeight(nameAtCallTime); } catch(e) {}
+  }
   if (currentName === nameAtCallTime) applyLastWeightFallback(nameAtCallTime);
+}
+
+async function applyTodayScaleWeight(name) {
+  const wEl = document.getElementById("en-w"), banner = document.getElementById("en-draft-banner");
+  if (!wEl || !banner) return;
+  if (wEl.value && !wEl.dataset.fallback) return; // พนักงานพิมพ์เองไว้แล้ว ไม่ทับ
+  const r = await apiGet({action:"getScaleData", name});
+  if (currentName !== name) return;
+  if (r && r.success && Array.isArray(r.records)) _scaleCache[name] = r.records;
+  const day = (document.getElementById("en-dt") || {}).value || today();
+  const todays = (_scaleCache[name] || []).filter(x => x.device === "FG2015ULB" && x.date === day && x.weight)
+    .slice().sort((a,b) => (a.date+(a.time||"")).localeCompare(b.date+(b.time||"")));
+  if (!todays.length) return;
+  const last = todays[todays.length - 1];
+  if (wEl.value && !wEl.dataset.fallback) return;
+  wEl.value = last.weight; delete wEl.dataset.fallback;
+  banner.innerHTML = `<div style="font-size:12px;color:var(--gr-tx);background:var(--gr2);
+    border-radius:8px;padding:7px 10px;margin-bottom:8px;font-weight:600">
+    ⚖️ ใช้น้ำหนักจากเครื่องชั่ง (${last.weight} kg${last.time ? " เวลา " + escapeHtml(String(last.time)) : ""}) — ชั่งไปแล้ววันนี้</div>`;
 }
 
 // ยังไม่มีน้ำหนักจากเครื่องชั่ง (server.py) และช่องยังว่าง → ใช้น้ำหนักครั้งล่าสุดของคนไข้เป็นค่าเริ่มต้น
