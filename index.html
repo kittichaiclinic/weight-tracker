@@ -1865,37 +1865,60 @@ async function renderEntry() {
     const hasPersonalInfo = !!(d.sex && d.age && d.height); // ครบทั้ง 3 ช่อง (ไม่ว่าจะมาจาก Medicloud หรือกรอกเอง)
     _entryHadCompleteSetup = hasGoal && hasPersonalInfo; // จำไว้ว่าตอนโหลดหน้านี้ครบอยู่แล้วไหม — ใช้ตัดสินว่า submitEntry ต้องบังคับกรอกซ้ำหรือเปล่า
     const planSummary = (!patientMode && hasGoal) ? `
-      <div class="card">
+      <div class="card" id="plan-card">
         <div class="ctitle" style="display:flex;align-items:center;justify-content:space-between">
           <span>Plan ปัจจุบัน</span>
-          <span onclick="togglePlanEdit()" style="cursor:pointer;font-size:13px;color:var(--rose-dp);font-weight:400">✏️ แก้ไข</span>
+          <span id="plan-edit-link" onclick="togglePlanEdit()" style="cursor:pointer;font-size:13px;color:var(--rose-dp);font-weight:400">✏️ แก้ไข</span>
         </div>
-        <div class="srow"><span>เป้าหมาย</span><span>${d.goalWeight||"-"} kg</span></div>
-        <div class="srow"><span>ต้องลด</span><span>${(d.startWeight&&d.goalWeight)?Math.max(0,d.startWeight-d.goalWeight).toFixed(1):"-"} kg</span></div>
+        <div id="plan-view">
+          <div class="srow"><span>เป้าหมาย</span><span>${d.goalWeight||"-"} kg</span></div>
+          <div class="srow"><span>ต้องลด</span><span>${(d.startWeight&&d.goalWeight)?Math.max(0,d.startWeight-d.goalWeight).toFixed(1):"-"} kg</span></div>
+        </div>
+        <div id="plan-edit" style="display:none">
+          <div class="fg"><label>เป้าหมาย (kg)</label><input type="number" id="pl-gw" step="0.1" min="0" value="${d.goalWeight||""}"></div>
+          <div style="display:flex;gap:8px"><button class="btn btn-out" onclick="submitPlanOnly()" style="margin-top:0">💾 บันทึกเป้าหมาย</button><button class="btn btn-out" onclick="togglePlanEdit()" style="margin-top:0">ยกเลิก</button></div>
+        </div>
       </div>` : "";
 
     // สรุปข้อมูลส่วนตัว (เพศ/อายุ/ส่วนสูง) — แยกการ์ดออกจาก Plan มีปุ่มแก้ไขของตัวเอง
     const personalInfoSummary = (!patientMode && hasPersonalInfo) ? `
-      <div class="card">
+      <div class="card" id="pinfo-card">
         <div class="ctitle" style="display:flex;align-items:center;justify-content:space-between">
           <span>ข้อมูลส่วนตัว</span>
-          <span onclick="togglePersonalInfoEdit()" style="cursor:pointer;font-size:13px;color:var(--rose-dp);font-weight:400">✏️ แก้ไข</span>
+          <span id="pinfo-edit-link" onclick="togglePersonalInfoEdit()" style="cursor:pointer;font-size:13px;color:var(--rose-dp);font-weight:400">✏️ แก้ไข</span>
         </div>
-        <div class="srow"><span>เพศ</span><span>${sexLabel}</span></div>
-        <div class="srow"><span>อายุ</span><span>${d.age||"-"} ปี</span></div>
-        <div class="srow"><span>ส่วนสูง</span><span>${d.height||"-"} cm</span></div>
+        <div id="pinfo-view">
+          <div class="srow"><span>เพศ</span><span>${sexLabel}</span></div>
+          <div class="srow"><span>อายุ</span><span>${d.age||"-"} ปี</span></div>
+          <div class="srow"><span>ส่วนสูง</span><span>${d.height||"-"} cm</span></div>
+        </div>
+        <div id="pinfo-edit" style="display:none">
+          <div class="r2">
+            <div class="fg"><label>เพศ</label>
+              <select id="pl-sex">
+                <option value="">-- เลือก --</option>
+                <option value="male" ${d.sex==="male"?"selected":""}>ชาย</option>
+                <option value="female" ${d.sex==="female"?"selected":""}>หญิง</option>
+              </select>
+            </div>
+            <div class="fg"><label>อายุ (ปี)</label><input type="number" id="pl-age" step="1" min="0" max="150" value="${d.age||""}"></div>
+          </div>
+          <div class="fg"><label>ส่วนสูง (cm)</label><input type="number" id="pl-height" step="0.1" min="0" value="${d.height||""}"></div>
+          <div style="font-size:12px;color:var(--tx2);margin-bottom:8px">กด "บันทึกข้อมูลทั้งหมด" ในการ์ดลงข้อมูลเพื่อบันทึก หรือกดยกเลิกเพื่อปิด</div>
+          <button class="btn btn-out" onclick="togglePersonalInfoEdit()" style="margin-top:0">ยกเลิก</button>
+        </div>
       </div>` : "";
 
     // ฟอร์มตั้ง/แก้ Plan — ซ่อนไว้เป็นค่าเริ่มต้นถ้ามี Plan อยู่แล้ว (กด "แก้ไข" ถึงจะโชว์) โชว์ตรงๆ ถ้ายังไม่เคยตั้งเลย
     // มีปุ่มบันทึกแยกของตัวเอง (submitPlanOnly) — เดิมบันทึกรวมไปกับปุ่ม "บันทึกข้อมูลทั้งหมด" เท่านั้น
     // ตอนนี้ staff บันทึกเป้าหมายอย่างเดียวได้โดยไม่ต้องกรอก/บันทึกน้ำหนักไปพร้อมกัน
     const planForm = !patientMode ? `
-      <div class="card" id="plan-form-card" style="${hasGoal?'display:none':''}">
+      ${hasGoal?"":`<div class="card" id="plan-form-card">
         <div class="ctitle">ตั้งเป้าหมาย</div>
         <div class="fg"><label>เป้าหมาย (kg)</label><input type="number" id="pl-gw" step="0.1" min="0" value="${d.goalWeight||""}"></div>
         <button class="btn btn-out" onclick="submitPlanOnly()" style="margin-top:6px">💾 บันทึกเป้าหมาย</button>
-      </div>
-      <div class="card" id="patientinfo-form-card" style="${hasPersonalInfo?'display:none':''}">
+      </div>`}
+      ${hasPersonalInfo?"":`<div class="card" id="patientinfo-form-card">
         <div class="ctitle">ข้อมูลส่วนตัว</div>
         <div style="font-size:12px;color:var(--tx2);margin-bottom:10px">ใช้สำหรับคำนวณ body composition จากเครื่องชั่ง — กรอกเองที่นี่ได้เลยถ้ายังไม่ได้ดึงมาจาก Medicloud</div>
         <div class="r2">
@@ -1909,7 +1932,7 @@ async function renderEntry() {
           <div class="fg"><label>อายุ (ปี)</label><input type="number" id="pl-age" step="1" min="0" max="150" value="${d.age||""}"></div>
         </div>
         <div class="fg"><label>ส่วนสูง (cm)</label><input type="number" id="pl-height" step="0.1" min="0" value="${d.height||""}"></div>
-      </div>` : "";
+      </div>`}` : "";
 
     v.innerHTML = `
       <div class="card">
@@ -2234,11 +2257,15 @@ async function submitEntry() {
 }
 
 
-function togglePlanEdit() {
-  const planCard = document.getElementById("plan-form-card");
-  if (planCard) planCard.style.display = planCard.style.display === "none" ? "block" : "none";
+function _toggleInline(viewId, editId, linkId) {
+  const ve = document.getElementById(viewId), ee = document.getElementById(editId), lk = document.getElementById(linkId);
+  if (!ve || !ee) return;
+  const opening = ee.style.display === "none";
+  ee.style.display = opening ? "block" : "none";
+  ve.style.display = opening ? "none" : "block";
+  if (lk) lk.style.display = opening ? "none" : "";
 }
-
+function togglePlanEdit() { _toggleInline("plan-view","plan-edit","plan-edit-link"); }
 async function submitPlanOnly() {
   const gw = V("pl-gw");
   if (!gw) { toast("กรอกเป้าหมายก่อน","err"); return; }
@@ -2254,10 +2281,7 @@ async function submitPlanOnly() {
   } catch(e) { hideSaveOverlay(); toast("❌ บันทึกไม่ได้: "+e.message,"err"); }
 }
 
-function togglePersonalInfoEdit() {
-  const infoCard = document.getElementById("patientinfo-form-card");
-  if (infoCard) infoCard.style.display = infoCard.style.display === "none" ? "block" : "none";
-}
+function togglePersonalInfoEdit() { _toggleInline("pinfo-view","pinfo-edit","pinfo-edit-link"); }
 
 function togglePatientGoalEdit() {
   const form = document.getElementById("patient-goal-form");
