@@ -1850,12 +1850,35 @@ function setEntryDose(d){
   document.querySelectorAll("#en-doses .drg-b").forEach(b=>b.classList.toggle("on", b.dataset.d===d));
   _entryDirty = true;
 }
+// ค่าเฉลี่ยโดยประมาณ (นิ้ว) ใช้เป็นจุดเริ่มเมื่อช่องว่าง — ผู้ป่วยใหม่ไม่ต้องกดจาก 0 ขึ้นมาเอง
+const MEAS_SEED = {
+  female:{ "en-ch":36,"en-wa":30,"en-hi":38,"en-ar":11,"en-al":11,"en-tr":22,"en-tl":22 },
+  male:  { "en-ch":40,"en-wa":34,"en-hi":40,"en-ar":12,"en-al":12,"en-tr":23,"en-tl":23 }
+};
+const MEAS_PAIR = { "en-ar":"en-al","en-al":"en-ar","en-tr":"en-tl","en-tl":"en-tr" };
 function stepMeas(id,delta){
   const el=document.getElementById(id); if(!el) return;
-  const cur=parseFloat(el.value);
-  const nv=Math.max(0,Math.round(((isNaN(cur)?0:cur)+delta)*2)/2);
-  el.value=nv; _entryDirty=true;
+  let cur=parseFloat(el.value);
+  if (isNaN(cur)) {
+    // ช่องว่าง: เริ่มจากค่าของข้างตรงข้าม (แขน/ขา) ถ้ามี ไม่งั้นใช้ค่าเฉลี่ยตามเพศ แล้วกดครั้งแรกไม่ขยับต่อ
+    const pe = MEAS_PAIR[id] && document.getElementById(MEAS_PAIR[id]);
+    const pv = pe ? parseFloat(pe.value) : NaN;
+    const sx = (document.getElementById("pl-sex")||{}).value || (_cache[currentName]||{}).sex || "";
+    const tbl = MEAS_SEED[sx] || null;
+    cur = !isNaN(pv) ? pv : tbl ? tbl[id] : Math.round((MEAS_SEED.female[id]+MEAS_SEED.male[id])/2*2)/2;
+    el.value = cur; _entryDirty=true; return;
+  }
+  el.value = Math.max(0, Math.round((cur+delta)*2)/2); _entryDirty=true;
 }
+// กดค้างเพื่อเลื่อนเร็ว: หน่วง 450ms แล้วเพิ่มทุก 90ms
+let _stepTimer=null, _stepIv=null;
+function stepStop(){ clearTimeout(_stepTimer); clearInterval(_stepIv); _stepTimer=_stepIv=null; }
+function stepHold(ev,id,delta){
+  ev.preventDefault(); stepStop();
+  stepMeas(id,delta);
+  _stepTimer=setTimeout(()=>{ _stepIv=setInterval(()=>stepMeas(id,delta),90); },450);
+}
+["pointerup","pointercancel","pointerleave","blur"].forEach(t=>window.addEventListener(t,stepStop,true));
 // ===== ENTRY (Staff only) — ลงข้อมูลน้ำหนัก + สัดส่วน =====
 async function renderEntry() {
   const v = document.getElementById("entry-v");
@@ -1874,8 +1897,8 @@ async function renderEntry() {
     });
     const mf = (label,id,k)=>`<div class="fg"><label>${label}</label><div class="stp">
         <input type="number" inputmode="decimal" id="${id}" step="0.5" value="${lastMeas[k]||""}" oninput="_entryDirty=true">
-        <button type="button" class="stp-b" onclick="stepMeas('${id}',-0.5)" aria-label="ลด">▼</button>
-        <button type="button" class="stp-b" onclick="stepMeas('${id}',0.5)" aria-label="เพิ่ม">▲</button>
+        <button type="button" class="stp-b" onpointerdown="stepHold(event,'${id}',-0.5)" aria-label="ลด">▼</button>
+        <button type="button" class="stp-b" onpointerdown="stepHold(event,'${id}',0.5)" aria-label="เพิ่ม">▲</button>
         </div></div>`;
 
     // สรุป Plan ปัจจุบัน — ค้างแสดงตลอดถ้ามีการตั้งไว้แล้ว จนกว่าจะกดแก้ไข (Plan เดิมรวมมาไว้ที่นี่)
@@ -1976,7 +1999,7 @@ async function renderEntry() {
         </div>
 
         </div><div class="en-b">
-        <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:14px 0 8px" class="en-mt">📏 สัดส่วน (นิ้ว) <span style="font-weight:400">— ค่าเริ่มต้นคือครั้งล่าสุด</span></div>
+        <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:14px 0 8px" class="en-mt">📏 สัดส่วน (นิ้ว) <span style="font-weight:400">${Object.keys(lastMeas).length?"— ค่าเริ่มต้นคือครั้งล่าสุด":"— ผู้ป่วยใหม่: กด ▲▼ ครั้งแรกจะขึ้นค่าเฉลี่ยให้ แล้วปรับต่อ (กดค้างเลื่อนเร็ว)"}</span></div>
         <div class="r2">${mf("หน้าอก","en-ch","chest")}${mf("เอว","en-wa","waist")}</div>
         <div class="r2">${mf("สะโพก","en-hi","hip")}<div class="fg"></div></div>
         <div class="r2">${mf("ต้นแขนขวา","en-ar","armR")}${mf("ต้นแขนซ้าย","en-al","armL")}</div>
