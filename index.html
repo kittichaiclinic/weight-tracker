@@ -70,6 +70,14 @@ body{font-family:var(--sans);background:var(--bg);color:var(--tx);min-height:100
 .nav button.active .ni{opacity:1}
 .nav button:active{transform:scale(.93)}
 
+
+/* ปุ่มลูกศรปรับสัดส่วน — ใหญ่พอสำหรับจอสัมผัส */
+.stp{display:flex;align-items:stretch;gap:6px}
+.stp input{flex:1;min-width:0;text-align:center;font-size:20px;font-weight:700;height:52px;-moz-appearance:textfield}
+.stp input::-webkit-outer-spin-button,.stp input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.stp-b{flex:0 0 52px;height:52px;border:0;border-radius:12px;background:var(--rose-lt);color:var(--rose-dp);font-size:20px;font-weight:700;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.stp-b:active{transform:scale(.92);filter:brightness(.92)}
+
 @media (max-width:699px){
   /* ปุ่มบันทึกของฟอร์ม "ลงข้อมูล" ลอยติดเหนือแถบเมนูล่างเสมอบนมือถือ — ฟอร์มนี้ยาว (สัดส่วน 7 ช่อง +
      โดส/แพทย์/งบ/หมายเหตุ) ไม่ต้อง scroll กลับลงมาสุดฟอร์มทุกครั้งเพื่อกดบันทึก ใช้ --nav-h กันไม่ให้
@@ -1759,6 +1767,12 @@ function buildSymForm(prefix) {
   ], true);
 }
 
+function stepMeas(id,delta){
+  const el=document.getElementById(id); if(!el) return;
+  const cur=parseFloat(el.value);
+  const nv=Math.max(0,Math.round(((isNaN(cur)?0:cur)+delta)*2)/2);
+  el.value=nv; _entryDirty=true;
+}
 // ===== ENTRY (Staff only) — ลงข้อมูลน้ำหนัก + สัดส่วน =====
 async function renderEntry() {
   const v = document.getElementById("entry-v");
@@ -1770,6 +1784,15 @@ async function renderEntry() {
 
     // หาค่าล่าสุด
     const last = d.records && d.records.length ? d.records[d.records.length-1] : null;
+    // สัดส่วนล่าสุดของแต่ละช่อง = ค่าล่าสุดที่เคยวัดจริง (แถวล่าสุดมักเป็นแถวน้ำหนักล้วน ไม่มีสัดส่วน)
+    const lastMeas = {};
+    ["chest","waist","hip","armR","armL","thighR","thighL"].forEach(k=>{
+      for (let i=(d.records||[]).length-1;i>=0;i--) { const x=d.records[i][k]; if (x && +x>0) { lastMeas[k]=x; break; } }
+    });
+    const mf = (label,id,k)=>`<div class="fg"><label>${label}</label><div class="stp">
+        <button type="button" class="stp-b" onclick="stepMeas('${id}',-0.5)" aria-label="ลด">▼</button>
+        <input type="number" inputmode="decimal" id="${id}" step="0.5" value="${lastMeas[k]||""}" oninput="_entryDirty=true">
+        <button type="button" class="stp-b" onclick="stepMeas('${id}',0.5)" aria-label="เพิ่ม">▲</button></div></div>`;
 
     // สรุป Plan ปัจจุบัน — ค้างแสดงตลอดถ้ามีการตั้งไว้แล้ว จนกว่าจะกดแก้ไข (Plan เดิมรวมมาไว้ที่นี่)
     // วันเริ่มต้น/น้ำหนักเริ่มต้น ไม่โชว์ในนี้ เพราะเห็นได้จากตารางประวัติน้ำหนักข้างล่างอยู่แล้ว
@@ -1824,7 +1847,7 @@ async function renderEntry() {
         <div class="fg"><label>ส่วนสูง (cm)</label><input type="number" id="pl-height" step="0.1" min="0" value="${d.height||""}"></div>
       </div>` : "";
 
-    v.innerHTML = planSummary + personalInfoSummary + planForm + `
+    v.innerHTML = `
       <div class="card">
         <div class="ctitle">ลงข้อมูล</div>
         <div class="fg"><label>วันที่</label><input type="date" id="en-dt" value="${today()}" onchange="loadMcCharge()"></div>
@@ -1851,25 +1874,16 @@ async function renderEntry() {
           <div class="fg"><label>หมายเหตุ</label><input type="text" id="en-nt" placeholder=""></div>
         </div>
 
-        <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:14px 0 8px">📏 สัดส่วน (นิ้ว)</div>
-        <div class="r2">
-          <div class="fg"><label>หน้าอก</label><input type="number" id="en-ch" step="0.5" value="${last&&last.chest||""}"></div>
-          <div class="fg"><label>เอว</label><input type="number" id="en-wa" step="0.5" value="${last&&last.waist||""}"></div>
-        </div>
-        <div class="r2">
-          <div class="fg"><label>สะโพก</label><input type="number" id="en-hi" step="0.5" value="${last&&last.hip||""}"></div>
-        </div>
-        <div class="r2">
-          <div class="fg"><label>ต้นแขนขวา</label><input type="number" id="en-ar" step="0.5" value="${last&&last.armR||""}"></div>
-          <div class="fg"><label>ต้นแขนซ้าย</label><input type="number" id="en-al" step="0.5" value="${last&&last.armL||""}"></div>
-        </div>
-        <div class="r2">
-          <div class="fg"><label>ต้นขาขวา</label><input type="number" id="en-tr" step="0.5" value="${last&&last.thighR||""}"></div>
-          <div class="fg"><label>ต้นขาซ้าย</label><input type="number" id="en-tl" step="0.5" value="${last&&last.thighL||""}"></div>
-        </div>
+        <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:14px 0 8px">📏 สัดส่วน (นิ้ว) <span style="font-weight:400">— ค่าเริ่มต้นคือครั้งล่าสุด</span></div>
+        <div class="r2">${mf("หน้าอก","en-ch","chest")}${mf("เอว","en-wa","waist")}</div>
+        <div class="r2">${mf("สะโพก","en-hi","hip")}</div>
+        <div class="r2">${mf("ต้นแขนขวา","en-ar","armR")}${mf("ต้นแขนซ้าย","en-al","armL")}</div>
+        <div class="r2">${mf("ต้นขาขวา","en-tr","thighR")}${mf("ต้นขาซ้าย","en-tl","thighL")}</div>
 
         <button class="btn btn-pk entry-save-btn" onclick="submitEntry()" style="margin-top:16px">💾 บันทึกข้อมูลทั้งหมด</button>
       </div>
+
+      ${planSummary}${personalInfoSummary}${planForm}
 
       <div class="card">
         <div class="ctitle">กราฟน้ำหนัก</div>
