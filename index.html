@@ -77,6 +77,15 @@ body{font-family:var(--sans);background:var(--bg);color:var(--tx);min-height:100
 .drg-b{height:46px;min-width:46px;padding:0 14px;border:1.5px solid var(--bd);border-radius:12px;background:var(--cd);color:var(--tx);font-family:var(--sans);font-size:15px;font-weight:700;cursor:pointer;touch-action:manipulation}
 .drg-b.on{background:var(--rose-btn);border-color:var(--rose-btn);color:#fff}
 .drg-b:active{transform:scale(.94)}
+#en-drug-mounjaro{--dc:#7b4fb8;border-color:#7b4fb8;color:#7b4fb8}
+#en-drug-wegovy{--dc:#8b5a2b;border-color:#8b5a2b;color:#8b5a2b}
+#en-drug-mounjaro.on{background:#7b4fb8;color:#fff}
+#en-drug-wegovy.on{background:#8b5a2b;color:#fff}
+.drg-row[data-drug="mounjaro"] .drg-d{border-color:#cdb9e8;color:#5b3a8c}
+.drg-row[data-drug="wegovy"] .drg-d{border-color:#dcc3a5;color:#6e4521}
+.drg-row[data-drug="mounjaro"] .drg-d.on{background:#7b4fb8;border-color:#7b4fb8;color:#fff}
+.drg-row[data-drug="wegovy"] .drg-d.on{background:#8b5a2b;border-color:#8b5a2b;color:#fff}
+
 /* ปุ่มลูกศรปรับสัดส่วน — ใหญ่พอสำหรับจอสัมผัส */
 .stp{display:flex;align-items:stretch;gap:4px}
 .stp input{flex:1 1 0;min-width:0;width:0;padding-left:4px;padding-right:4px;margin-right:2px;text-align:center;font-size:20px;font-weight:700;height:52px;-moz-appearance:textfield}
@@ -1810,6 +1819,7 @@ function setEntryDrug(drug, byUser, wantDose){
   dose = idx >= 0 ? list[idx] : list[0];
   document.getElementById("en-drug-mounjaro").classList.toggle("on", drug==="mounjaro");
   document.getElementById("en-drug-wegovy").classList.toggle("on", drug==="wegovy");
+  document.getElementById("en-doses").parentElement.dataset.drug = drug;
   document.getElementById("en-doses").innerHTML = list.map(x=>`<button type="button" class="drg-b drg-d${x===dose?" on":""}" data-d="${x}" onclick="setEntryDose('${x}')">${x}</button>`).join("");
   hid.value = drug==="wegovy" ? "Wegovy " + dose : dose;
   if (byUser) _entryDirty = true;
