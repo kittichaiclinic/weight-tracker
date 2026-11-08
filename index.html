@@ -2075,7 +2075,8 @@ async function renderEntry() {
     }, 80);
 
     // เช็คว่ามีน้ำหนักจากเครื่องชั่งรออยู่ไหม (กดบันทึกจากหน้าเชื่อมเครื่องชั่ง FG2015ULB) — เติมให้อัตโนมัติ
-    _entryDrug = null; initEntryDrug(last);
+    _entryDrug = null;
+    { const recs = d.records || []; let ld = null; for (let i=recs.length-1;i>=0;i--) { if (String(recs[i].dose==null?"":recs[i].dose).trim()) { ld = recs[i]; break; } } initEntryDrug(ld); } // ใช้ยา/โดสจากครั้งล่าสุดที่มีบันทึกโดสจริง (แถวน้ำหนักล้วนจากเครื่องชั่งไม่มีโดส)
     if (!patientMode) { checkDraftScaleReading(); loadMcCharge(); }
   } catch(e) { v.innerHTML = err(e.message); }
 }
