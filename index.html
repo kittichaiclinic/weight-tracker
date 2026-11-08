@@ -72,7 +72,6 @@ body{font-family:var(--sans);background:var(--bg);color:var(--tx);min-height:100
 
 
 
-.en-fig{flex:1;display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px}
 .drg-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .drg-sw,.drg-doses{display:flex;gap:6px}
 .drg-b{height:46px;min-width:46px;padding:0 14px;border:1.5px solid var(--bd);border-radius:12px;background:var(--cd);color:var(--tx);font-family:var(--sans);font-size:15px;font-weight:700;cursor:pointer;touch-action:manipulation}
@@ -2002,17 +2001,7 @@ async function renderEntry() {
         </div><div class="en-b">
         <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:14px 0 8px" class="en-mt">📏 สัดส่วน (นิ้ว) <span style="font-weight:400">${Object.keys(lastMeas).length?"— ค่าเริ่มต้นคือครั้งล่าสุด":"— ผู้ป่วยใหม่: กด ▲▼ ครั้งแรกจะขึ้นค่าเฉลี่ยให้ แล้วปรับต่อ (กดค้างเลื่อนเร็ว)"}</span></div>
         <div class="r2">${mf("หน้าอก","en-ch","chest")}${mf("เอว","en-wa","waist")}</div>
-        <div class="r2">${mf("สะโพก","en-hi","hip")}<div class="en-fig" aria-hidden="true"><svg viewBox="0 0 120 100" height="58" role="img">
-            <g stroke="var(--rose-btn)" stroke-width="7" stroke-linecap="round" fill="none">
-              <path d="M44 32 L14 46"/><path d="M76 32 L106 46"/>
-              <path d="M52 66 L36 94"/><path d="M68 66 L84 94"/>
-            </g>
-            <rect x="44" y="24" width="32" height="44" rx="12" fill="var(--rose-lt)" stroke="var(--rose-btn)" stroke-width="3"/>
-            <circle cx="60" cy="13" r="10" fill="var(--rose-lt)" stroke="var(--rose-btn)" stroke-width="3"/>
-            <circle cx="56.5" cy="12" r="1.3" fill="var(--rose-dp)"/><circle cx="63.5" cy="12" r="1.3" fill="var(--rose-dp)"/>
-            <path d="M56 16 Q60 19 64 16" stroke="var(--rose-dp)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-            <g stroke="#e0803a" stroke-width="3" stroke-linecap="round"><path d="M46 34 H74"/><path d="M46 46 H74"/><path d="M46 60 H74"/></g>
-          </svg></div></div>
+        <div class="r2">${mf("สะโพก","en-hi","hip")}<div class="fg"></div></div>
         <div class="r2">${mf("ต้นแขนขวา","en-ar","armR")}${mf("ต้นแขนซ้าย","en-al","armL")}</div>
         <div class="r2">${mf("ต้นขาขวา","en-tr","thighR")}${mf("ต้นขาซ้าย","en-tl","thighL")}</div>
 
