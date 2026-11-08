@@ -107,6 +107,26 @@ body{font-family:var(--sans);background:var(--bg);color:var(--tx);min-height:100
   #entry-v > .card:first-child .entry-save-btn{margin-top:4px!important;padding-top:10px;padding-bottom:10px}
 }
 
+@media (min-width:900px){
+  .en-a{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));column-gap:10px;align-items:start}
+  .en-a .en-wt{display:none}
+  .en-a > .r3,.en-a > .r2{display:contents}
+  .en-a .en-date{grid-column:span 2;order:0}
+  .en-a .en-r-a > .fg{grid-column:span 2;order:0}
+  #en-draft-banner{grid-column:1/-1;order:1}
+  .en-a .en-drug{grid-column:1/-1;order:2}
+  .en-a .en-r-b > .fg{grid-column:span 2;order:3}
+  .en-bn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #en-bg-hint{min-height:0!important;margin-top:2px!important}
+  .en-grid .drg-b{height:40px}
+}
+@media (min-width:900px) and (max-height:760px){
+  .en-grid .stp input,.en-grid .stp-b{height:40px}
+  .en-grid .stp input{font-size:18px}
+  .en-grid .fg{margin-bottom:6px}
+  #entry-v > .card:first-child{padding:10px 16px}
+}
+
 @media (max-width:699px){
   /* ปุ่มบันทึกของฟอร์ม "ลงข้อมูล" ลอยติดเหนือแถบเมนูล่างเสมอบนมือถือ — ฟอร์มนี้ยาว (สัดส่วน 7 ช่อง +
      โดส/แพทย์/งบ/หมายเหตุ) ไม่ต้อง scroll กลับลงมาสุดฟอร์มทุกครั้งเพื่อกดบันทึก ใช้ --nav-h กันไม่ให้
@@ -1864,21 +1884,8 @@ async function renderEntry() {
     const hasGoal = !!d.goalWeight;
     const hasPersonalInfo = !!(d.sex && d.age && d.height); // ครบทั้ง 3 ช่อง (ไม่ว่าจะมาจาก Medicloud หรือกรอกเอง)
     _entryHadCompleteSetup = hasGoal && hasPersonalInfo; // จำไว้ว่าตอนโหลดหน้านี้ครบอยู่แล้วไหม — ใช้ตัดสินว่า submitEntry ต้องบังคับกรอกซ้ำหรือเปล่า
-    const planSummary = (!patientMode && hasGoal) ? `
-      <div class="card" id="plan-card">
-        <div class="ctitle" style="display:flex;align-items:center;justify-content:space-between">
-          <span>Plan ปัจจุบัน</span>
-          <span id="plan-edit-link" onclick="togglePlanEdit()" style="cursor:pointer;font-size:13px;color:var(--rose-dp);font-weight:400">✏️ แก้ไข</span>
-        </div>
-        <div id="plan-view">
-          <div class="srow"><span>เป้าหมาย</span><span>${d.goalWeight||"-"} kg</span></div>
-          <div class="srow"><span>ต้องลด</span><span>${(d.startWeight&&d.goalWeight)?Math.max(0,d.startWeight-d.goalWeight).toFixed(1):"-"} kg</span></div>
-        </div>
-        <div id="plan-edit" style="display:none">
-          <div class="fg"><label>เป้าหมาย (kg)</label><input type="number" id="pl-gw" step="0.1" min="0" value="${d.goalWeight||""}"></div>
-          <div style="display:flex;gap:8px"><button class="btn btn-out" onclick="submitPlanOnly()" style="margin-top:0">💾 บันทึกเป้าหมาย</button><button class="btn btn-out" onclick="togglePlanEdit()" style="margin-top:0">ยกเลิก</button></div>
-        </div>
-      </div>` : "";
+    const planSummary = "";
+    const goalLeft = (d.startWeight&&d.goalWeight) ? "ต้องลด "+Math.max(0,d.startWeight-d.goalWeight).toFixed(1)+" kg" : "";
 
     // สรุปข้อมูลส่วนตัว (เพศ/อายุ/ส่วนสูง) — แยกการ์ดออกจาก Plan มีปุ่มแก้ไขของตัวเอง
     const personalInfoSummary = (!patientMode && hasPersonalInfo) ? `
@@ -1913,11 +1920,6 @@ async function renderEntry() {
     // มีปุ่มบันทึกแยกของตัวเอง (submitPlanOnly) — เดิมบันทึกรวมไปกับปุ่ม "บันทึกข้อมูลทั้งหมด" เท่านั้น
     // ตอนนี้ staff บันทึกเป้าหมายอย่างเดียวได้โดยไม่ต้องกรอก/บันทึกน้ำหนักไปพร้อมกัน
     const planForm = !patientMode ? `
-      ${hasGoal?"":`<div class="card" id="plan-form-card">
-        <div class="ctitle">ตั้งเป้าหมาย</div>
-        <div class="fg"><label>เป้าหมาย (kg)</label><input type="number" id="pl-gw" step="0.1" min="0" value="${d.goalWeight||""}"></div>
-        <button class="btn btn-out" onclick="submitPlanOnly()" style="margin-top:6px">💾 บันทึกเป้าหมาย</button>
-      </div>`}
       ${hasPersonalInfo?"":`<div class="card" id="patientinfo-form-card">
         <div class="ctitle">ข้อมูลส่วนตัว</div>
         <div style="font-size:12px;color:var(--tx2);margin-bottom:10px">ใช้สำหรับคำนวณ body composition จากเครื่องชั่ง — กรอกเองที่นี่ได้เลยถ้ายังไม่ได้ดึงมาจาก Medicloud</div>
@@ -1938,11 +1940,11 @@ async function renderEntry() {
       <div class="card">
         <div class="ctitle">ลงข้อมูล</div>
         <div class="en-grid"><div class="en-a">
-        <div class="fg"><label>วันที่</label><input type="date" id="en-dt" value="${today()}" onchange="loadMcCharge()"></div>
+        <div class="fg en-date"><label>วันที่</label><input type="date" id="en-dt" value="${today()}" onchange="loadMcCharge()"></div>
 
-        <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:14px 0 8px">⚖️ น้ำหนัก</div>
+        <div style="font-size:12px;font-weight:700;color:var(--tx2);margin:14px 0 8px" class="en-wt">⚖️ น้ำหนัก</div>
         <div id="en-draft-banner"></div>
-        <div class="r3">
+        <div class="r3 en-r-a">
           <div class="fg"><label>น้ำหนัก (kg)</label><input type="number" id="en-w" step="0.1" min="0" oninput="delete this.dataset.fallback"></div>
           <div class="fg"><label>แพทย์</label>
             <select id="en-dr">
@@ -1952,7 +1954,7 @@ async function renderEntry() {
             </select>
           </div>
         </div>
-        <div class="fg"><label>ชนิดยา / โดส (mg)</label>
+        <div class="fg en-drug"><label>ชนิดยา / โดส (mg)</label>
           <div class="drg-row">
             <div class="drg-sw">
               <button type="button" class="drg-b" id="en-drug-mounjaro" onclick="setEntryDrug('mounjaro',true)">Mounjaro</button>
@@ -1962,7 +1964,9 @@ async function renderEntry() {
           </div>
           <input type="hidden" id="en-ds" value="">
         </div>
-        <div class="r2">
+        <div class="r3 en-r-b">
+          ${patientMode?"":`<div class="fg"><label>เป้าหมาย (kg)</label><input type="number" inputmode="decimal" id="pl-gw" step="0.1" min="0" value="${d.goalWeight||""}" oninput="_entryDirty=true">
+            <div style="font-size:11.5px;color:var(--tx2);margin-top:2px;min-height:0">${goalLeft}</div></div>`}
           <div class="fg"><label>งบ (฿)</label><input type="text" inputmode="numeric" pattern="[0-9]*" id="en-bg" value="1700" list="en-bg-list" autocomplete="off"
             oninput="this.value=this.value.replace(/[^0-9]/g,'');this.dataset.touched='1'"
             onfocus="this.dataset.v=this.value;this.value=''" onblur="if(!this.value)this.value=this.dataset.v||''">
@@ -2080,6 +2084,10 @@ async function loadMcCharge() {
   } catch (e) { hint.textContent = ""; }
 }
 
+function _fmtCaptured(v){
+  try { const d=new Date(v); if (!isNaN(d)) return d.toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"}); } catch(e){}
+  return String(v);
+}
 async function checkDraftScaleReading() {
   const banner = document.getElementById("en-draft-banner");
   if (!banner) return;
@@ -2092,8 +2100,8 @@ async function checkDraftScaleReading() {
       if (wEl && (!wEl.value || wEl.dataset.fallback)) { wEl.value = r.weight; delete wEl.dataset.fallback; } // ไม่ทับถ้าคนพิมพ์เองไว้ก่อนแล้ว (แต่ทับค่า "น้ำหนักครั้งล่าสุด" ที่เติมให้อัตโนมัติได้)
       const bannerEl = document.getElementById("en-draft-banner");
       if (bannerEl) bannerEl.innerHTML = `<div style="font-size:12px;color:var(--gr-tx);background:var(--gr2);
-        border-radius:8px;padding:7px 10px;margin-bottom:8px;font-weight:600">
-        ⚖️ ดึงข้อมูลน้ำหนักแล้ว (${r.weight} kg จากเครื่องชั่ง ${r.capturedAt?("เมื่อ "+r.capturedAt):""})</div>`;
+        border-radius:8px;padding:5px 10px;margin-bottom:6px;font-weight:600" class="en-bn">
+        ⚖️ จากเครื่องชั่ง ${r.weight} kg${r.capturedAt?(" · "+_fmtCaptured(r.capturedAt)):""}</div>`;
     }
   } catch(e) {} // เงียบไว้ ไม่ต้องรบกวนถ้าดึงไม่ได้ — ยังกรอกเองได้ตามปกติ
   // ไม่มี draft (weight-only) — แต่ถ้าชั่งแบบเต็ม (มีผล Body Composition) ไปแล้ววันนี้ ผลอยู่ในชีตเครื่องชั่ง ไม่ใช่ draft
@@ -2119,8 +2127,8 @@ async function applyTodayScaleWeight(name) {
   if (wEl.value && !wEl.dataset.fallback) return;
   wEl.value = last.weight; delete wEl.dataset.fallback;
   banner.innerHTML = `<div style="font-size:12px;color:var(--gr-tx);background:var(--gr2);
-    border-radius:8px;padding:7px 10px;margin-bottom:8px;font-weight:600">
-    ⚖️ ใช้น้ำหนักจากเครื่องชั่ง (${last.weight} kg${last.time ? " เวลา " + escapeHtml(String(last.time)) : ""}) — ชั่งไปแล้ววันนี้</div>`;
+    border-radius:8px;padding:5px 10px;margin-bottom:6px;font-weight:600" class="en-bn">
+    ⚖️ จากเครื่องชั่ง ${last.weight} kg${last.time ? " · " + escapeHtml(String(last.time)) : ""} (ชั่งแล้ววันนี้)</div>`;
 }
 
 // ยังไม่มีน้ำหนักจากเครื่องชั่ง (server.py) และช่องยังว่าง → ใช้น้ำหนักครั้งล่าสุดของคนไข้เป็นค่าเริ่มต้น
@@ -2132,8 +2140,8 @@ function applyLastWeightFallback(name) {
   if (!recs.length) return;
   const lw = recs[recs.length - 1];
   wEl.value = lw.weight; wEl.dataset.fallback = "1";
-  banner.innerHTML = `<div style="font-size:12px;color:var(--tx2);background:var(--bl2);border-radius:8px;padding:7px 10px;margin-bottom:8px">
-    ใช้น้ำหนักครั้งล่าสุดเป็นค่าเริ่มต้น (${lw.weight} kg${lw.date ? " · " + escapeHtml(String(lw.date)) : ""}) — ยังไม่มีน้ำหนักจากเครื่องชั่ง แก้ไขได้</div>`;
+  banner.innerHTML = `<div style="font-size:12px;color:var(--tx2);background:var(--bl2);border-radius:8px;padding:5px 10px;margin-bottom:6px" class="en-bn">
+    ค่าครั้งล่าสุด ${lw.weight} kg${lw.date ? " · " + escapeHtml(String(lw.date)) : ""} (ยังไม่ได้ชั่ง) แก้ไขได้</div>`;
 }
 
 let enChart=null, enFatChart=null, enMuscleChart=null;
